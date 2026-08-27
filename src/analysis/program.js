@@ -14,12 +14,13 @@
 
 import { wallDir } from '../model/building.js';
 import { obbPolygon, frontVector, rotY, r2, pointInPolygon } from './geom.js';
-import { bfs, doorSwingPolygon, inRoom } from './topology.js';
+import { bfs, doorSwingPolygon, inRoom, OUTSIDE } from './topology.js';
 import {
   entryOf, footprintOf, clearanceOf, shortName, pretty,
   verticalExtentOf, clearanceBandOf, bandsOverlap,
+  resolveTag, satisfiesTag,
 } from './catalogue.js';
-import { canonicalKey, ROOM_KINDS } from './classify.js';
+import { canonicalKey, ROOM_KINDS, resolveProgramKey, COMMON_KINDS } from './classify.js';
 import { makeIssue } from './issues.js';
 
 export const KITCHEN_TRIANGLE_MIN = 3.6;
@@ -133,13 +134,48 @@ function measureClearance(f, entry, side, obstacles, maxT, band) {
 
 // --------------------------------------------------------------------------
 
+/**
+ * The self-contained dwellings in the model: clusters of rooms joined by doors
+ * WITHOUT passing through shared circulation. An apartment brief asks for
+ * "3 x two-room flat", never for a room called "flat" — this is what it is
+ * measured against.
+ */
+export function countDwellingUnits(model, topo, classes) {
+  const common = new Set();
+  for (const r of topo.rooms) if (COMMON_KINDS.has(classes.get(r.id)?.key)) common.add(r.id);
+  const seen = new Set();
+  const units = [];
+  for (const start of topo.rooms) {
+    if (seen.has(start.id) || common.has(start.id)) continue;
+    seen.add(start.id);
+    const queue = [start.id];
+    const group = [];
+    while (queue.length) {
+      const cur = queue.shift();
+      group.push(cur);
+      for (const e of topo.adjacency.get(cur) ?? []) {
+        if (e.to === OUTSIDE || common.has(e.to) || seen.has(e.to)) continue;
+        seen.add(e.to);
+        queue.push(e.to);
+      }
+    }
+    const rooms = group.map(id => topo.byId.get(id)).filter(Boolean);
+    units.push({
+      rooms: group.slice().sort(),
+      area: rooms.reduce((s, r) => s + r.area, 0),
+      habitableRooms: group.filter(id => classes.get(id)?.habitable).length,
+    });
+  }
+  return units.sort((a, b) => b.area - a.area || (a.rooms[0] < b.rooms[0] ? -1 : 1));
+}
+
 export function analyzeProgram(ctx) {
   const { model, brief, topo, classes } = ctx;
   const issues = [];
   const levelById = new Map(model.levels.map(l => [l.id, l]));
   const nameOf = (id) => classes.get(id)?.label ?? 'room';
 
-  const metrics = { program: [], ergonomics: [], kitchens: [], ceilings: [] };
+  const metrics = { program: [], ergonomics: [], kitchens: [], ceilings: [], unstocked: [] };
 
   // -- required rooms -------------------------------------------------------
   const entries = Array.isArray(brief?.program) ? brief.program : [];
@@ -150,14 +186,66 @@ export function analyzeProgram(ctx) {
     byKind.get(key).push(room);
   }
 
+  const units = countDwellingUnits(model, topo, classes);
+  // Two programme lines can resolve to the same room KIND — a house asks for a
+  // "main bedroom" and a "bedroom", and both are bedrooms. Each line takes the
+  // largest room not already spoken for, in the order the client wrote them,
+  // so the main bedroom gets the big one and the second line is judged on the
+  // second room instead of complaining that the first has no single bed in it.
+  const claimed = new Set();
+  const claimedUnits = new Set();
+
   for (const entry of entries) {
-    const key = canonicalKey(entry.key) ?? entry.key;
-    const found = [...(byKind.get(key) ?? [])].sort((a, b) => b.area - a.area);
+    // A programme line asks either for a ROOM or for a whole DWELLING — the
+    // apartment briefs are written in flats, not in rooms, and matching
+    // "apt_two" against a room kind can never succeed. classify.js resolves
+    // which; before this was wired every apartment commission opened with an
+    // unclearable blocker for every flat it asked for.
+    const resolved = resolveProgramKey(entry.key);
     const want = entry.count ?? 1;
+
+    if (resolved.kind === 'unit') {
+      // Smallest qualifying flat first: a studio is satisfied by a studio, not
+      // by the three-bedroom on the top floor, and each flat is counted once.
+      const matching = units
+        .filter(u => !claimedUnits.has(u) && u.habitableRooms >= resolved.rooms)
+        .sort((a, b) => a.habitableRooms - b.habitableRooms || a.area - b.area
+          || (a.rooms[0] < b.rooms[0] ? -1 : 1));
+      const label = entry.name ?? resolved.label;
+      metrics.program.push({
+        key: resolved.key, name: label, required: want, found: matching.length,
+        minArea: entry.minArea ?? null,
+        areas: matching.map(u => r2(u.area)),
+        matched: Math.min(matching.length, want),
+        unit: true, habitableRoomsEach: resolved.rooms,
+      });
+      if (matching.length < want) {
+        issues.push(makeIssue('PROGRAM_ROOM_MISSING', {
+          measured: matching.length, required: want, item: label,
+        }));
+      }
+      for (const u of matching.slice(0, want)) {
+        claimedUnits.add(u);
+        if (Number.isFinite(entry.minArea) && u.area + 1e-6 < entry.minArea) {
+          issues.push(makeIssue('PROGRAM_ROOM_UNDERSIZED', {
+            measured: u.area, required: entry.minArea, room: label,
+          }, { roomId: u.rooms[0] }));
+        }
+      }
+      continue;
+    }
+
+    const key = resolved.kind === 'room' ? resolved.key : entry.key;
+    const found = [...(byKind.get(key) ?? [])]
+      .filter(r => !claimed.has(r.id))
+      .sort((a, b) => b.area - a.area || (a.id < b.id ? -1 : 1));
     const label = entry.name ?? ROOM_KINDS[key]?.label ?? pretty(entry.key);
 
     metrics.program.push({
-      key, name: label, required: want, found: found.length,
+      key, name: label, required: want,
+      // `found` is how many rooms of this kind are still unclaimed — the pool
+      // this line chose from. `matched` is how many it actually got.
+      found: found.length, matched: Math.min(found.length, want),
       minArea: entry.minArea ?? null,
       areas: found.map(r => r2(r.area)),
     });
@@ -169,17 +257,30 @@ export function analyzeProgram(ctx) {
     }
 
     for (const room of found.slice(0, want)) {
+      claimed.add(room.id);
       if (Number.isFinite(entry.minArea) && room.area + 1e-6 < entry.minArea) {
         issues.push(makeIssue('PROGRAM_ROOM_UNDERSIZED', {
           measured: room.area, required: entry.minArea, room: nameOf(room.id),
         }, { roomId: room.id }));
       }
+      // The brief asks for a "bed_double" and a "washbasin"; the catalogue tags
+      // those things 'bed' and 'basin'. catalogue.js owns the translation —
+      // reading the raw tag set here made the client ask for twenty-five
+      // objects the engine could never find and the player could never draw.
       for (const tag of entry.requires ?? []) {
-        if (!(classes.get(room.id)?.tags?.has(tag))) {
-          issues.push(makeIssue('PROGRAM_TAG_MISSING', {
-            measured: 0, required: 1, room: nameOf(room.id), item: pretty(tag),
-          }, { roomId: room.id }));
+        const req = resolveTag(tag);
+        if (req.kind === 'unstocked' || req.kind === 'unknown') {
+          metrics.unstocked.push({ roomId: room.id, tag: req.tag, kind: req.kind });
+          continue;                                    // not in the palette: not a fault
         }
+        const placed = (classes.get(room.id)?.furniture ?? [])
+          .some(fid => satisfiesTag(req, model.furniture[fid]?.catalogId));
+        const byText = req.kind === 'text' && Object.values(model.texts ?? {})
+          .some(t => t.levelId === room.levelId && inRoom(room, t.x, t.z));
+        if (placed || byText) continue;
+        issues.push(makeIssue('PROGRAM_TAG_MISSING', {
+          measured: 0, required: 1, room: nameOf(room.id), item: req.label,
+        }, { roomId: room.id }));
       }
       for (const other of entry.adjacentTo ?? []) {
         const otherKey = canonicalKey(other) ?? other;

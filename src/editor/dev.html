@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor — dev harness</title>
+<link rel="stylesheet" href="../style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<!-- A harness that boots ONLY the editor, so it can be driven and screenshotted
+     without the menu or the office on top of it. The game itself still enters the
+     editor through src/main.js and the office monitor. -->
+<div id="app">
+  <canvas id="view"></canvas>
+  <div id="ui"></div>
+  <div id="debug" hidden></div>
+</div>
+<script type="module">
+import { Engine } from '../core/engine.js';
+import { Input } from '../core/input.js';
+import { AudioBus } from '../core/audio.js';
+import { Assets } from '../core/assets.js';
+import { createState } from '../core/state.js';
+import { generateCommission } from '../commission/index.js';
+import { EditorMode } from './editor-mode.js';
+import { Vector3 } from 'three';
+import { makeSelfTest } from './selftest.js';
+import { makeCapture } from './capture.js';
+
+const canvas = document.getElementById('view');
+const state = createState();
+// A FIXED commission, so the harness shows the same site on every reload and a
+// screenshot taken today can be compared with one taken tomorrow.
+// dev21: House for Ostrowski on Mlynarska, 773.7 m2 plot, 23.1 x 13.0 m
+// buildable, entrance facing north, 875 000 budget, one protected lime on site.
+state.set('commission', generateCommission('dev21', 0.35));
+const engine = new Engine(canvas);
+const input = new Input(canvas);
+const ctx = { engine, state, input, audio: new AudioBus(), assets: new Assets(), net: null };
+engine.setContext(ctx);
+const debug = engine.attachDebug(document.getElementById('debug'));
+debug.toggle(true);
+input.on('action', ({ action }) => { if (action === 'debug.toggle') debug.toggle(); });
+
+const mode = new EditorMode();
+engine.register(mode);
+engine.push(mode);
+engine.start();
+window.ED = {
+  engine, mode, ctx,
+  get editor() { return mode.editor; },
+  v3: (x, y, z) => new Vector3(x, y, z),
+  /** World (x, z) on the working plane -> viewport pixels. For scripted checks. */
+  px(x, z, y = 0) {
+    const p = mode.editor.cameras.toScreen(new Vector3(x, y, z));
+    return { x: Math.round(p.x), y: Math.round(p.y) };
+  },
+};
+window.ED.selftest = makeSelfTest(window.ED);
+window.ED.capture = makeCapture(window.ED);
+console.info('[dev] editor harness ready — window.ED, ED.selftest.all(), ED.selftest.house()');
+</script>
+</body>
+</html>

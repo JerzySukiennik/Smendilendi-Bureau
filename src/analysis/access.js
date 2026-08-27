@@ -5,11 +5,23 @@
 //   * a 0.10 m walkable grid answers "how wide is it and how far is it"
 //
 // The grid is the room polygons, plus a carved rectangle through every door or
-// doorless opening, minus every floor-standing piece of furniture, minus the
-// swing of any door that opens into circulation space. Door swings into
-// ordinary rooms are not subtracted from the corridor grid — they are checked
-// separately against furniture and against each other — because a door leaf
-// sweeping into a bedroom does not reduce the width of the route.
+// doorless opening, minus every floor-standing piece of furniture.
+//
+// A door SWING is not subtracted from the walkable grid, in any room. The leaf
+// is only in that quarter circle while somebody is walking through it, and no
+// code of practice measures a corridor with the doors held open: clear width is
+// measured between the walls. What the swing must be clear of is FURNITURE and
+// OTHER DOORS, and both are measured separately below. Subtracting it from the
+// route grid as well used to seal the front door with its own leaf and report
+// a 0.28 m route to every room in an ordinary house.
+//
+// Two width conventions, and the difference matters to an architect:
+//   * clear width — measured between wall faces along the route. A doorway is
+//     not part of it; a 1.20 m corridor served by 0.90 m leaves is a 1.20 m
+//     corridor, exactly as the client's own constraint says in writing.
+//   * door clear opening — the leaf width, checked in its own right. A doorway
+//     narrower than DOOR_MIN_CLEAR does become the route's bottleneck, because
+//     at that point something really is in the way.
 
 import {
   polygonBBox, pointInPolygon, obbPolygon, polygonsOverlap, polygonDistance,
@@ -18,6 +30,7 @@ import {
 import { PASSABLE_KINDS, bfs, openingCentre, wallNormal, doorSwingPolygon, bboxOfRooms, inRoom } from './topology.js';
 import { entryOf, footprintOf, shortName } from './catalogue.js';
 import { PRIVATE_ROUTE_TARGETS, BEDROOMS } from './classify.js';
+import { isDwelling, briefLimit, requiresAccessibility } from './brief.js';
 import { makeIssue } from './issues.js';
 
 export const CELL = 0.10;                 // m — grid resolution
@@ -27,14 +40,11 @@ export const REQUIRED_WIDTH_DWELLING = 0.90;
 export const REQUIRED_TURNING_CIRCLE = 1.50;
 export const ESCAPE_LIMIT_DWELLING = 30.0;
 export const ESCAPE_LIMIT_PUBLIC = 18.0;  // dead-end travel distance
-const CIRCULATION_KINDS = new Set(['corridor', 'hall', 'stair']);
+export const DOOR_MIN_CLEAR = 0.80;       // m — clear opening of a usable door
+const ROUTE_FREE = 99;                    // sentinel: a threshold, not a corridor
 const MIN_BLOCKING_HEIGHT = 0.25;         // m — below this you step over it
 
-const DWELLING_TYPES = new Set(['house', 'detached-house', 'dwelling', 'apartment', 'apartment-building', 'flat']);
-
-export function isDwelling(brief) {
-  return DWELLING_TYPES.has(String(brief?.buildingType ?? brief?.type ?? 'house').toLowerCase());
-}
+export { isDwelling };
 
 // --------------------------------------------------------------------------
 // the walkable grid
@@ -105,10 +115,9 @@ export function buildWalkGrid(ctx, levelId) {
     stamp(poly, (k) => { walk[k] = 0; });
   }
 
-  // 4. door swings into circulation space. A leaf swinging into a corridor
-  //    does reduce the corridor; a leaf swinging into a bedroom does not
-  //    reduce the route, so only circulation is subtracted here. A door never
-  //    blocks its own opening.
+  // 4. door swings. Recorded, never subtracted from the floor: see the note at
+  //    the top of this file. They are measured against furniture and against
+  //    each other in analyzeAccess().
   const swings = [];
   for (const oid in model.openings) {
     const o = model.openings[oid];
@@ -119,30 +128,65 @@ export function buildWalkGrid(ctx, levelId) {
     const hinge = poly[0];
     const tip = poly[poly.length - 1];
     const room = rooms.find(r => inRoom(r, (hinge[0] + tip[0]) / 2, (hinge[1] + tip[1]) / 2));
-    const cls = room ? classes.get(room.id) : null;
     swings.push({ id: oid, poly, hinge, radius: o.width, roomId: room?.id ?? null });
-    if (cls && CIRCULATION_KINDS.has(cls.key)) {
-      const own = new Set(doorCells.get(oid) ?? []);
-      stamp(poly, (k) => { if (!own.has(k)) walk[k] = 0; });
-    }
   }
 
-  // 5. clear width from an exact euclidean distance transform of the obstacles
+  // 5. clear width from an exact euclidean distance transform of the obstacles.
+  //
+  //    The transform measures from cell CENTRE to cell CENTRE, and the face of
+  //    the obstacle sits half a cell inside the first blocked centre — at both
+  //    ends. Left uncorrected the raster reads every gap one whole cell wide,
+  //    and a 1.28 m corridor is reported as 1.40 m. Subtracting CELL removes
+  //    that bias; what is left is +/- half a cell of phase, 50 mm at 0.10 m.
   const seed = new Uint8Array(w * h);
   for (let k = 0; k < w * h; k++) seed[k] = walk[k] ? 0 : 1;
   const edt = distanceTransform(seed, w, h);
   const width = new Float64Array(w * h);
-  for (let k = 0; k < w * h; k++) width[k] = walk[k] ? 2 * Math.sqrt(edt[k]) * CELL : 0;
-  // At a doorway the clear width is the leaf width exactly. Taking it from the
-  // grid instead would quantise a 0.90 m door to 0.90-1.00 m, and an architect
-  // reading "1.00 m" against a door he drew at 900 would rightly stop trusting
-  // every other number in the report.
+  for (let k = 0; k < w * h; k++) {
+    width[k] = walk[k] ? Math.max(0, 2 * Math.sqrt(edt[k]) * CELL - CELL) : 0;
+  }
+  // At a doorway the clear width is the leaf width exactly, and the raster
+  // cannot resolve that on its own — a 0.90 m leaf lands on 8 or 9 cells
+  // depending on where the grid falls, so it reads 0.80 m half the time. An
+  // architect reading "0.80 m" against a door he drew at 900 would rightly
+  // stop trusting every other number in the report. Adding back the one cell
+  // of phase and capping at the leaf width states the dimension he drew;
+  // anything standing in the opening has already taken the cell out of `walk`,
+  // so an obstructed doorway still reads narrow.
   for (const [oid, cells] of doorCells) {
     const clear = model.openings[oid]?.width ?? Infinity;
-    for (const k of cells) if (width[k] > clear) width[k] = clear;
+    for (const k of cells) if (walk[k]) width[k] = Math.min(clear, width[k] + CELL);
   }
 
-  return { levelId, w, h, minX, minZ, walk, roomOf, width, rooms, doorCells, blockers, swings, cx, cz };
+  // Route width: the width the CORRIDOR test walks on.
+  //
+  // A doorway is a threshold, not a corridor. The constriction it puts in an
+  // inscribed-circle measurement does not stop at the reveal either: half a
+  // leaf-width further into the room the biggest circle that fits is still
+  // pinched by the two reveal corners, so a 1.28 m corridor entered through a
+  // 0.90 m door measures 0.93 m and the client complains about a corridor he
+  // asked for and got. The zone that belongs to the door is therefore the leaf
+  // width by (wall + one leaf width), and inside it a passage that is at least
+  // a usable clear opening does not count as the route's narrowest point.
+  // Anything that narrows the opening below that — furniture in the doorway —
+  // has already lost its cells from `walk`, keeps its measured width, and is
+  // reported for what it is.
+  const routeWidth = Float64Array.from(width);
+  for (const oid in model.openings) {
+    const o = model.openings[oid];
+    if (!PASSABLE_KINDS.has(o.kind)) continue;
+    const wall = model.walls[o.wallId];
+    if (!wall || (wall.levelId ?? model.levels[0].id) !== levelId) continue;
+    const c = openingCentre(model, o);
+    const n = wallNormal(model, wall);
+    const zone = obbPolygon(c.x, c.z, o.width, wall.thickness + o.width + 2 * CELL,
+      Math.atan2(n.x, n.z));
+    stamp(zone, (k) => {
+      if (walk[k] && width[k] >= DOOR_MIN_CLEAR - 1e-9) routeWidth[k] = ROUTE_FREE;
+    });
+  }
+
+  return { levelId, w, h, minX, minZ, walk, roomOf, width, routeWidth, rooms, doorCells, blockers, swings, cx, cz };
 }
 
 // --------------------------------------------------------------------------
@@ -207,13 +251,18 @@ export function travelDistances(grid, starts) {
   return dist;
 }
 
-/** Widest-path search: best achievable bottleneck clear width to every cell. */
+/**
+ * Widest-path search: best achievable bottleneck clear width to every cell.
+ * Walks on `routeWidth`, so doorways wide enough to be doorways do not count
+ * as the corridor's narrowest point.
+ */
 export function bottleneckWidths(grid, starts) {
+  const field = grid.routeWidth ?? grid.width;
   const best = new Float64Array(grid.w * grid.h).fill(-1);
   const heap = new Heap((a, b) => b[0] - a[0]);   // max-first
   for (const k of starts) {
     if (!grid.walk[k]) continue;
-    best[k] = grid.width[k];
+    best[k] = field[k];
     heap.push([best[k], k]);
   }
   while (heap.size) {
@@ -226,7 +275,7 @@ export function bottleneckWidths(grid, starts) {
       const nk = nj * grid.w + ni;
       if (!grid.walk[nk]) continue;
       if (di && dj && !(grid.walk[j * grid.w + ni] && grid.walk[nj * grid.w + i])) continue;
-      const nv = Math.min(v, grid.width[nk]);
+      const nv = Math.min(v, field[nk]);
       if (nv > best[nk] + 1e-9) { best[nk] = nv; heap.push([nv, nk]); }
     }
   }
@@ -239,9 +288,16 @@ export function analyzeAccess(ctx) {
   const { model, brief, topo, classes } = ctx;
   const issues = [];
   const dwelling = isDwelling(brief);
-  const requiredWidth = dwelling ? REQUIRED_WIDTH_DWELLING : REQUIRED_WIDTH_PUBLIC;
-  const escapeLimit = dwelling ? ESCAPE_LIMIT_DWELLING : ESCAPE_LIMIT_PUBLIC;
-  const accessible = !!(brief?.accessible ?? brief?.requiresAccessibility);
+  // The client puts these numbers in the brief in writing ("Circulation must
+  // stay at least 1.40 m clear"). Measuring against our own default instead
+  // would have him contradict his own letter, which is the one thing a report
+  // to an architect must never do. The defaults below apply only when the
+  // brief is silent — a sandbox model, or a hand-written test brief.
+  const requiredWidth = briefLimit(brief, 'access.corridorWidth',
+    dwelling ? REQUIRED_WIDTH_DWELLING : REQUIRED_WIDTH_PUBLIC);
+  const escapeLimit = briefLimit(brief, 'access.escapeDistance',
+    dwelling ? ESCAPE_LIMIT_DWELLING : ESCAPE_LIMIT_PUBLIC);
+  const accessible = requiresAccessibility(brief);
   const nameOf = (roomId) => classes.get(roomId)?.label ?? 'room';
 
   const metrics = {
@@ -332,6 +388,10 @@ export function analyzeAccess(ctx) {
           if (bottleneck[k] > bestBottleneck) bestBottleneck = bottleneck[k];
         }
       }
+      // The route into a room is never reported wider than the room's own
+      // widest point — and this is also what turns the doorway sentinel back
+      // into a real dimension for a room whose only cells are in a doorway.
+      bestBottleneck = Math.min(bestBottleneck, maxWidth);
       const m = {
         name: nameOf(room.id),
         kind: classes.get(room.id)?.key ?? 'unassigned',
@@ -401,11 +461,16 @@ export function analyzeAccess(ctx) {
       for (let b = a + 1; b < grid.swings.length; b++) {
         const s1 = grid.swings[a], s2 = grid.swings[b];
         if (!polygonsOverlap(s1.poly, s2.poly)) continue;
+        // The number the client is given is the one he can check on the plan:
+        // how far apart the two hinges are, against the two leaf widths. The
+        // old figure was radius + radius - distance, which is not a length of
+        // anything and read as "the leaves overlap by 1.22 m" for two 0.90 m
+        // doors.
         const d = Math.hypot(s1.hinge[0] - s2.hinge[0], s1.hinge[1] - s2.hinge[1]);
-        const overlap = Math.max(0, s1.radius + s2.radius - d);
-        if (overlap < 0.02) continue;
+        if (s1.radius + s2.radius - d < 0.02) continue;
         issues.push(makeIssue('ACCESS_DOOR_SWING_CLASH', {
-          measured: overlap, required: 0,
+          measured: d, required: Math.max(s1.radius, s2.radius),
+          leafA: s1.radius, leafB: s2.radius,
           room: s1.roomId ? nameOf(s1.roomId) : 'entrance',
         }, { openingId: s1.id }));
       }

@@ -22,7 +22,24 @@ export const FALLBACK_DOOR_PRICE = 1500;      // leaf, frame and ironmongery
 export const FALLBACK_WINDOW_RATE_M2 = 900;
 export const FALLBACK_OPENING_PRICE = 350;    // structural opening, lintel only
 
-const TRADE_ORDER = ['Structure', 'Finishes', 'Openings', 'Furniture', 'Contingency'];
+const TRADE_ORDER = ['Structure', 'Finishes', 'Openings', 'Services', 'Furniture', 'Contingency'];
+
+// Heating, sanitary, electrics and ventilation, per m2 of floor. No bill of
+// quantities for a building omits them, and leaving them out here put the whole
+// engine roughly 25 % below the budget the commission generator writes from an
+// all-in rate per m2 — so every correctly costed scheme drew a permanent
+// "you have money left over" complaint. Rates are per building type because a
+// clinic and a shop are not remotely the same job.
+export const SERVICES_RATE = {
+  house: 1100, apartment: 1150, office: 1250, retail: 950,
+  cafe: 1500, kindergarten: 1350, library: 1200, clinic: 1900,
+  _default: 1200,
+};
+
+export function servicesRate(brief) {
+  const key = String(brief?.buildingType ?? brief?.type ?? '').toLowerCase();
+  return SERVICES_RATE[key] ?? SERVICES_RATE._default;
+}
 
 function line(bill, trade, item, qty, unit, rate) {
   if (!(qty > 1e-6) || !Number.isFinite(rate)) return;
@@ -65,10 +82,17 @@ export function quantities(model) {
     if (kind === 'floor') floorFinish[s.mat] = (floorFinish[s.mat] ?? 0) + a;
   }
 
+  // Openings are grouped by catalogue item AND drawn size. A window stretched
+  // in the editor is no longer the item in the palette, and a bill that still
+  // charged its palette price let the player double his glazing for nothing.
+  // Distinct sizes are distinct lines, which is how a real bill reads anyway.
   for (const id in model.openings) {
     const o = model.openings[id];
-    const key = o.catalogId ?? `generic-${o.kind}`;
-    const rec = openings[key] ?? (openings[key] = { count: 0, area: 0, kind: o.kind, catalogId: o.catalogId });
+    const w = r2(o.width), h = r2(o.height);
+    const key = `${o.catalogId ?? `generic-${o.kind}`}|${w}x${h}`;
+    const rec = openings[key] ?? (openings[key] = {
+      count: 0, area: 0, kind: o.kind, catalogId: o.catalogId, width: w, height: h,
+    });
     rec.count += 1;
     rec.area += o.width * o.height;
   }
@@ -111,7 +135,16 @@ export function billOfQuantities(model, ctx) {
     const rec = q.openings[key];
     if (rec.catalogId) {
       const e = entryOf(rec.catalogId);
-      line(bill, 'Openings', e.name, rec.count, 'no.', e.price);
+      const catArea = (e.size?.[0] ?? 0) * (e.size?.[1] ?? 0);
+      const drawn = rec.width * rec.height;
+      // Drawn to the catalogue size: buy the item. Drawn to anything else: it
+      // is a made-to-measure unit, priced at the same rate per m² of opening.
+      if (catArea > 0.01 && Math.abs(drawn - catArea) / catArea > 0.02) {
+        line(bill, 'Openings', `${e.name}, made to ${rec.width} x ${rec.height} m`,
+          rec.area, 'm²', e.price / catArea);
+      } else {
+        line(bill, 'Openings', e.name, rec.count, 'no.', e.price);
+      }
     } else if (rec.kind === 'door') {
       line(bill, 'Openings', 'door, leaf frame and ironmongery', rec.count, 'no.', FALLBACK_DOOR_PRICE);
     } else if (rec.kind === 'window') {
@@ -120,6 +153,12 @@ export function billOfQuantities(model, ctx) {
       line(bill, 'Openings', 'structural opening with lintel', rec.count, 'no.', FALLBACK_OPENING_PRICE);
     }
   }
+
+  // Services, measured off the derived rooms — the floor area people occupy,
+  // not the slab, which includes the ground under the external walls.
+  const servicedArea = ctx?.topo ? ctx.topo.rooms.reduce((s, r) => s + r.area, 0) : q.slabArea.floor;
+  line(bill, 'Services', 'heating, sanitary, electrics and ventilation',
+    servicedArea, 'm²', servicesRate(ctx?.brief));
 
   for (const id in q.furnitureCount) {
     const e = entryOf(id);

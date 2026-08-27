@@ -1,8 +1,8 @@
 // audio.js — a four-bus audio system that is never allowed to break the game.
 //
-// Buses: music / sfx / ambient / ui, each with its own gain, all under a master.
-// Every file is optional: a missing or undecodable sound logs one warning and then
-// silently no-ops forever. The office must run before a single .ogg exists.
+// Buses come from assets/audio/mix.json, each with its own gain, all under a
+// master. Every file is optional: a missing or undecodable sound logs one warning
+// and then silently no-ops forever. The office must run before a single .ogg exists.
 //
 // Browsers block audio until a user gesture, so the context starts suspended and
 // resumes on the first click/keypress. Positional sounds use a PannerNode driven
@@ -10,41 +10,68 @@
 // graph, not three's listener object model).
 
 /**
- * assets/audio/manifest.json is the ONE source of truth for what sounds exist,
- * where their files are and how they should be played. It is written by the audio
- * sourcing pass, it lists 54 CC0 sounds, and every entry looks like:
+ * TWO data files, both read, neither retyped:
  *
- *   "sfx.coffee-machine": { ogg, m4a, kind, loop, gain, positional }
+ *   assets/audio/manifest.json — what sounds exist, where their files are, which
+ *     bus they belong on and how loud each one was authored:
+ *       "sfx.coffee-machine": { ogg, m4a, kind, loop, gain, positional }
  *
- * Round 1 shipped a hand-typed AUDIO_MANIFEST here instead, with 13 invented
- * names ('keyboard' -> 'keyboard.ogg', 'startup' -> 'retro-startup.ogg'). None of
- * those 13 paths existed: 10 of the names are not in the manifest at all, and the
- * game would have run silent while logging 13 "unavailable" warnings. The file
- * list is data — it is read, never retyped.
+ *   assets/audio/mix.json — how loud that actually comes out:
+ *       effective = master x buses[kindToBus[kind]] x entry.gain
+ *     The review page plays every sound through exactly this arithmetic, so the
+ *     numbers the human signed off ARE these numbers. Round 2 shipped mix.json
+ *     and taught the review page to honour it, but left this file with its own
+ *     hardcoded bus table — which disagreed (radio on its own bus at 0.55, os on
+ *     sfx at 0.8, against mix.json's radio->ambient 0.5 and os->ui 0.7). The
+ *     review page was therefore promising a level the engine would not play.
+ *     mix.json is now the only source of the mix, and DEFAULTS below exist purely
+ *     so a failed fetch is quiet rather than silent.
  */
 export const MANIFEST_PATH = 'assets/audio/manifest.json';
+export const MIX_PATH = 'assets/audio/mix.json';
 
-export const BUSES = ['music', 'radio', 'ambient', 'sfx', 'ui'];
+/** Mirror of assets/audio/mix.json, used only when the fetch fails. */
+export const DEFAULT_MIX = Object.freeze({
+  master: 0.9,
+  buses: { music: 0.45, ambient: 0.5, sfx: 0.8, ui: 0.7 },
+  kindToBus: { music: 'music', radio: 'ambient', amb: 'ambient', os: 'ui', ui: 'ui', sfx: 'sfx' },
+});
+
+/** Bus names in a mix, in a stable order. */
+export function busNames(mix = DEFAULT_MIX) {
+  return Object.keys(mix?.buses || DEFAULT_MIX.buses);
+}
+
+/** manifest `kind` -> mixer bus, straight out of the mix. */
+export function busForKind(kind, mix = DEFAULT_MIX) {
+  const map = mix?.kindToBus || DEFAULT_MIX.kindToBus;
+  if (map[kind]) return map[kind];
+  if (mix?.buses?.[kind]) return kind;          // a kind that is already a bus name
+  return 'sfx';
+}
 
 /**
- * manifest `kind` -> mixer bus.
- *   radio gets its own bus so the office radio can be turned down without
- *   touching the score (DESIGN-DECISIONS.md: "a switchable office radio").
- *   os (the computer's startup chime) is a diegetic object sound, so it rides
- *   the sfx bus, not the UI bus.
+ * The one piece of arithmetic that has to agree with the review page:
+ *   effective = master x busGain x assetGain
+ * Pure, so the node check can call it with the same manifest entry the browser gets.
  */
-export const KIND_BUS = {
-  music: 'music',
-  radio: 'radio',
-  amb: 'ambient',
-  ambient: 'ambient',
-  sfx: 'sfx',
-  os: 'sfx',
-  ui: 'ui',
-};
+export function effectiveGain(entry, mix = DEFAULT_MIX) {
+  const master = Number.isFinite(mix?.master) ? mix.master : DEFAULT_MIX.master;
+  let bus = busForKind(entry?.kind, mix);
+  // A kind pointed at a bus the mix does not define would be a NaN gain node in
+  // the class, so name the same fallback here.
+  if (mix?.buses && mix.buses[bus] === undefined) bus = 'sfx';
+  const busGain = mix?.buses?.[bus] ?? DEFAULT_MIX.buses[bus] ?? 0.8;
+  const asset = typeof entry?.gain === 'number' ? entry.gain : 1;
+  return { bus, master, busGain, asset, effective: master * busGain * asset };
+}
 
-export function busForKind(kind) {
-  return KIND_BUS[kind] || 'sfx';
+/** Entries whose `kind` this mix cannot route. Should always be empty. */
+export function validateManifest(manifest, mix = DEFAULT_MIX) {
+  const map = mix?.kindToBus || DEFAULT_MIX.kindToBus;
+  return Object.entries(manifest || {})
+    .filter(([, e]) => e && e.kind && !map[e.kind] && !mix?.buses?.[e.kind])
+    .map(([n, e]) => `${n} (kind "${e.kind}")`);
 }
 
 /**
@@ -66,6 +93,18 @@ export function preferredCodec(audioEl = null) {
 const CODECS = ['ogg', 'm4a', 'mp3', 'wav'];
 
 /**
+ * manifest.json and mix.json are CONFIG, not content: their names never change, so
+ * a browser will happily keep serving the copy it cached before the last deploy.
+ * That is not a cosmetic problem — a stale manifest plays every sound at the old
+ * level and silently drops any id added since. Caught on 2026-08-27 while checking
+ * the mix in a live page: transferSize 0, os.boot.1 still in the manifest, every
+ * level a round behind. 'no-cache' still uses the cache, it just revalidates first,
+ * so the normal case is a 304 and no bytes. The audio FILES stay fully cacheable —
+ * they are immutable for a given name.
+ */
+const CONFIG_FETCH = { cache: 'no-cache' };
+
+/**
  * resolveSource(name, { manifest, prefer, basePath }) -> url | null
  * The preferred codec if the entry has it, otherwise the first one it does have.
  */
@@ -78,13 +117,6 @@ export function resolveSource(name, { manifest, prefer = 'ogg', basePath = 'asse
   return null;
 }
 
-/** Entries whose `kind` this build cannot route. Should always be empty. */
-export function validateManifest(manifest) {
-  return Object.entries(manifest || {})
-    .filter(([, e]) => e && e.kind && !KIND_BUS[e.kind])
-    .map(([n, e]) => `${n} (kind "${e.kind}")`);
-}
-
 export class AudioBus {
   constructor(opts = {}) {
     this.enabled = true;
@@ -94,10 +126,15 @@ export class AudioBus {
     this.buffers = new Map();      // name -> AudioBuffer | null (null = known missing)
     this.loading = new Map();      // name -> Promise
     this.basePath = opts.basePath ?? 'assets/audio/';
-    // One default per bus in BUSES — a bus with no default sets gain.value to
-    // undefined, which is a NaN gain node and therefore silence on everything
-    // routed through it.
-    this.volumes = { master: 0.9, music: 0.45, radio: 0.55, ambient: 0.5, sfx: 0.8, ui: 0.7, ...(opts.volumes || {}) };
+    this.mix = normaliseMix(opts.mix || DEFAULT_MIX);
+    this.mixPath = opts.mixPath ?? MIX_PATH;
+    this._mixFromFile = !!opts.mix;          // an injected mix is not re-fetched
+    // Bus gains live in the mix; `volumes` is the live copy the settings screen
+    // moves. A bus with no value would set gain.value to undefined — a NaN gain
+    // node, i.e. silence on everything routed through it — so it is always seeded
+    // from the mix, never left blank.
+    this.volumes = this._volumesFromMix();
+    if (opts.volumes) Object.assign(this.volumes, opts.volumes);
     this._playing = new Set();
     this._loops = new Map();       // name -> node handle
     this._missing = new Set();
@@ -108,13 +145,42 @@ export class AudioBus {
     this.codec = opts.codec || null;         // resolved lazily: 'ogg' | 'm4a'
   }
 
-  /** Fetch assets/audio/manifest.json. Never throws; a failure just means silence. */
-  async loadManifest(url = this.manifestPath) {
+  _volumesFromMix() {
+    const v = { master: this.mix.master };
+    for (const b of busNames(this.mix)) v[b] = this.mix.buses[b];
+    return v;
+  }
+
+  get busList() { return busNames(this.mix); }
+
+  /** Fetch assets/audio/mix.json. Never throws; a failure falls back to DEFAULT_MIX. */
+  async loadMix(url = this.mixPath) {
+    this._mixFromFile = true;
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, CONFIG_FETCH);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this.mix = normaliseMix(await res.json());
+    } catch (err) {
+      this.mix = normaliseMix(DEFAULT_MIX);
+      console.warn(`[audio] mix ${url} unavailable — using the built-in default mix`, err);
+    }
+    this.volumes = this._volumesFromMix();
+    this._applyVolumes();
+    return this.mix;
+  }
+
+  /**
+   * Fetch assets/audio/manifest.json. Never throws; a failure just means silence.
+   * The mix has to be in place first — routing and levels come from it — so a
+   * caller that only asks for the manifest still gets the real mix.
+   */
+  async loadManifest(url = this.manifestPath) {
+    if (!this._mixFromFile) await this.loadMix();
+    try {
+      const res = await fetch(url, CONFIG_FETCH);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       this.manifest = await res.json();
-      const bad = validateManifest(this.manifest);
+      const bad = validateManifest(this.manifest, this.mix);
       if (bad.length) console.warn(`[audio] unroutable manifest kinds: ${bad.join(', ')}`);
       console.info(`[audio] manifest: ${Object.keys(this.manifest).length} sounds, codec ${this.preferred()}`);
     } catch (err) {
@@ -122,6 +188,13 @@ export class AudioBus {
       this.manifest = this.manifest || {};
     }
     return this.manifest;
+  }
+
+  /** Load the mix first, then the manifest — validation needs the mix. */
+  async loadConfig() {
+    await this.loadMix();
+    await this.loadManifest();
+    return this;
   }
 
   preferred() {
@@ -135,6 +208,24 @@ export class AudioBus {
   }
 
   entry(name) { return this.manifest?.[name] || null; }
+
+  /** Which bus a sound rides. */
+  busOf(name) { return busForKind(this.entry(name)?.kind, this.mix); }
+
+  /**
+   * How loud `name` really comes out: master x bus x the asset's own gain, using
+   * the LIVE bus values (so it tracks the settings screen). Positional sounds get
+   * this at their reference distance and only ever get quieter than it.
+   * Returns the same shape as the pure effectiveGain().
+   */
+  gainOf(name) {
+    const e = this.entry(name) || {};
+    const bus = busForKind(e.kind, this.mix);
+    const master = this.volumes.master ?? this.mix.master;
+    const busGain = this.volumes[bus] ?? this.mix.buses[bus] ?? 0.8;
+    const asset = typeof e.gain === 'number' ? e.gain : 1;
+    return { bus, master, busGain, asset, effective: master * busGain * asset };
+  }
 
   /**
    * Load the manifest if it is not loaded, then load every sound in it.
@@ -158,7 +249,7 @@ export class AudioBus {
     this.master = this.ctx.createGain();
     this.master.gain.value = this.volumes.master;
     this.master.connect(this.ctx.destination);
-    for (const b of BUSES) {
+    for (const b of this.busList) {
       const g = this.ctx.createGain();
       g.gain.value = this.volumes[b];
       g.connect(this.master);
@@ -176,6 +267,20 @@ export class AudioBus {
 
   get unlocked() { return !!this.ctx && this.ctx.state === 'running'; }
 
+  /** Rebuild any bus nodes the current mix needs, then push every value. */
+  _applyVolumes() {
+    if (!this._ready) return;
+    for (const b of this.busList) {
+      if (!this.buses[b]) {
+        const g = this.ctx.createGain();
+        g.connect(this.master);
+        this.buses[b] = g;
+      }
+    }
+    this.setMasterGain(this.volumes.master);
+    for (const b of this.busList) this.setVolume(b, this.volumes[b]);
+  }
+
   setVolume(bus, v) {
     this.volumes[bus] = v;
     if (!this._ready) return;
@@ -183,7 +288,26 @@ export class AudioBus {
     if (node) node.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02);
   }
 
-  mute(v = true) { this.setVolume('master', v ? 0 : this.volumes.master || 0.9); }
+  /**
+   * Settings screen. `kind` may be a bus name ('ui') or a manifest kind ('os',
+   * 'radio', 'amb') — both land on the right bus, so a settings slider labelled
+   * "Radio" can pass 'radio' without knowing it shares the ambient bus.
+   */
+  setBusGain(kind, v) {
+    const bus = this.mix.buses[kind] !== undefined ? kind : busForKind(kind, this.mix);
+    this.setVolume(bus, v);
+    return bus;
+  }
+
+  getBusGain(kind) {
+    const bus = this.mix.buses[kind] !== undefined ? kind : busForKind(kind, this.mix);
+    return this.volumes[bus];
+  }
+
+  setMasterGain(v) { this.setVolume('master', v); }
+  getMasterGain() { return this.volumes.master; }
+
+  mute(v = true) { this.setVolume('master', v ? 0 : this.mix.master); }
 
   /**
    * Load one sound. Never throws. Resolves to an AudioBuffer or null.
@@ -239,8 +363,14 @@ export class AudioBus {
 
   /**
    * play(name, opts) -> handle | null
-   * opts: { bus='sfx', volume=1, rate=1, loop=false, detune=0,
+   * opts: { bus, volume=1, rate=1, loop=false, detune=0,
    *         position:{x,y,z}, refDistance=2, maxDistance=25, delay=0 }
+   *
+   * The gain node carries the ASSET gain (times any caller override). The bus
+   * gain and the master are further down the graph, so what leaves the speakers
+   * is master x bus x asset — the same product the review page showed. A
+   * positional sound puts its panner between the asset gain and the bus, so it
+   * starts at the asset gain and only attenuates from there with distance.
    */
   play(name, opts = {}) {
     if (!this.enabled) return null;
@@ -269,11 +399,12 @@ export class AudioBus {
     const gain = this.ctx.createGain();
     gain.gain.value = (opts.volume ?? 1) * (meta.gain ?? 1);
 
-    const busName = opts.bus || busForKind(meta.kind);
-    const bus = this.buses[busName] || this.buses.sfx;
+    const busName = opts.bus || busForKind(meta.kind, this.mix);
+    const bus = this.buses[busName] || this.buses.sfx || this.master;
 
     let panner = null;
-    if (opts.position) {
+    const wantsPanner = opts.position && (opts.positional ?? meta.positional ?? true);
+    if (wantsPanner) {
       panner = this.ctx.createPanner();
       panner.panningModel = 'HRTF';
       panner.distanceModel = 'inverse';
@@ -320,14 +451,20 @@ export class AudioBus {
     this._loops.delete(name);
   }
 
-  /** Cross-fade the music bus to a new track. */
+  /**
+   * Cross-fade the music bus to a new track. `volume` is a multiplier ON TOP of
+   * the track's authored gain, so music(name) plays at exactly the level the
+   * review page showed.
+   */
   music(name, { fade = 1.2, volume = 1 } = {}) {
     const prev = this._loops.get('__music');
     if (prev) { prev.stop(fade); this._loops.delete('__music'); }
     if (!name) return null;
-    const h = this.play(name, { bus: 'music', loop: true, volume: 0.001 });
+    const meta = this.entry(name) || {};
+    const target = volume * (meta.gain ?? 1);
+    const h = this.play(name, { loop: true, volume: 0.001 });
     if (h) {
-      h.setVolume(volume, fade / 3);
+      h.setVolume(target, fade / 3);
       this._loops.set('__music', h);
     }
     return h;
@@ -371,6 +508,20 @@ export class AudioBus {
     this.ctx = null;
     this._ready = false;
   }
+}
+
+/** A mix with every field present, whatever the JSON turned out to look like. */
+function normaliseMix(raw) {
+  const buses = { ...(raw && raw.buses ? raw.buses : DEFAULT_MIX.buses) };
+  for (const [k, v] of Object.entries(buses)) if (!Number.isFinite(v)) buses[k] = DEFAULT_MIX.buses[k] ?? 0.8;
+  const kindToBus = { ...(raw && raw.kindToBus ? raw.kindToBus : DEFAULT_MIX.kindToBus) };
+  // A kind pointed at a bus that does not exist would be silent; route it to sfx.
+  for (const [k, b] of Object.entries(kindToBus)) if (buses[b] === undefined) kindToBus[k] = 'sfx';
+  return {
+    master: Number.isFinite(raw && raw.master) ? raw.master : DEFAULT_MIX.master,
+    buses,
+    kindToBus,
+  };
 }
 
 function setPos(panner, p) {

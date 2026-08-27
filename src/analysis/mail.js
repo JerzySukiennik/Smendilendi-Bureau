@@ -61,6 +61,62 @@ export const TONES = {
     close: () => `Please tell me if I have misread any of it — I would rather be wrong than difficult.`,
     sign: `Best,`,
   },
+  // The commission generator writes briefs in eight voices (see VOICE in
+  // src/commission/clients.js). Four of them had no reply voice here, so half
+  // of all clients wrote their brief as a gallerist or a startup founder and
+  // answered it as somebody else entirely. The same eight, and no more.
+  grand: {
+    greet: () => `Dear architect,`,
+    opener: () => `I have studied the drawings. There is ambition in them, which is the hardest part to buy.`,
+    tally: (b, j, n) => tally(b, j, n, {
+      hard: (k) => `${k === 1 ? 'one point' : `${k} points`} I will not concede`,
+      soft: (k) => `${k === 1 ? 'one' : k} I leave to your judgement`,
+      none: `I find nothing I would refuse.`,
+    }),
+    mustLead: `These are not negotiable:`,
+    minorLead: `These I mention only because I noticed them:`,
+    close: () => `Bring it back to me with those settled and we shall build it.`,
+    sign: `Yours,`,
+  },
+  dry: {
+    greet: () => `Dear architect,`,
+    opener: () => `Drawings received and checked against the brief. Findings below.`,
+    tally: (b, j, n) => tally(b, j, n, {
+      hard: (k) => `${k} non-compliant`,
+      soft: (k) => `${k} noted`,
+      none: `No non-compliances.`,
+    }),
+    mustLead: `To be corrected:`,
+    minorLead: `For information:`,
+    close: () => `Revised drawings to the same address, please.`,
+    sign: `Regards,`,
+  },
+  earnest: {
+    greet: () => `Good morning,`,
+    opener: () => `I have spent a long evening with the drawings, and I can see what you were after.`,
+    tally: (b, j, n) => tally(b, j, n, {
+      hard: (k) => `${k === 1 ? 'one thing' : `${k} things`} I honestly cannot live with`,
+      soft: (k) => `${k === 1 ? 'one' : k} I would only mention in passing`,
+      none: `I could not find anything I would ask you to change.`,
+    }),
+    mustLead: `These are the ones that matter to me:`,
+    minorLead: `And these, only if they are easy:`,
+    close: () => `Thank you for taking it seriously. I know I am not an easy client.`,
+    sign: `With thanks,`,
+  },
+  playful: {
+    greet: () => `Hey,`,
+    opener: () => `Right — drawings opened, coffee made, red pen found.`,
+    tally: (b, j, n) => tally(b, j, n, {
+      hard: (k) => `${k} genuine ${k === 1 ? 'problem' : 'problems'}`,
+      soft: (k) => `${k} ${k === 1 ? 'nitpick' : 'nitpicks'}`,
+      none: `Nothing broken, which I did not expect.`,
+    }),
+    mustLead: `The real ones:`,
+    minorLead: `The nitpicks:`,
+    close: () => `Fix those and I will stop reading plans at midnight.`,
+    sign: `Cheers,`,
+  },
 };
 
 function tally(blockers, majors, minors, words) {
@@ -188,6 +244,10 @@ const ACCEPT_OPENER = {
   brisk: 'Approved. It works.',
   pedantic: 'I have measured the revised set and I am satisfied that it complies.',
   anxious: 'I have read it four times looking for the problem and I cannot find one.',
+  grand: 'That is the building I asked for, and rather more besides.',
+  dry: 'Revised set checked. Compliant.',
+  earnest: 'I sat with the revised drawings for an hour and I would not change a thing.',
+  playful: 'Well. You went and fixed it.',
 };
 
 const ACCEPT_CLOSE = {
@@ -195,6 +255,10 @@ const ACCEPT_CLOSE = {
   brisk: 'Go to tender.',
   pedantic: 'You may proceed to the next stage.',
   anxious: 'Please go ahead before I think of something else.',
+  grand: 'Have it built, and have it built properly.',
+  dry: 'Proceed to tender.',
+  earnest: 'Thank you. I mean that.',
+  playful: 'Ship it. First round is on me.',
 };
 
 function subjectFor(brief, mustCount, accepted) {

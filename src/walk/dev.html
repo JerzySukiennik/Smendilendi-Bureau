@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smendiłendi Bureau — walkthrough harness</title>
+<link rel="stylesheet" href="../style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<!--
+  A harness for the "30 years later" walkthrough ONLY. It boots the engine with
+  WalkthroughMode alone, so the piece can be run, screenshotted and reviewed
+  without going through the menu, the office and the editor first.
+
+    dev.html                       the demo house, everything reachable
+    dev.html?walk=broken           the same house with one bedroom that has NO
+                                   DOOR and a bookcase left in the 1.20 m corridor
+    dev.html?plan=kindergarten     a two-group nursery, 25 people
+    dev.html?plan=kindergarten&walk=broken
+                                   the nursery with an unreachable playroom and
+                                   the cloakroom lockers in the corridor
+    dev.html?roster=office&cap=30  any roster in any plan — the load case
+    dev.html?fast=1                the day runs 6x faster, for the report
+
+  WALKDEV in the console: .hour(h) .report() .stats() .nav .crowd
+-->
+<div id="app">
+  <canvas id="view"></canvas>
+  <div id="ui"></div>
+  <div id="debug" hidden></div>
+</div>
+<script type="module">
+import { Engine } from '../core/engine.js';
+import { Input } from '../core/input.js';
+import { AudioBus } from '../core/audio.js';
+import { Assets } from '../core/assets.js';
+import { createState } from '../core/state.js';
+import { WalkthroughMode } from './walk.js';
+
+const canvas = document.getElementById('view');
+const state = createState();
+const engine = new Engine(canvas);
+const input = new Input(canvas);
+// The harness lives two directories down, so the audio bus needs absolute
+// paths to the asset folder that index.html reaches relatively.
+const audio = new AudioBus({
+  basePath: '/assets/audio/',
+  manifestPath: '/assets/audio/manifest.json',
+  mixPath: '/assets/audio/mix.json',
+});
+const assets = new Assets();
+const ctx = { engine, state, input, audio, assets, net: null, app: { ui: document.getElementById('ui') } };
+engine.setContext(ctx);
+const debug = engine.attachDebug(document.getElementById('debug'));
+debug.toggle(true);
+input.on('action', ({ action }) => { if (action === 'debug.toggle') debug.toggle(); });
+
+audio.init();
+audio.loadManifest().then(() => audio.preloadAll(
+  (name, e) => e.kind !== 'music' && e.kind !== 'radio' && e.kind !== 'amb',
+)).catch(() => {});
+
+const mode = new WalkthroughMode();
+engine.register(mode);
+engine.push(mode);
+engine.start();
+engine.onUpdate(() => { if (mode.camera) audio.setListener(mode.camera); });
+
+if (new URLSearchParams(location.search).get('fast')) mode.speed = 30;
+
+window.WALKDEV = {
+  engine, mode, input, state,
+  get nav() { return mode.nav; },
+  get crowd() { return mode.crowd; },
+  get heat() { return mode.heat; },
+  hour(h) { mode.hour = h; return h; },
+  report() { mode._openReport(); },
+  stats() { return mode.stats.summary(); },
+  /** Jump straight past the time lapse — for screenshots of the walk itself. */
+  skip() {
+    if (mode.transition) { mode.transition.dispose(); mode.transition = null; }
+    mode.aging.setAge(1);
+    mode._startWalk();
+    mode.phase = 'walk';
+  },
+  /** Teleport the camera. */
+  at(x, z, yaw = 0) { mode.player.x = x; mode.player.z = z; mode.player.yaw = yaw; mode._placeCamera(); },
+  look(pitch) { mode.player.pitch = pitch; mode._placeCamera(); },
+  /**
+   * Advance the simulation by `seconds` of game time WITHOUT waiting for
+   * requestAnimationFrame. A browser tab that is not compositing throttles rAF
+   * to a few hertz, so a review that waits in wall-clock time is measuring the
+   * browser's power saving rather than the walkthrough.
+   */
+  step(seconds, dt = 1 / 60) {
+    const n = Math.round(seconds / dt);
+    for (let i = 0; i < n; i++) { engine.time += dt; mode.update(dt); }
+    mode.render(engine.renderer);
+    return { phase: mode.phase, hour: mode.hour, frames: n };
+  },
+  /** Frame cost, measured over `n` full update+render passes. */
+  bench(n = 120, dt = 1 / 60) {
+    const t = [];
+    for (let i = 0; i < n; i++) {
+      const a = performance.now();
+      engine.time += dt;
+      mode.update(dt);
+      mode.render(engine.renderer);
+      t.push(performance.now() - a);
+    }
+    t.sort((x, y) => x - y);
+    const mean = t.reduce((a, b) => a + b, 0) / t.length;
+    return {
+      frames: n,
+      meanMs: +mean.toFixed(2),
+      medianMs: +t[Math.floor(n / 2)].toFixed(2),
+      p95Ms: +t[Math.floor(n * 0.95)].toFixed(2),
+      maxMs: +t[n - 1].toFixed(2),
+      impliedFps: +(1000 / mean).toFixed(1),
+      calls: engine.renderer.info.render.calls,
+      triangles: engine.renderer.info.render.triangles,
+      people: mode.crowd.agents.filter((a) => a.active).length,
+    };
+  },
+};
+console.info('[walkdev] ready — WALKDEV.skip(), WALKDEV.at(x,z,yaw), WALKDEV.report()');
+</script>
+</body>
+</html>

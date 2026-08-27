@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Smendiłendi Bureau — office harness</title>
+<link rel="stylesheet" href="/src/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+<style>html,body{margin:0;height:100%;background:#111}#app{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="view"></canvas>
+  <div id="ui"></div>
+  <div id="debug" hidden></div>
+</div>
+<!--
+  Office dev harness. The office is one of five modes and main.js always boots
+  the menu first, so getting a deterministic, correctly framed screenshot of the
+  studio through the real page means fighting the mode stack. This page boots
+  the Engine with ONLY the office in it.
+
+  Query parameters:
+    ?pose=hero|window|desks|teapoint|models   named camera pose (office.js POSES)
+    &x=&z=&yaw=&pitch=                        explicit pose, metres and degrees
+    &sun=1                                    kill every fill, sun only
+    &hud=0                                    hide the HUD (for luminance sampling)
+    &staff=2                                  hire N employees before the shot
+    &measure=1                                print the luma report into #report
+
+  The page sets window.__ready = true once the scene has settled, and
+  window.__report to the measurement JSON, so a headless screenshot run can wait
+  for the first and read the second.
+-->
+<div id="report" style="position:fixed;left:8px;bottom:8px;color:#0f0;font:11px monospace;z-index:99"></div>
+<script type="module">
+import { Engine } from '/src/core/engine.js';
+import { Input } from '/src/core/input.js';
+import { AudioBus } from '/src/core/audio.js';
+import { Assets } from '/src/core/assets.js';
+import { createState } from '/src/core/state.js';
+import { OfficeMode } from '/src/office/office-mode.js';
+
+const q = new URLSearchParams(location.search);
+const canvas = document.getElementById('view');
+const state = createState();
+state.set('session.playerId', 'p1');
+state.set('players', {
+  p1: { id: 'p1', nick: q.get('nick') || 'Jurek', color: '#e2725b' },
+});
+if (q.get('players') === '2') {
+  state.set('players.p2', { id: 'p2', nick: 'Narek', color: '#3f8f7c' });
+}
+
+const engine = new Engine(canvas);
+const input = new Input(canvas);
+const audio = new AudioBus({ enabled: false });
+const assets = new Assets();
+const ctx = { engine, state, input, audio, assets, net: null };
+engine.setContext(ctx);
+const debug = engine.attachDebug(document.getElementById('debug'));
+if (q.get('debug') === '1') debug.toggle(true);
+
+const mode = new OfficeMode();
+engine.register(mode);
+engine.push(mode);
+engine.start();
+
+const office = mode.office;
+window.SBO = { engine, office, mode, state, input };
+
+if (q.get('staff')) {
+  const n = Math.min(3, parseInt(q.get('staff'), 10) || 0);
+  office.economy.credit(200000, 'harness');
+  for (let i = 0; i < n; i++) office.staff.hire(['architect', 'intern', 'partner'][i % 3]);
+  office.invalidateShadows();
+}
+if (q.get('tier')) {
+  const t = parseInt(q.get('tier'), 10) || 1;
+  office.economy.credit(400000, 'harness');
+  while (office.upgrades.studio < t) office.upgrades.buy('studio');
+  while (office.upgrades.computer < t) office.upgrades.buy('computer');
+}
+if (q.get('hud') === '0') office.hudEl.classList.add('hidden');
+if (q.get('sun') === '1') office.soloSun(true);
+
+const pose = office.pose(q.get('pose') || 'hero');
+if (q.has('x')) office.player.pos.x = parseFloat(q.get('x'));
+if (q.has('z')) office.player.pos.z = parseFloat(q.get('z'));
+if (q.has('yaw')) office.player.yaw = parseFloat(q.get('yaw')) * Math.PI / 180;
+if (q.has('pitch')) office.player.pitch = parseFloat(q.get('pitch')) * Math.PI / 180;
+if (q.has('eye')) office.player._eye = parseFloat(q.get('eye'));
+office.player.enabled = false;
+office.player.update(0.016, null);
+
+// Settle, then report. 90 frames is enough for shader compilation, the shadow
+// map, the nameplate font and the OS canvas to have landed.
+const STOP_AT = parseInt(q.get('frames') || '90', 10);
+let frames = 0;
+engine.onUpdate(() => {
+  frames++;
+  if (frames === STOP_AT) {
+    mode.measure().then((r) => {
+      window.__report = r;
+      const el = document.getElementById('report');
+      el.textContent = q.get('measure') === '1'
+        ? Object.entries(r).map(([k, v]) => `${k}=${v}`).join('  ') : '';
+      window.__ready = true;
+      // Stop scheduling frames so a headless --virtual-time-budget run can
+      // decide the page is idle and take its screenshot.
+      if (q.get('stop') !== '0') setTimeout(() => engine.stop(), 60);
+    });
+  }
+});
+console.info('[harness] office only, pose', q.get('pose') || 'hero', pose);
+</script>
+</body>
+</html>

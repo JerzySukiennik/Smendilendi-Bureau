@@ -1,0 +1,851 @@
+// navmesh.js — the walkable world, generated from the player's actual building.
+//
+// VIEW-FREE. No three.js, no DOM. Everything here is derived; nothing is
+// hand-authored. If a route does not exist in this file it does not exist in
+// the drawing either, which is the entire point of the walkthrough.
+//
+// SOURCE OF TRUTH
+// The 0.10 m occupancy grid comes straight from src/analysis/access.js
+// (`buildWalkGrid`), the same grid the client's e-mail was written from. That
+// grid already is: the room polygons from src/model/rooms.js, MINUS every
+// floor-standing piece of furniture's footprint, PLUS a carved rectangle
+// through every door and doorless opening, MINUS door leaves that sweep into
+// circulation space, and it carries an exact euclidean distance transform so
+// every cell knows its own clear width. Building a second navigation model
+// beside it would let the walkthrough and the report disagree; they must not.
+//
+// WHAT THIS FILE ADDS
+//  1. A PERSON. The analysis grid says "floor with nothing on it". A person is
+//     not a point: PERSON_WIDTH is 0.55 m across the shoulders, so a cell is
+//     only navigable when its clear width is at least that. A 0.45 m slot
+//     between a sofa and a wall is floor, and is not a route.
+//  2. A coarser 0.20 m lattice for search. 0.10 m is the right resolution to
+//     MEASURE a corridor and four times more than is needed to WALK one.
+//  3. Vertical circulation: stair rooms on adjacent levels are stitched with a
+//     portal costing one flight of real going (16 x 0.28 m = 4.48 m).
+//  4. Dijkstra distance fields per goal, cached. Thirty people share a handful
+//     of destinations, so the expensive thing is computed once per destination
+//     and every person just walks downhill.
+//
+// UNITS: metres everywhere. Plan coordinates are (x, z), y is up.
+
+import { buildTopology, openingCentre, wallNormal, inRoom } from '../analysis/topology.js';
+import { polygonBBox, pointInPolygon, distanceTransform } from '../analysis/geom.js';
+import { classifyRooms } from '../analysis/classify.js';
+import { buildWalkGrid, CELL as FINE_CELL } from '../analysis/access.js';
+import { wallDir } from '../model/building.js';
+import { roomCentroid } from '../model/rooms.js';
+import { GOALS } from './roles.js';
+
+/** Shoulder width of an adult in outdoor clothing. Below this, no passage. */
+export const PERSON_WIDTH = 0.55;
+/** Two people passing each other without turning sideways. */
+export const PASSING_WIDTH = 1.20;
+/** Search lattice. Two fine cells to a side. */
+export const NAV_CELL = FINE_CELL * 2;      // 0.20 m
+/** One storey of stair, measured as going, not as a straight line. */
+export const STAIR_COST = 4.48;
+/** How far outside the front door people appear and disappear. */
+export const OUTSIDE_STANDOFF = 7.0;
+
+const DIRS = [
+  [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
+  [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2],
+];
+
+// ---------------------------------------------------------------------------
+// a small binary heap over (cost, index) pairs
+
+class Heap {
+  constructor() { this.cost = []; this.item = []; }
+  get size() { return this.cost.length; }
+  push(c, v) {
+    const cost = this.cost, item = this.item;
+    cost.push(c); item.push(v);
+    let i = cost.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (cost[i] >= cost[p]) break;
+      [cost[i], cost[p]] = [cost[p], cost[i]];
+      [item[i], item[p]] = [item[p], item[i]];
+      i = p;
+    }
+  }
+  pop() {
+    const cost = this.cost, item = this.item;
+    const topC = cost[0], topI = item[0];
+    const lastC = cost.pop(), lastI = item.pop();
+    if (cost.length) {
+      cost[0] = lastC; item[0] = lastI;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = l + 1;
+        let s = i;
+        if (l < cost.length && cost[l] < cost[s]) s = l;
+        if (r < cost.length && cost[r] < cost[s]) s = r;
+        if (s === i) break;
+        [cost[i], cost[s]] = [cost[s], cost[i]];
+        [item[i], item[s]] = [item[s], item[i]];
+        i = s;
+      }
+    }
+    this._c = topC;
+    return topI;
+  }
+  get lastCost() { return this._c; }
+}
+
+// ---------------------------------------------------------------------------
+
+export class Navmesh {
+  constructor(data) { Object.assign(this, data); }
+
+  // -- addressing ----------------------------------------------------------
+
+  /** Combined index for a world point on a level, or -1 if off the lattice. */
+  indexAt(x, z, levelIdx = 0) {
+    const L = this.levels[levelIdx];
+    if (!L) return -1;
+    const i = Math.floor((x - L.minX) / NAV_CELL);
+    const j = Math.floor((z - L.minZ) / NAV_CELL);
+    if (i < 0 || j < 0 || i >= L.w || j >= L.h) return -1;
+    return L.base + j * L.w + i;
+  }
+
+  /** Centre of a cell, in world metres, plus its level. */
+  centreOf(idx, out = { x: 0, y: 0, z: 0, level: 0 }) {
+    const l = this.levelOf[idx];
+    const L = this.levels[l];
+    const k = idx - L.base;
+    const i = k % L.w, j = (k - i) / L.w;
+    out.x = L.minX + (i + 0.5) * NAV_CELL;
+    out.z = L.minZ + (j + 0.5) * NAV_CELL;
+    out.y = L.elevation;
+    out.level = l;
+    return out;
+  }
+
+  passable(idx) { return idx >= 0 && this.pass[idx] === 1; }
+
+  /** Clear width, in metres, of the passage at this point. 0 = not floor. */
+  widthAt(x, z, levelIdx = 0) {
+    const idx = this.indexAt(x, z, levelIdx);
+    return idx < 0 ? 0 : this.width[idx];
+  }
+
+  /** The room id containing this point, or null. */
+  roomAt(x, z, levelIdx = 0) {
+    const idx = this.indexAt(x, z, levelIdx);
+    if (idx < 0) return null;
+    const r = this.roomIdx[idx];
+    return r < 0 ? null : this.roomIds[r];
+  }
+
+  /** The opening id of the doorway this point sits in, or null. */
+  doorAt(x, z, levelIdx = 0) {
+    const idx = this.indexAt(x, z, levelIdx);
+    if (idx < 0) return null;
+    const d = this.doorIdx[idx];
+    return d < 0 ? null : this.doorIds[d];
+  }
+
+  /**
+   * Nearest passable cell to a world point, searched in rings.
+   * `maxRadius` in metres. Returns -1 when the point is nowhere near floor.
+   */
+  nearestPassable(x, z, levelIdx = 0, maxRadius = 2.0) {
+    const L = this.levels[levelIdx];
+    if (!L) return -1;
+    const ci = Math.floor((x - L.minX) / NAV_CELL);
+    const cj = Math.floor((z - L.minZ) / NAV_CELL);
+    const R = Math.ceil(maxRadius / NAV_CELL);
+    let best = -1, bestD = Infinity;
+    for (let r = 0; r <= R; r++) {
+      for (let dj = -r; dj <= r; dj++) {
+        for (let di = -r; di <= r; di++) {
+          if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+          const i = ci + di, j = cj + dj;
+          if (i < 0 || j < 0 || i >= L.w || j >= L.h) continue;
+          const idx = L.base + j * L.w + i;
+          if (!this.pass[idx]) continue;
+          const px = L.minX + (i + 0.5) * NAV_CELL;
+          const pz = L.minZ + (j + 0.5) * NAV_CELL;
+          const d = (px - x) * (px - x) + (pz - z) * (pz - z);
+          if (d < bestD) { bestD = d; best = idx; }
+        }
+      }
+      if (best >= 0) return best;
+    }
+    return best;
+  }
+
+  // -- neighbours ----------------------------------------------------------
+
+  /**
+   * The extra cost of walking somewhere tight.
+   *
+   * A pure shortest-path field hugs every corner, because a corner is the
+   * shortest way round. People do not: they walk down the middle of a corridor
+   * and only squeeze when the building makes them. Without this the route
+   * through a 1.20 m corridor clings to the skirting and the report prints the
+   * clear width AT THE SKIRTING — 0.63 m — which is not what the corridor is.
+   * The penalty is zero at and above the passing width, so it never distorts a
+   * route choice in a space that is wide enough; it only decides WHERE INSIDE a
+   * space the line runs. `route.length` is still measured geometrically off the
+   * finished polyline, so nothing reported to the player is inflated by it.
+   */
+  comfort(idx) {
+    const w = this.width[idx];
+    if (w >= PASSING_WIDTH) return 1;
+    return 1 + 0.8 * ((PASSING_WIDTH - w) / PASSING_WIDTH);
+  }
+
+  /** Fills `out` with [neighbourIdx, stepCost] pairs. Returns the count. */
+  neighbours(idx, out) {
+    const l = this.levelOf[idx];
+    const L = this.levels[l];
+    const k = idx - L.base;
+    const i = k % L.w, j = (k - i) / L.w;
+    let n = 0;
+    for (let d = 0; d < 8; d++) {
+      const [di, dj, cost] = DIRS[d];
+      const ni = i + di, nj = j + dj;
+      if (ni < 0 || nj < 0 || ni >= L.w || nj >= L.h) continue;
+      const nk = L.base + nj * L.w + ni;
+      if (!this.pass[nk]) continue;
+      if (di && dj) {
+        // Refuse a diagonal that cuts a corner: both orthogonal cells must be
+        // open, or the route squeezes through a zero-width gap between two
+        // pieces of furniture that in reality touch.
+        if (!this.pass[L.base + j * L.w + ni] || !this.pass[L.base + nj * L.w + i]) continue;
+      }
+      out[n++] = nk;
+      out[n++] = cost * NAV_CELL * this.comfort(nk);
+    }
+    const ports = this.portalsFrom.get(idx);
+    if (ports) for (const p of ports) { out[n++] = p.to; out[n++] = p.cost; }
+    return n;
+  }
+
+  // -- distance fields -----------------------------------------------------
+
+  /**
+   * A Dijkstra distance field, in metres, from every cell to the nearest goal
+   * cell. Cached by key; the cache is bounded because a field over a big
+   * building is ~150 kB and thirty people only ever share a dozen goals.
+   */
+  field(key, goalCells) {
+    const hit = this.fields.get(key);
+    if (hit) { this.fields.delete(key); this.fields.set(key, hit); return hit; }
+
+    const N = this.pass.length;
+    const dist = new Float32Array(N).fill(Infinity);
+    const heap = new Heap();
+    let seeded = 0;
+    for (const c of goalCells) {
+      if (c < 0 || !this.pass[c] || dist[c] === 0) continue;
+      dist[c] = 0; heap.push(0, c); seeded++;
+    }
+    const out = new Float64Array(20);
+    if (seeded) {
+      while (heap.size) {
+        const k = heap.pop();
+        const d = heap.lastCost;
+        // `dist` is Float32 and the heap key is a Float64 sum, so the key must
+        // be the value AS STORED or the stale-entry test rejects the live one:
+        // 0.2 + 0.2 + 0.2 is 0.6000000000000001 in double and 0.60000002 as a
+        // float, and `d > dist[k]` then skips a node that was never expanded.
+        // That silently truncated every field to the goal room's own island.
+        if (d > dist[k] + 1e-5) continue;
+        const n = this.neighbours(k, out);
+        for (let t = 0; t < n; t += 2) {
+          const nk = out[t] | 0;
+          const nd = d + out[t + 1];
+          if (nd < dist[nk] - 1e-5) { dist[nk] = nd; heap.push(dist[nk], nk); }
+        }
+      }
+    }
+    const f = { dist, reachable: seeded > 0 };
+    this.fields.set(key, f);
+    if (this.fields.size > 40) this.fields.delete(this.fields.keys().next().value);
+    return f;
+  }
+
+  /** Distance field to every passable cell of one room. */
+  fieldToRoom(roomId) {
+    return this.field(`room:${roomId}`, this.roomCells(roomId));
+  }
+
+  /** Distance field to the outside face of every exterior door. */
+  fieldToOutside() {
+    return this.field('outside', this.entrances.map((e) => e.cellOut).filter((c) => c >= 0));
+  }
+
+  roomCells(roomId) {
+    const ri = this.roomIds.indexOf(roomId);
+    if (ri < 0) return [];
+    let cells = this._roomCells.get(roomId);
+    if (cells) return cells;
+    cells = [];
+    for (let k = 0; k < this.pass.length; k++) {
+      if (this.pass[k] && this.roomIdx[k] === ri) cells.push(k);
+    }
+    this._roomCells.set(roomId, cells);
+    return cells;
+  }
+
+  // -- paths ---------------------------------------------------------------
+
+  /**
+   * The CLEAR WIDTH of the passage at a cell, measured ACROSS the direction of
+   * travel, on the 0.10 m analysis lattice.
+   *
+   * `width[]` holds each cell's own distance to the nearest obstruction, which
+   * is the right quantity for a distance transform and the wrong one to print:
+   * standing 150 mm inside a 900 mm doorway, hard against the jamb, it reads
+   * 300 mm, and an architect handed "this door is 632 mm" when he drew a 900
+   * stops believing every other number on the page.
+   *
+   * A clear width is the span you have to fit through, so it is measured by
+   * counting the unobstructed 100 mm cells across the passage. That is a
+   * CONSERVATIVE reading — the true span is between count x 0.10 m and
+   * (count + 1) x 0.10 m — which is the right way to round a width that
+   * somebody may have to get a wheelchair through. Inside a doorway the count
+   * is additionally capped at the leaf width, which is exact.
+   */
+  passageWidth(cell, di, dj) {
+    const l = this.levelOf[cell];
+    const L = this.levels[l];
+    const f = L.fine;
+    const k = cell - L.base;
+    const ci = k % L.w, cj = (k - ci) / L.w;
+    const dirs = (di || dj) ? [[-dj, di]] : [[1, 0], [0, 1]];
+    let best = 0;
+    let leafCap = Infinity;
+    for (let sj = 0; sj < 2; sj++) {
+      for (let si = 0; si < 2; si++) {
+        const fi0 = ci * 2 + si, fj0 = cj * 2 + sj;
+        if (fi0 >= f.w || fj0 >= f.h) continue;
+        const k0 = fj0 * f.w + fi0;
+        if (!f.walk[k0]) continue;
+        for (const [px, pz] of dirs) {
+          let count = 1;
+          for (const sign of [1, -1]) {
+            for (let step = 1; step <= 40; step++) {
+              const i = fi0 + px * step * sign, j = fj0 + pz * step * sign;
+              if (i < 0 || j < 0 || i >= f.w || j >= f.h) break;
+              if (!f.walk[j * f.w + i]) break;
+              count++;
+            }
+          }
+          const span = count * FINE_CELL;
+          if (span > best) best = span;
+        }
+      }
+    }
+    const di2 = this.doorIdx[cell];
+    if (di2 >= 0) {
+      const o = this.model.openings[this.doorIds[di2]];
+      if (o && Number.isFinite(o.width)) leafCap = o.width;
+    }
+    return Math.min(best || this.width[cell], leafCap);
+  }
+
+  /**
+   * Walk downhill on a field from a world point.
+   *
+   * -> { points: [{x,y,z,level}], length, minWidth, widths, doors: [openingId],
+   *      rooms: [roomId], cells }
+   * or null when the goal is not reachable from here — which is the finding
+   * the whole walkthrough exists to surface.
+   */
+  path(x, z, levelIdx, field, maxSteps = 4000) {
+    let idx = this.indexAt(x, z, levelIdx);
+    if (idx < 0 || !this.pass[idx]) idx = this.nearestPassable(x, z, levelIdx, 1.5);
+    if (idx < 0) return null;
+    const dist = field.dist;
+    if (!(dist[idx] < Infinity)) return null;
+
+    const cells = [idx];
+    const widths = [];
+    const doors = [];
+    const rooms = [];
+    const out = new Float64Array(20);
+    let cur = idx;
+    let prev = idx;
+    let guard = 0;
+    while (dist[cur] > 1e-4 && guard++ < maxSteps) {
+      const n = this.neighbours(cur, out);
+      let best = -1, bestD = dist[cur];
+      for (let t = 0; t < n; t += 2) {
+        const nk = out[t] | 0;
+        if (dist[nk] < bestD - 1e-6) { bestD = dist[nk]; best = nk; }
+      }
+      if (best < 0) break;
+      prev = cur;
+      cur = best;
+      cells.push(cur);
+      const d = this.doorIdx[cur];
+      if (d >= 0 && doors[doors.length - 1] !== this.doorIds[d]) doors.push(this.doorIds[d]);
+      const r = this.roomIdx[cur];
+      if (r >= 0 && rooms[rooms.length - 1] !== this.roomIds[r]) rooms.push(this.roomIds[r]);
+    }
+    // clear widths, measured across the direction of travel at every step
+    let minWidth = Infinity;
+    for (let i = 0; i < cells.length; i++) {
+      // A three-cell window, snapped to the dominant axis. Taken step by step
+      // the direction jitters between orthogonal and diagonal, and a diagonal
+      // perpendicular measures the room across its corner rather than measuring
+      // the corridor across itself.
+      const a = cells[Math.max(0, i - 3)], b = cells[Math.min(cells.length - 1, i + 3)];
+      let di = 0, dj = 0;
+      if (a !== b && this.levelOf[a] === this.levelOf[b]) {
+        const L = this.levels[this.levelOf[a]];
+        const ka = a - L.base, kb = b - L.base;
+        const ia = ka % L.w, ib = kb % L.w;
+        const ja = (ka - ia) / L.w, jb = (kb - ib) / L.w;
+        const dx = ib - ia, dz = jb - ja;
+        if (Math.abs(dx) >= 2 * Math.abs(dz)) { di = Math.sign(dx); dj = 0; }
+        else if (Math.abs(dz) >= 2 * Math.abs(dx)) { di = 0; dj = Math.sign(dz); }
+        else { di = Math.sign(dx); dj = Math.sign(dz); }
+      }
+      const w = this.passageWidth(cells[i], di, dj);
+      widths.push(w);
+      if (w < minWidth) minWidth = w;
+    }
+    if (!Number.isFinite(minWidth)) minWidth = this.width[idx];
+
+    const points = this._smooth(cells);
+    let length = 0;
+    for (let i = 1; i < points.length; i++) {
+      if (points[i].level !== points[i - 1].level) { length += STAIR_COST; continue; }
+      length += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
+    }
+    return { points, length, minWidth, widths, doors, rooms, cells };
+  }
+
+  /**
+   * String-pulling. A grid path is a staircase of 0.20 m steps; a person walks
+   * a straight line until something is in the way. Corners are kept when the
+   * straight line would clip a wall, a doorframe or a table.
+   */
+  _smooth(cells) {
+    const pt = (c) => this.centreOf(c, { x: 0, y: 0, z: 0, level: 0 });
+    if (cells.length <= 2) return cells.map(pt);
+    const pts = [pt(cells[0])];
+    let anchor = 0;
+    for (let i = 2; i < cells.length; i++) {
+      const a = cells[anchor], b = cells[i];
+      const sameLevel = this.levelOf[a] === this.levelOf[b];
+      if (!sameLevel || !this._lineOfSight(a, b)) {
+        anchor = i - 1;
+        pts.push(pt(cells[anchor]));
+      }
+    }
+    pts.push(pt(cells[cells.length - 1]));
+    return pts;
+  }
+
+  /** Is the straight segment between two cells entirely passable? */
+  _lineOfSight(a, b) {
+    if (this.levelOf[a] !== this.levelOf[b]) return false;
+    const l = this.levelOf[a];
+    const L = this.levels[l];
+    const ka = a - L.base, kb = b - L.base;
+    let i0 = ka % L.w, j0 = (ka - i0) / L.w;
+    const i1 = kb % L.w, j1 = (kb - i1) / L.w;
+    let di = Math.abs(i1 - i0), dj = Math.abs(j1 - j0);
+    const si = i0 < i1 ? 1 : -1, sj = j0 < j1 ? 1 : -1;
+    let err = di - dj;
+    for (let guard = 0; guard < 4000; guard++) {
+      if (!this.pass[L.base + j0 * L.w + i0]) return false;
+      if (i0 === i1 && j0 === j1) return true;
+      const e2 = 2 * err;
+      if (e2 > -dj) { err -= dj; i0 += si; }
+      if (e2 < di) { err += di; j0 += sj; }
+      // supercover: a diagonal step must not cut a blocked corner
+      if (e2 > -dj && e2 < di) {
+        const pi = i0 - si, pj = j0 - sj;
+        const a1 = pi >= 0 && pi < L.w ? this.pass[L.base + j0 * L.w + pi] : 0;
+        const a2 = pj >= 0 && pj < L.h ? this.pass[L.base + pj * L.w + i0] : 0;
+        if (!a1 && !a2) return false;
+      }
+    }
+    return false;
+  }
+
+  // -- programme -----------------------------------------------------------
+
+  /** Room ids of a given classified kind, biggest first. */
+  roomsOfKind(kind) { return this.byKind.get(kind) ?? []; }
+
+  /**
+   * Rooms that satisfy a goal, in the goal's own order of preference. Empty
+   * when the building has nowhere to do this at all.
+   */
+  roomsForGoal(goalKey) {
+    const g = GOALS[goalKey];
+    if (!g) return [];
+    const out = [];
+    for (const kind of g.rooms) {
+      if (kind === '__outside') continue;
+      for (const id of this.roomsOfKind(kind)) if (!out.includes(id)) out.push(id);
+    }
+    return out;
+  }
+
+  /** A sensible standing point inside a room. */
+  roomPoint(roomId) { return this.roomAnchors.get(roomId) ?? null; }
+
+  kindOf(roomId) { return this.classes.get(roomId)?.key ?? 'unassigned'; }
+  labelOf(roomId) { return this.classes.get(roomId)?.label ?? roomId; }
+  areaOf(roomId) { return this.roomById.get(roomId)?.area ?? 0; }
+}
+
+// ---------------------------------------------------------------------------
+// the one place the walkthrough legitimately differs from the analysis
+
+/**
+ * Give the door swings back.
+ *
+ * src/analysis/access.js subtracts the whole quarter disc a leaf sweeps from
+ * any circulation space, and it is right to: when it measures a corridor it has
+ * to assume the leaf could be anywhere in its swing, and a 0.90 m leaf opening
+ * into a 1.20 m corridor is a real defect that belongs in the client's e-mail.
+ *
+ * The walkthrough is in a different position. It SIMULATES every leaf: doors
+ * sit closed against the wall and swing only while somebody is going through
+ * them. Keeping the conservative subtraction here would measure the clear width
+ * beside a door at 0.63 m in a building where nothing is wrong, and it would
+ * push the people who walk through it into a detour that nobody makes.
+ *
+ * So the swept area is restored — but only where it is genuinely clear floor:
+ * inside the room polygon, outside every furniture footprint. Then the exact
+ * euclidean distance transform is re-run over the repaired grid, using the
+ * analysis module's own `distanceTransform`, so every clear width printed by
+ * the post-occupancy report is still measured the same way the report to the
+ * client was. The conservative grid is untouched; this is a second read of the
+ * same source, not a second source.
+ */
+function restoreDoorSwings(model, fine) {
+  const { w, h, walk, roomOf, width, swings, blockers, rooms, doorCells, minX, minZ } = fine;
+  if (!swings || !swings.length) return 0;
+  const cx = (i) => minX + (i + 0.5) * FINE_CELL;
+  const cz = (j) => minZ + (j + 0.5) * FINE_CELL;
+  let restored = 0;
+
+  for (const sw of swings) {
+    const roomIndex = rooms.findIndex((r) => r.id === sw.roomId);
+    if (roomIndex < 0) continue;
+    const room = rooms[roomIndex];
+    const bb = polygonBBox(sw.poly);
+    const i0 = Math.max(0, Math.floor((bb.minX - minX) / FINE_CELL) - 1);
+    const i1 = Math.min(w - 1, Math.ceil((bb.maxX - minX) / FINE_CELL) + 1);
+    const j0 = Math.max(0, Math.floor((bb.minZ - minZ) / FINE_CELL) - 1);
+    const j1 = Math.min(h - 1, Math.ceil((bb.maxZ - minZ) / FINE_CELL) + 1);
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const k = j * w + i;
+        if (walk[k]) continue;
+        const x = cx(i), z = cz(j);
+        if (!pointInPolygon(x, z, sw.poly)) continue;
+        if (!inRoom(room, x, z)) continue;
+        let blocked = false;
+        for (const b of blockers) {
+          if (pointInPolygon(x, z, b.poly)) { blocked = true; break; }
+        }
+        if (blocked) continue;
+        walk[k] = 1;
+        if (roomOf[k] < 0) roomOf[k] = roomIndex;
+        restored++;
+      }
+    }
+  }
+  if (!restored) return 0;
+
+  const seed = new Uint8Array(w * h);
+  for (let k = 0; k < seed.length; k++) seed[k] = walk[k] ? 0 : 1;
+  const edt = distanceTransform(seed, w, h);
+  for (let k = 0; k < width.length; k++) {
+    width[k] = walk[k] ? 2 * Math.sqrt(edt[k]) * FINE_CELL : 0;
+  }
+  // A doorway is exactly as wide as its leaf, never as wide as the grid thinks.
+  for (const [oid, cells] of doorCells) {
+    const clear = model.openings[oid]?.width ?? Infinity;
+    for (const k of cells) if (width[k] > clear) width[k] = clear;
+  }
+  return restored;
+}
+
+// ---------------------------------------------------------------------------
+// construction
+
+/**
+ * buildNav(model, brief) -> Navmesh | null
+ * Null only when the model has no enclosed room at all — there is nothing to
+ * walk through, which the caller reports rather than crashing on.
+ */
+export function buildNav(model, brief = {}) {
+  const topo = buildTopology(model);
+  if (!topo.rooms.length) return null;
+  const classes = classifyRooms(model, topo, brief);
+  const ctx = { model, brief, topo, classes };
+
+  const levels = [];
+  const fineByLevel = new Map();
+  let total = 0;
+  const modelLevels = model.levels ?? [];
+  for (let li = 0; li < modelLevels.length; li++) {
+    const level = modelLevels[li];
+    const fine = buildWalkGrid(ctx, level.id);
+    if (!fine) continue;
+    restoreDoorSwings(model, fine);
+    const w = Math.ceil(fine.w / 2), h = Math.ceil(fine.h / 2);
+    levels.push({
+      levelId: level.id, elevation: level.elevation ?? 0, height: level.height ?? 2.70,
+      w, h, minX: fine.minX, minZ: fine.minZ, base: total, fine,
+    });
+    fineByLevel.set(level.id, fine);
+    total += w * h;
+  }
+  if (!levels.length) return null;
+
+  const pass = new Uint8Array(total);
+  const width = new Float32Array(total);
+  const roomIdx = new Int16Array(total).fill(-1);
+  const doorIdx = new Int16Array(total).fill(-1);
+  const levelOf = new Uint8Array(total);
+
+  const roomIds = topo.rooms.map((r) => r.id);
+  const roomById = new Map(topo.rooms.map((r) => [r.id, r]));
+  const doorIds = [];
+  const doorIndexOf = new Map();
+
+  for (let li = 0; li < levels.length; li++) {
+    const L = levels[li];
+    const f = L.fine;
+    // fine roomOf indexes into f.rooms, not into topo.rooms — translate once
+    const fineRoomToGlobal = f.rooms.map((r) => roomIds.indexOf(r.id));
+    // openingId per fine cell
+    const fineDoor = new Int16Array(f.w * f.h).fill(-1);
+    for (const [oid, cells] of f.doorCells) {
+      let di = doorIndexOf.get(oid);
+      if (di === undefined) { di = doorIds.length; doorIds.push(oid); doorIndexOf.set(oid, di); }
+      for (const k of cells) fineDoor[k] = di;
+    }
+
+    for (let j = 0; j < L.h; j++) {
+      for (let i = 0; i < L.w; i++) {
+        const c = L.base + j * L.w + i;
+        levelOf[c] = li;
+        let bestW = 0, room = -1, door = -1, ok = 0;
+        for (let dj = 0; dj < 2; dj++) {
+          const fj = j * 2 + dj;
+          if (fj >= f.h) continue;
+          for (let di2 = 0; di2 < 2; di2++) {
+            const fi = i * 2 + di2;
+            if (fi >= f.w) continue;
+            const fk = fj * f.w + fi;
+            if (!f.walk[fk]) continue;
+            const wpc = f.width[fk];
+            if (wpc >= PERSON_WIDTH) ok = 1;
+            if (wpc > bestW) bestW = wpc;
+            if (room < 0 && f.roomOf[fk] >= 0) room = fineRoomToGlobal[f.roomOf[fk]] ?? -1;
+            if (door < 0 && fineDoor[fk] >= 0) door = fineDoor[fk];
+          }
+        }
+        pass[c] = ok;
+        width[c] = ok ? bestW : 0;
+        roomIdx[c] = room;
+        doorIdx[c] = door;
+      }
+    }
+  }
+
+  // -- vertical circulation ------------------------------------------------
+  // Stair rooms whose plans overlap on adjacent levels are the same stair.
+  const portalsFrom = new Map();
+  const addPortal = (a, b, cost) => {
+    if (!portalsFrom.has(a)) portalsFrom.set(a, []);
+    portalsFrom.get(a).push({ to: b, cost });
+  };
+  for (let li = 0; li + 1 < levels.length; li++) {
+    const A = levels[li], B = levels[li + 1];
+    for (let j = 0; j < Math.min(A.h, B.h); j++) {
+      for (let i = 0; i < Math.min(A.w, B.w); i++) {
+        const a = A.base + j * A.w + i;
+        // the two lattices share minX/minZ only if the bboxes matched; convert
+        // through world coordinates so a different bbox per level still lines up
+        const x = A.minX + (i + 0.5) * NAV_CELL;
+        const z = A.minZ + (j + 0.5) * NAV_CELL;
+        const bi = Math.floor((x - B.minX) / NAV_CELL);
+        const bj = Math.floor((z - B.minZ) / NAV_CELL);
+        if (bi < 0 || bj < 0 || bi >= B.w || bj >= B.h) continue;
+        const b = B.base + bj * B.w + bi;
+        if (!pass[a] || !pass[b]) continue;
+        const ra = roomIdx[a] >= 0 ? classes.get(roomIds[roomIdx[a]])?.key : null;
+        const rb = roomIdx[b] >= 0 ? classes.get(roomIds[roomIdx[b]])?.key : null;
+        if (ra !== 'stair' || rb !== 'stair') continue;
+        addPortal(a, b, STAIR_COST);
+        addPortal(b, a, STAIR_COST);
+      }
+    }
+  }
+
+  // -- rooms by kind, biggest first ---------------------------------------
+  const byKind = new Map();
+  const sorted = [...topo.rooms].sort((a, b) => b.area - a.area);
+  for (const r of sorted) {
+    const k = classes.get(r.id)?.key ?? 'unassigned';
+    if (!byKind.has(k)) byKind.set(k, []);
+    byKind.get(k).push(r.id);
+  }
+
+  // -- an anchor point inside every room -----------------------------------
+  const nav = new Navmesh({
+    model, brief, topo, classes,
+    levels, pass, width, roomIdx, doorIdx, levelOf,
+    roomIds, roomById, doorIds, portalsFrom, byKind,
+    fields: new Map(), _roomCells: new Map(),
+    roomAnchors: new Map(), entrances: [], doors: [],
+    cell: NAV_CELL,
+  });
+
+  for (const r of topo.rooms) {
+    const li = levels.findIndex((L) => L.levelId === r.levelId);
+    if (li < 0) continue;
+    const c = roomCentroid(r);
+    let idx = nav.indexAt(c.x, c.z, li);
+    if (idx < 0 || !pass[idx] || roomIdx[idx] !== roomIds.indexOf(r.id)) {
+      // centroid landed on furniture: take the widest passable cell of the room
+      const cells = nav.roomCells(r.id);
+      let best = -1, bestW = -1;
+      for (const k of cells) if (width[k] > bestW) { bestW = width[k]; best = k; }
+      idx = best;
+    }
+    if (idx >= 0) {
+      const p = nav.centreOf(idx);
+      nav.roomAnchors.set(r.id, { x: p.x, z: p.z, y: p.y, level: li, cell: idx });
+    }
+  }
+
+  // -- doors: geometry for the swinging leaf, and the outside entrances -----
+  const seenDoor = new Set();
+  for (const oid of Object.keys(model.openings)) {
+    const o = model.openings[oid];
+    if (o.kind !== 'door' && o.kind !== 'opening') continue;
+    const wall = model.walls[o.wallId];
+    if (!wall) continue;
+    const li = levels.findIndex((L) => L.levelId === (wall.levelId ?? modelLevels[0].id));
+    if (li < 0) continue;
+    const d = wallDir(model, wall);
+    const n = wallNormal(model, wall);
+    const c = openingCentre(model, o);
+    const leaf = {
+      openingId: oid, levelIdx: li, elevation: levels[li].elevation,
+      width: o.width, height: o.height ?? 2.05, thickness: wall.thickness,
+      cx: c.x, cz: c.z,
+      dir: { x: d.x, z: d.z }, nrm: { x: n.x, z: n.z },
+      swing: o.swing ?? null, kind: o.kind,
+    };
+    if (o.kind === 'door' && o.swing) {
+      const [side, hand] = String(o.swing).split('-');
+      const inward = side === 'in' ? 1 : -1;
+      const along = hand === 'left' ? 1 : -1;
+      const hingeD = o.offset + (hand === 'left' ? -o.width / 2 : o.width / 2);
+      const face = (wall.thickness / 2) * inward;
+      leaf.hinge = {
+        x: d.a.x + d.x * hingeD + n.x * face,
+        z: d.a.z + d.z * hingeD + n.z * face,
+      };
+      // closed = along the wall from the hinge; open = 90 deg towards `inward`
+      leaf.closedDir = { x: d.x * along, z: d.z * along };
+      leaf.openDir = { x: n.x * inward, z: n.z * inward };
+    }
+    nav.doors.push(leaf);
+    seenDoor.add(oid);
+  }
+
+  // Exterior doors: the outside face is the side with no room behind it.
+  for (const oid of topo.exteriorDoors) {
+    const o = model.openings[oid];
+    const wall = model.walls[o.wallId];
+    if (!wall) continue;
+    const li = levels.findIndex((L) => L.levelId === (wall.levelId ?? modelLevels[0].id));
+    if (li < 0) continue;
+    const c = openingCentre(model, o);
+    const n = wallNormal(model, wall);
+    const inside = (topo.openingRooms[oid] ?? [])[0] ?? null;
+    if (!inside) continue;
+    const anchor = nav.roomAnchors.get(inside);
+    let sx = n.x, sz = n.z;
+    if (anchor) {
+      // point AWAY from the room this door serves
+      const towards = (anchor.x - c.x) * n.x + (anchor.z - c.z) * n.z;
+      if (towards > 0) { sx = -n.x; sz = -n.z; }
+    }
+    const inX = c.x - sx * (wall.thickness / 2 + 0.45);
+    const inZ = c.z - sz * (wall.thickness / 2 + 0.45);
+    let cellIn = nav.indexAt(inX, inZ, li);
+    if (!nav.passable(cellIn)) cellIn = nav.nearestPassable(inX, inZ, li, 1.2);
+    const outX = c.x + sx * (wall.thickness / 2 + 0.25);
+    const outZ = c.z + sz * (wall.thickness / 2 + 0.25);
+    let cellOut = nav.indexAt(outX, outZ, li);
+    if (!nav.passable(cellOut)) cellOut = cellIn;
+    nav.entrances.push({
+      openingId: oid, roomId: inside, levelIdx: li,
+      x: c.x, z: c.z, width: o.width,
+      outX: c.x + sx * OUTSIDE_STANDOFF, outZ: c.z + sz * OUTSIDE_STANDOFF,
+      nx: sx, nz: sz,
+      cellIn, cellOut,
+      kindInside: classes.get(inside)?.key ?? 'unassigned',
+    });
+  }
+
+  // The main entrance is the one a visitor would use: into a hall or a
+  // reception if there is one, otherwise the widest door on the lowest level.
+  nav.entrances.sort((a, b) => {
+    const rank = (e) => (e.kindInside === 'hall' || e.kindInside === 'reception' ? 0
+      : e.kindInside === 'waiting' || e.kindInside === 'retail' || e.kindInside === 'cafe' ? 1 : 2);
+    return (a.levelIdx - b.levelIdx) || (rank(a) - rank(b)) || (b.width - a.width);
+  });
+  nav.mainEntrance = nav.entrances[0] ?? null;
+
+  return nav;
+}
+
+// ---------------------------------------------------------------------------
+// measurements the post-occupancy report needs
+
+/**
+ * The narrowest point on a route, and where it is. `route` is a path result.
+ * Returned width is the exact clear width from the 0.10 m distance transform,
+ * not a grid quantisation, because it is going to be printed in millimetres.
+ */
+export function pinchOf(nav, route) {
+  if (!route || !route.cells?.length) return null;
+  let best = -1, bestW = Infinity;
+  const widths = route.widths;
+  for (let i = 0; i < route.cells.length; i++) {
+    const w = widths ? widths[i] : nav.width[route.cells[i]];
+    if (w < bestW) { bestW = w; best = route.cells[i]; }
+  }
+  if (best < 0) return null;
+  const p = nav.centreOf(best);
+  const roomI = nav.roomIdx[best];
+  const doorI = nav.doorIdx[best];
+  return {
+    width: bestW, x: p.x, z: p.z, level: p.level,
+    roomId: roomI >= 0 ? nav.roomIds[roomI] : null,
+    openingId: doorI >= 0 ? nav.doorIds[doorI] : null,
+    cell: best,
+  };
+}
+
+/** Straight-line and walking distance between two room anchors. */
+export function roomToRoom(nav, fromRoom, toRoom) {
+  const a = nav.roomPoint(fromRoom);
+  if (!a) return null;
+  const f = nav.fieldToRoom(toRoom);
+  return nav.path(a.x, a.z, a.level, f);
+}

@@ -223,7 +223,80 @@
    "status": "fail",
    "headline": "Protected trees are placed INSIDE the buildable polygon *after* the plot has already been sized, and nothing ever re-checks that the building still fits. plot.j",
    "at": "2026-08-27T10:36:16.352Z"
+  },
+  {
+   "piece": "audio-signoff",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "Sign-off applied: 4 gains, 6 owner-supplied proprietary files (flagged + credited honestly), 6 CC0 replacements from real recorded objects, mix.json wired into the engine — engine and review page now agree on all 17 ids",
+   "files": [
+    "assets/audio/manifest.json",
+    "assets/audio/mix.json",
+    "assets/audio/REVIEW.md",
+    "assets/audio/build/build-signoff.mjs",
+    "assets/audio/build/verify-signoff.mjs",
+    "assets/audio/build/mark-decided.mjs",
+    "assets/audio/build/mix-check.html",
+    "assets/audio/ui/click.ogg",
+    "assets/audio/ui/snap.ogg",
+    "assets/audio/ui/submit.ogg",
+    "assets/audio/ui/tool-select.ogg",
+    "assets/audio/ui/window-open.ogg",
+    "assets/audio/ui/window-close.ogg",
+    "assets/audio/ui/error.ogg",
+    "assets/audio/ui/mail-notify.ogg",
+    "assets/audio/os/boot-tier1.ogg",
+    "assets/audio/os/boot-tier2.ogg",
+    "assets/audio/os/boot-tier3.ogg",
+    "assets/audio/os/boot-tier4.ogg",
+    "CREDITS.md",
+    "src/core/audio.js",
+    "review/batches.json"
+   ],
+   "at": "2026-08-27T16:32:19.040Z"
+  },
+  {
+   "piece": "models",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "Blender pipeline built from scratch: 15 headline GLBs, each one connected body per material region, softly bevelled, verified against the catalogue and looked at",
+   "detail": "The seven rejected pieces were never Blender models - assets/models/ was empty and the review page rendered src/model/proc-shapes.js placeholder solids (espresso-machine = procBlock(), literally one box: the czarny kwadrat). The generator defect is therefore fixed where models are actually authored: tools/blender/lib/build.py refuses to export any object whose parts do not form ONE connected body (union-find over part bounding boxes, 2 mm tolerance), and tools/blender/verify.mjs re-proves the same property independently from the GLB index buffer. That assertion caught 6 real disconnections during this build (reception desk work surface, kitchen carcase, fridge carcase, desk leaflets, and two more) that would otherwise have shipped. The chair placeholder yawed each base arm by -a while placing it at +a, so every arm pointed 90-2a away from its own castor - nogi w dziwne strony, found and fixed. 5 models have a bounding box that legitimately differs from src/model/catalog.js (tap above a basin rim, lever on a door leaf, pendant cord, bed headboard, and the dining table the reviewer called too small); each is declared in verify.mjs EXPECTED_DRIFT with the value the catalogue should carry. catalog.js is another agent-s file and was not touched.",
+   "files": [
+    "tools/blender/lib/build.py",
+    "tools/blender/lib/mats.py",
+    "tools/blender/families.py",
+    "tools/blender/make-models.py",
+    "tools/blender/verify.mjs",
+    "tools/blender/render-sheet.py",
+    "tools/blender/README.md",
+    "assets/models/*.glb",
+    "progress/shots/catalogue-rework.png",
+    "progress/shots/catalogue-all.png"
+   ],
+   "metrics": {
+    "models": 15,
+    "totalTriangles": 12640,
+    "totalKb": 641,
+    "maxTrianglesPerModel": 1344,
+    "minTrianglesPerModel": 308,
+    "disconnectedBodiesAfterFix": 0,
+    "connectivityFailuresCaughtDuringBuild": 6,
+    "catalogueBboxWithin2pct": 10,
+    "documentedCatalogueDrift": 5,
+    "buildSeconds": 9
+   },
+   "at": "2026-08-27T16:36:05.753Z"
+  },
+  {
+   "piece": "audio-signoff",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "The review page's central promise — \"what Jurek hears is what ships\" — is false. The whole sign-off apparatus (mix.json, review.js, batches.json, the builder's own verify-signoff.m",
+   "at": "2026-08-27T16:47:32.721Z"
   }
  ],
- "updated": "2026-08-27T10:36:16.352Z"
+ "updated": "2026-08-27T16:47:32.721Z"
 }

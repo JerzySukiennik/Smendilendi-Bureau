@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Mix check — engine vs review page</title>
+<style>
+  body { background:#14110f; color:#e8e2d9; font:13px/1.5 ui-monospace,Menlo,monospace; padding:24px; }
+  h1 { font-size:15px; letter-spacing:.06em; text-transform:uppercase; color:#c9a227; }
+  table { border-collapse:collapse; margin-top:14px; }
+  td,th { padding:3px 14px 3px 0; text-align:left; }
+  th { color:#8a837a; font-weight:400; border-bottom:1px solid #33302c; }
+  .no { color:#e06c5a; font-weight:700; }
+  .ok { color:#7fae6a; }
+  #sum { margin-top:16px; font-size:14px; }
+</style>
+<h1>Effective gain — src/core/audio.js vs review/batches.json</h1>
+<p>Loads the engine module fresh (cache-busted), lets it read
+<code>assets/audio/mix.json</code> and <code>assets/audio/manifest.json</code> exactly as
+the game does, and compares <code>audio.gainOf(id)</code> with the number the review page
+showed for the same id. Serve the repo root and open
+<code>/assets/audio/build/mix-check.html</code>.</p>
+<div id="out">loading…</div>
+<script type="module">
+const v = Date.now();
+const { AudioBus } = await import(`/src/core/audio.js?v=${v}`);
+
+const audio = new AudioBus({
+  basePath: '/assets/audio/',
+  manifestPath: `/assets/audio/manifest.json`,
+  mixPath: `/assets/audio/mix.json`,
+});
+await audio.loadConfig();
+
+const page = await (await fetch(`/review/batches.json?v=${v}`, { cache: 'no-cache' })).json();
+const items = page.batches.filter(b => b.kind === 'audio').flatMap(b => b.items);
+
+let bad = 0;
+const rows = items.map(i => {
+  const g = audio.gainOf(i.id);
+  // batches.json stores the page's number already rounded to 4 dp, so 4 dp is the
+  // honest comparison — anything tighter only measures float noise.
+  const same = g.effective.toFixed(4) === i.mix.effective.toFixed(4);
+  if (!same) bad++;
+  return `<tr><td>${i.id}</td><td>${g.bus}</td><td>${g.master} &times; ${g.busGain} &times; ${g.asset}</td>`
+       + `<td>${g.effective.toFixed(4)}</td><td>${i.mix.effective.toFixed(4)}</td>`
+       + `<td class="${same ? 'ok' : 'no'}">${same ? 'match' : 'MISMATCH'}</td></tr>`;
+});
+
+document.getElementById('out').innerHTML =
+  `<table><tr><th>id</th><th>bus</th><th>master &times; bus &times; asset</th><th>engine</th>`
+  + `<th>review page</th><th></th></tr>${rows.join('')}</table>`
+  + `<div id="sum" class="${bad ? 'no' : 'ok'}">${bad ? bad + ' MISMATCHED' : 'all ' + items.length + ' ids match'}`
+  + ` — mix.json: master ${audio.mix.master}, buses `
+  + Object.entries(audio.mix.buses).map(([k, x]) => `${k} ${x}`).join(', ') + `</div>`;
+window.MIXCHECK = { bad, total: items.length, mix: audio.mix,
+  rows: items.map(i => ({ id: i.id, engine: audio.gainOf(i.id).effective, page: i.mix.effective, bus: audio.gainOf(i.id).bus })) };
+</script>

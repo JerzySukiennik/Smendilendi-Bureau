@@ -89,18 +89,46 @@ BuildingModel = {
 }
 ```
 
-Derived, cached, invalidated by `version`:
-- `rooms` — planar-subdivision face finding over the wall graph (`src/model/rooms.js`).
-- `RoomGraph` — rooms + door adjacency, used by access analysis and NPCs.
-- `Geometry` — `src/model/geometry.js`, `buildMeshes(model, opts) → { group, colliders }`.
-  Openings are **gaps in the wall extrusion**, never CSG booleans.
+Derived, cached, invalidated by `version`. **As built** (`tools/smoke.mjs` exercises
+every one of these end to end):
+
+```js
+// src/model/rooms.js — planar-subdivision face finding over the wall graph
+computeRooms(model, levelId) → { rooms: {id: Room}, order: [id], edges: [Edge], levelId }
+getRooms(model, levelId)      // the same, memoised on model.version
+Room = { id, levelId, polygon, holes, area, perimeter, name, program,
+         doors:[openingId], windows:[openingId], wallIds, isOutside, undersized }
+Edge = { a: roomId|'OUTSIDE', b: roomId|'OUTSIDE', openingId, clearWidth }
+roomGraph(model, rooms) → { nodes: [roomId|'OUTSIDE'], edges: [Edge] }
+roomCentroid(room) → { x, z }   // never lands outside an L-shaped room
+
+// src/model/geometry.js
+buildMeshes(model, opts) → { group, colliders, byId, stats, bounds, diagnostics, materials }
+disposeBuilt(built)
+```
+`area` is the **clear internal area**: the face polygon runs along wall centrelines
+and each edge is then offset inward by half of *its own* wall thickness. A 6.00 ×
+4.00 m room in 0.24 m walls is 21.66 m², which is the number on the drawing.
+Room ids are a hash of the sorted wall ids of the face, so they survive edits
+elsewhere in the plan. Openings are **gaps in the wall extrusion**, never CSG.
 
 ### Ops (the only way to change the model)
 
 ```js
 Op = { t: 'wall.add'|'wall.move'|'wall.delete'|'opening.add'|... , ...payload, by: playerId, seq }
-applyOp(model, op) → { model, changed[] }   // pure, deterministic, no three.js scene access
+applyOp(model, op)   → { model, changed[], inverse }   // pure; the input is never mutated
+applyOps(model, ops) → { model, inverses[] }
+rectOps(x0, z0, x1, z1, opts) → Op[]                   // a closed rectangle of walls
+serialize(model) / deserialize(json)
 ```
+`wall.add` splits itself and every wall it crosses at the crossing points, and splits
+any wall passing through its own endpoints — that is what makes closed regions, and
+therefore rooms, appear without a separate "make room" step.
+
+Room names and programmes are NOT wall data: they live in
+`model.siteMods.roomNames[roomId]` and `model.siteMods.roomPrograms[roomId]`, written
+by the `room.rename` / `room.setProgram` ops and read by `classifyRooms`.
+
 Undo = inverse op recorded at apply time. Multiplayer = ops broadcast over RTDB.
 This makes local undo, network sync and employee bots the same mechanism.
 
@@ -113,31 +141,122 @@ CatalogEntry = {
   size: [w, h, d],              // metres, real, verified against the GLB bbox at load
   price,                        // PLN-free abstract currency units, integer
   anchor: 'floor'|'wall'|'ceiling',
-  clearance: { front, back, left, right },   // m of usable space required — drives ergonomics
+  mount,                        // m above floor for a wall/ceiling item
+  clearance: { front, back, left, right, zMin, zMax },
+                                // m of usable space required, over a band of
+                                // heights — a wall cabinet is not in the way of
+                                // the worktop 0.55 m below it
   tags: [ 'seat', 'workstation', ... ],
   colorable: true|false,        // which material slot takes the tint
 }
 ```
-Every entry's numbers must be defensible to an architect. A dining chair is 0.45 m
-seat height, a worktop is 0.90 m, a door leaf is 0.90 × 2.05 m, a corridor is ≥ 1.20 m.
+Every entry's numbers must be defensible to an architect. A worktop is 0.90 m, a
+door leaf is 0.90 × 2.05 m, a corridor is ≥ 1.20 m, a bed needs 0.70 m down one side.
+
+`src/analysis/catalogue.js` is the **only** file in `src/analysis/` allowed to touch
+the catalogue. It normalises every entry, guesses a defensible fallback for an
+unknown id, and owns the translation between the two vocabularies in the project:
+
+```js
+resolveTag(tag) → { kind: 'tag'|'id'|'text'|'unstocked'|'unknown', ... }
+satisfiesTag(resolved, catalogId) → boolean
+```
+The commission briefs ask for a `bed_double` and a `washbasin`; the catalogue tags
+those things `bed` and `basin`. Every consumer of a brief's `requires` list goes
+through `resolveTag`. A requirement nothing in the catalogue can satisfy resolves to
+`unstocked` and is **recorded, never complained about** — an architect is not marked
+down for failing to draw an object that is not in the palette.
 
 ## Analysis (`src/analysis/`)
 
 `runAnalysis(model, brief) → Report`
 
 ```js
-Report = { score, issues: [ Issue ], metrics: {...} }
+Report = { score, accepted, issues: [ Issue ], metrics: {...} }
 Issue = {
   module: 'access'|'daylight'|'cost'|'program',
   severity: 'blocker'|'major'|'minor',
   code,                       // stable id, e.g. 'ACCESS_ROOM_UNREACHABLE'
-  roomId|wallId|furnitureId,  // what to highlight
+  roomId|wallId|furnitureId|openingId,   // what to highlight
   measured, required, unit,   // the numbers that justify the complaint
   clientText                  // the sentence that appears in the client's e-mail
 }
 ```
-Deterministic. No randomness, no AI. The client e-mail is assembled from
-`issues` in severity order, in the client's voice. Same model in → same e-mail out.
+`accepted` is `true` when nothing is a blocker or a major; minors go in the letter
+but do not stop the client signing. `score` = 100 − 25/blocker − 10/major − 3/minor.
+
+**Five** modules, each `analyzeX(ctx) → { issues, metrics }` with
+`ctx = { model, brief, topo, classes }`:
+
+| module | file | measures |
+|---|---|---|
+| access | `access.js` | entrance, reachability, clear widths, escape distance, door swings |
+| daylight | `daylight.js` | window-to-floor ratio, NOAA sun rays against walls, ceilings and neighbours |
+| cost | `cost.js` | a real bill of quantities, then money |
+| programme | `program.js` | rooms present at area, adjacencies, furniture, ergonomic clearances |
+| site | `site.js` | boundary, setbacks, storey and coverage limits, protected trees, entrance direction |
+
+Site issues carry `module: 'program'` (planning compliance) or `'access'` (the
+entrance), so the Issue interface above is unchanged.
+
+`buildTopology(model)` merges the per-level `computeRooms` results and adds the two
+things the model layer does not provide — where an opening sits in the world and the
+quarter disc a door leaf sweeps:
+`{ rooms, byId, openingRooms, exteriorDoors, adjacency, graphEdgeCount }`.
+`classifyRooms(model, topo, brief) → Map(roomId → { key, label, habitable, glaze,
+minCeiling, source, renamed, index, tags, furniture })`.
+
+### The brief the engine reads
+
+`brief` is a flattened commission, and `src/analysis/brief.js` is the only place that
+interprets it:
+
+```js
+brief = { buildingType, title, client:{name,tone,...}, budget, program, constraints, plot }
+briefLimit(brief, check, fallback)   // the number the CLIENT put in writing
+requiresAccessibility(brief), isDwelling(brief), isPublicBuilding(brief), plotOf(brief)
+```
+**Every limit is read through `briefLimit`.** The brief says "circulation must stay at
+least 1.40 m clear"; if a module then measures against its own hard-coded 1.20 m the
+client contradicts himself in writing, which is the one thing a report to an architect
+cannot do. The constants in each module are the fallback for a brief that is silent.
+
+### Two width conventions (access)
+
+* **clear width** — measured between wall faces along the route. A doorway is not part
+  of it: a 1.20 m corridor served by 0.90 m leaves is a 1.20 m corridor.
+* **door clear opening** — the leaf width, checked in its own right. Below
+  `DOOR_MIN_CLEAR` a doorway does become the route's bottleneck, because at that point
+  something really is in the way.
+
+A door SWING is never subtracted from the walkable grid. It is measured against
+furniture (`ACCESS_DOOR_SWING_BLOCKED`) and against other doors
+(`ACCESS_DOOR_SWING_CLASH`), which is what the swing has to be clear of.
+
+### The e-mail
+
+```js
+revisionMail(report, brief) | acceptanceMail(report, brief) → { subject, from, tone, body }
+clientMail(report, brief)     // whichever the report deserves
+```
+Deterministic. No randomness, no AI. Same model in → same e-mail out, byte for byte;
+`tools/smoke.mjs` asserts it by running the whole pipeline twice. The client's voice
+comes from `brief.client.tone`, and `mail.js` must carry **every** tone
+`src/commission/clients.js` can generate — currently eight.
+
+## Commissions (`src/commission/`)
+
+```js
+generateCommission(seed, difficulty, history) → Commission
+generateCampaign(seed, count) → Commission[]
+```
+Same seed + difficulty + history length → byte-identical commission. A commission
+carries `{ id, type, typeName, client, title, briefText, address, budget, fee,
+deadlineDays, params, storeys, areas, program, constraints, plot, reputationDelta }`.
+`program` entries are `{ key, name, minArea, count, requires, adjacentTo, phrase, hero }`;
+`constraints` are `{ code, check, text, limit }` and `check` is what `briefLimit` looks up.
+The generator guarantees a **solvable** plot: it is sized for the coverage limit, the
+planted-area limit and any outdoor requirement before it is offered.
 
 ## Net (`src/net/`)
 
@@ -153,6 +272,15 @@ Path root: `/smendilendi/<officeCode>`.
 ```
 Single player runs the same code with a `LocalTransport` (no Firebase, no network).
 `src/net/session.js` exposes the transport; nothing above it knows which is in use.
+
+```js
+createLocalTransport({ code, playerId, nick, color }) → LocalTransport
+await transport.connect({ onOp, onSnapshot, onPlayers, onChat, onLock, onPhase, onHost })
+                                         // → { isHost, code, kind }
+transport.sendOp(op) | setCursor | lock | unlock | chat | writeSnapshot | leave
+```
+`tools/smoke.mjs` puts two players in one office, has each send an op, and asserts both
+sides end up byte-identical after `applyOps`.
 
 ## Modes and who owns what
 
@@ -181,6 +309,19 @@ mild `ACESFilmic` tone mapping.
 `progress/index.html` (auto-refreshing) renders `progress/progress.json`. Every agent
 that finishes a piece appends an entry via `tools/log-progress.mjs`. Never hand-edit
 the JSON.
+
+## The standing check
+
+```
+node tools/smoke.mjs
+```
+Generates a commission from a fixed seed, builds a house for it with `rectOps`/`applyOp`,
+computes the rooms, builds the meshes, runs the analysis, prints the client's revision
+e-mail verbatim, applies the fixes, re-runs, prints the acceptance letter, proves the
+site module fires on a building shoved into the street, sweeps all eight building types,
+and asserts two full runs are byte-identical. It exits non-zero on any throw or failed
+assertion. Run it after touching anything under `src/model/`, `src/analysis/`,
+`src/commission/` or `src/net/`.
 
 ## Definition of done for any piece
 

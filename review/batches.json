@@ -5,7 +5,7 @@
       "id": "audio-music",
       "title": "Music",
       "kind": "audio",
-      "note": "The four long-form tracks. Listen with the loop toggle on: the only question that matters for music here is whether you can hear the seam when it wraps.",
+      "note": "The four long-form tracks. Listen with the loop toggle on: the only question that matters for music here is whether you can hear the seam when it wraps. — SIGN-OFF 2026-08-27: 4 of these are already approved and unchanged (Menu, Office ambient 1, Office ambient 2, Walkthrough) — no need to judge them again.",
       "items": [
         {
           "id": "music.menu",
@@ -32,6 +32,11 @@
             "source": "https://opengameart.org/content/cozy-puzzle-title",
             "author": "MintoDog",
             "origTitle": "Cozy Puzzle Title"
+          },
+          "decided": {
+            "verdict": "approve",
+            "at": "2026-08-27T13:11:10.785Z",
+            "applied": "Approved 2026-08-27, unchanged."
           }
         },
         {
@@ -49,8 +54,8 @@
             "bus": "music",
             "master": 0.9,
             "busGain": 0.45,
-            "asset": 0.7,
-            "effective": 0.2835,
+            "asset": 0.315,
+            "effective": 0.1276,
             "positional": false
           },
           "meta": {
@@ -59,6 +64,11 @@
             "source": "https://opengameart.org/content/osmotic-memory",
             "author": "Tsorthan Grove",
             "origTitle": "Osmotic Memory"
+          },
+          "decided": {
+            "verdict": "approve",
+            "at": "2026-08-27T13:23:19.549Z",
+            "applied": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315."
           }
         },
         {
@@ -76,8 +86,8 @@
             "bus": "music",
             "master": 0.9,
             "busGain": 0.45,
-            "asset": 0.7,
-            "effective": 0.2835,
+            "asset": 0.315,
+            "effective": 0.1276,
             "positional": false
           },
           "meta": {
@@ -86,6 +96,11 @@
             "source": "https://opengameart.org/content/qubiliu",
             "author": "cinameng (James Gargette)",
             "origTitle": "Qubiliu"
+          },
+          "decided": {
+            "verdict": "approve",
+            "at": "2026-08-27T13:23:30.409Z",
+            "applied": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315."
           }
         },
         {
@@ -103,8 +118,8 @@
             "bus": "music",
             "master": 0.9,
             "busGain": 0.45,
-            "asset": 0.7,
-            "effective": 0.2835,
+            "asset": 0.175,
+            "effective": 0.0709,
             "positional": false
           },
           "meta": {
@@ -113,6 +128,11 @@
             "source": "https://opengameart.org/content/forget-me-not",
             "author": "Kistol",
             "origTitle": "Forget Me Not (in F major, looped edit)"
+          },
+          "decided": {
+            "verdict": "approve",
+            "at": "2026-08-27T13:23:55.610Z",
+            "applied": "Approved 2026-08-27 with a 0.25 trim — applied, asset gain is now 0.175."
           }
         }
       ]
@@ -121,7 +141,7 @@
       "id": "audio-ui",
       "title": "UI sounds",
       "kind": "audio",
-      "note": "Every click, snap and chime the player hears through the in-game computer. Play them back to back — they have to sound like one set of hardware, not thirteen downloads.",
+      "note": "Every click, snap and chime the player hears through the in-game computer. Play them back to back — they have to sound like one set of hardware, not thirteen downloads. — SIGN-OFF 2026-08-27: 1 of these is already approved and unchanged (Click soft) — no need to judge it again. 12 are NEW since you last listened and need a fresh verdict.",
       "items": [
         {
           "id": "ui.click-soft",
@@ -138,16 +158,21 @@
             "bus": "ui",
             "master": 0.9,
             "busGain": 0.7,
-            "asset": 0.85,
-            "effective": 0.5355,
+            "asset": 0.51,
+            "effective": 0.3213,
             "positional": false
           },
           "meta": {
-            "duration": "0:00",
+            "duration": "0.06 s",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
             "source": "https://kenney.nl/assets/interface-sounds",
             "author": "Kenney (Kenney Vleugels / Kenney.nl)",
             "origTitle": "tick_004.ogg"
+          },
+          "decided": {
+            "verdict": "approve",
+            "at": "2026-08-27T13:24:09.811Z",
+            "applied": "Approved 2026-08-27 with a 0.6 trim — applied, asset gain is now 0.51."
           }
         },
         {
@@ -170,11 +195,16 @@
             "positional": false
           },
           "meta": {
-            "duration": "0:00",
+            "duration": "0.06 s",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/interface-sounds",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "click_001.ogg"
+            "source": "https://freesound.org/people/Pepe827/sounds/596879/",
+            "author": "Pepe827",
+            "origTitle": "AA Foley Mouse Click Central.wav — press only, trimmed to 57 ms"
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Zbyt syntetyczne",
+            "applied": "REPLACED — you rejected the old one as too synthetic. This is a real mouse switch (freesound CC0, Pepe827), press only, 57 ms."
           }
         },
         {
@@ -197,11 +227,16 @@
             "positional": false
           },
           "meta": {
-            "duration": "0:01",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/interface-sounds",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "error_003.ogg"
+            "duration": "0.85 s",
+            "licence": "Proprietary — third-party system audio, supplied by the project owner",
+            "source": "owner-supplied file: erro.mp3",
+            "author": "Unknown — treat as third-party rights-reserved",
+            "origTitle": "A system error / critical-stop tone. Not identifiable from the file — no metadata, no title; measures as three low buzzed pulses 0.09 / 0.22 / 0.37 s over a harmonic series on ≈ 32 Hz. Presented here as unidentified third-party audio, **not** as CC0."
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Chcę swoje dodać: /Users/jurek/Downloads/erro.mp3",
+            "applied": "REPLACED with your own file (erro.mp3), trimmed and levelled. NOT CC0 — see CREDITS.md."
           }
         },
         {
@@ -224,11 +259,16 @@
             "positional": false
           },
           "meta": {
-            "duration": "0:00",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/interface-sounds",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "bong_001.ogg"
+            "duration": "1.99 s",
+            "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+            "source": "owner-supplied file: windows-10-notification.mp3",
+            "author": "Microsoft Corporation",
+            "origTitle": "Microsoft Windows 10 notification chime — a descending glockenspiel figure, C5 → G4 → C4, with a long reverb tail."
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Chcę to: /Users/jurek/Downloads/windows-10-notification.mp3",
+            "applied": "REPLACED with your own file (windows-10-notification.mp3). Microsoft audio, NOT CC0 — see CREDITS.md."
           }
         },
         {
@@ -251,11 +291,16 @@
             "positional": false
           },
           "meta": {
-            "duration": "0:00",
+            "duration": "0.11 s",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/interface-sounds",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "select_001.ogg"
+            "source": "https://freesound.org/people/Philip_Berger/sounds/788643/",
+            "author": "Philip_Berger",
+            "origTitle": "Light Switch on — the toggle clack, trimmed to 113 ms"
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Jest już w za dużej ilości moich gier.",
+            "applied": "REPLACED — you have the Kenney set in too many games. This is a real toggle light switch (freesound CC0, Philip_Berger). Nothing from Kenney."
           }
         },
         {
@@ -278,11 +323,16 @@
             "positional": false
           },
           "meta": {
-            "duration": "0:01",
+            "duration": "0.44 s",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/interface-sounds",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "confirmation_002.ogg"
+            "source": "https://freesound.org/people/Lau7/sounds/153341/",
+            "author": "Lau7",
+            "origTitle": "014_throw_paper.wav — sheet gathered and released, trimmed to 440 ms"
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Jest już w za dużej ilości moich gier.",
+            "applied": "REPLACED — same reason. A real sheet of paper gathered and released (freesound CC0, Lau7). Nothing from Kenney."
           }
         },
         {
@@ -305,11 +355,16 @@
             "positional": false
           },
           "meta": {
-            "duration": "0:00",
+            "duration": "0.12 s",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/interface-sounds",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "pluck_001.ogg"
+            "source": "https://freesound.org/people/chris112233/sounds/738440/",
+            "author": "chris112233",
+            "origTitle": "key-clack1 — one key, down and up, trimmed to 119 ms"
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Jest już w za dużej ilości moich gier.",
+            "applied": "REPLACED — same reason. One real key, down and up (freesound CC0, chris112233). Nothing from Kenney."
           }
         },
         {
@@ -332,11 +387,16 @@
             "positional": false
           },
           "meta": {
-            "duration": "0:00",
+            "duration": "0.18 s",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/interface-sounds",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "close_001.ogg"
+            "source": "https://freesound.org/people/JohnyTud/sounds/710063/",
+            "author": "JohnyTud",
+            "origTitle": "door01_close — the latch catching, trimmed and pitched up 14 %"
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Zbyt syntetyczne",
+            "applied": "REPLACED — too synthetic. Same door, the latch catching. Same trim and pitch, so open and close are one object."
           }
         },
         {
@@ -359,11 +419,16 @@
             "positional": false
           },
           "meta": {
-            "duration": "0:00",
+            "duration": "0.22 s",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/interface-sounds",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "open_001.ogg"
+            "source": "https://freesound.org/people/JohnyTud/sounds/710064/",
+            "author": "JohnyTud",
+            "origTitle": "door01_open — the handle press only, trimmed and pitched up 14 %"
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Zbyt syntetyczne",
+            "applied": "REPLACED — too synthetic. This is a real door latch being pressed (freesound CC0, JohnyTud), trimmed and pitched up 14 % so it reads as a drawer front."
           }
         },
         {
@@ -386,11 +451,16 @@
             "positional": true
           },
           "meta": {
-            "duration": "0:01",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/digital-audio",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "lowThreeTone.ogg"
+            "duration": "4.27 s",
+            "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+            "source": "owner-supplied file: windows-xp-startup.mp3",
+            "author": "Microsoft Corporation",
+            "origTitle": "Microsoft Windows XP startup sound (2001)."
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Chcę to: /Users/jurek/Downloads/windows-xp-startup.mp3",
+            "applied": "REPLACED with your own file (windows-xp-startup.mp3). Microsoft audio, NOT CC0 — see CREDITS.md."
           }
         },
         {
@@ -413,11 +483,16 @@
             "positional": true
           },
           "meta": {
-            "duration": "0:02",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/music-jingles",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "jingles_NES00.ogg (8-Bit jingles)"
+            "duration": "4.02 s",
+            "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+            "source": "owner-supplied file: windows-vista-startup.mp3",
+            "author": "Microsoft Corporation",
+            "origTitle": "Microsoft Windows Vista startup sound (2006). The source file's own ID3 tags say so: artist *Microsoft*, album *Windows*, title *Vista*, date *2006*."
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Chcę to: /Users/jurek/Downloads/windows-vista-startup.mp3",
+            "applied": "REPLACED with your own file (windows-vista-startup.mp3). Microsoft audio, NOT CC0 — see CREDITS.md."
           }
         },
         {
@@ -440,11 +515,16 @@
             "positional": true
           },
           "meta": {
-            "duration": "0:02",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/music-jingles",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "jingles_STEEL07.ogg (Steel jingles)"
+            "duration": "2.28 s",
+            "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+            "source": "owner-supplied file: w.mp3",
+            "author": "Microsoft Corporation",
+            "origTitle": "A Microsoft Windows startup chime, **release not identified**: the file arrived as an unlabelled `w.mp3` with no title metadata. Measured: three struck bell notes, F♯3 → C♯4 → G♯4 over 0.9 s, then a 1.6 s shimmering decay. It is demonstrably neither the XP nor the Vista chime (both supplied separately here and measured differently), and matches the Windows 7 / Windows 8-era startup chime in structure. Named by measurement rather than by guess."
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Chcę to: /Users/jurek/Downloads/w.mp3",
+            "applied": "REPLACED with your own file (w.mp3): an unlabelled Microsoft startup chime, three struck notes F#3 -> C#4 -> G#4 and a 1.6 s tail. NOT CC0 — see CREDITS.md."
           }
         },
         {
@@ -467,11 +547,16 @@
             "positional": true
           },
           "meta": {
-            "duration": "0:02",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/music-jingles",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "jingles_SAX07.ogg (Sax jingles)"
+            "duration": "2.83 s",
+            "licence": "Proprietary — Apple macOS system audio, supplied by the project owner",
+            "source": "owner-supplied file: mac-os-big-sur-startup.mp3",
+            "author": "Apple Inc.",
+            "origTitle": "Apple macOS Big Sur startup chime — the Mac startup chord, low F♯/G♭ major with a long tail."
+          },
+          "changedSince": {
+            "previousVerdict": "reject",
+            "previousNote": "Chcę to: /Users/jurek/Downloads/mac-os-big-sur-startup.mp3",
+            "applied": "REPLACED with your own file (mac-os-big-sur-startup.mp3). Apple audio, NOT CC0 — see CREDITS.md."
           }
         }
       ]
@@ -859,5 +944,47 @@
         }
       ]
     }
-  ]
+  ],
+  "decisions": {
+    "source": "review/decisions-2026-08-27.json",
+    "appliedAt": "2026-08-27T16:34:12.359Z",
+    "appliedBy": "audio-signoff",
+    "levelChanges": [
+      {
+        "id": "music.office-ambient-1",
+        "newGain": 0.315
+      },
+      {
+        "id": "music.office-ambient-2",
+        "newGain": 0.315
+      },
+      {
+        "id": "music.walkthrough",
+        "newGain": 0.175
+      },
+      {
+        "id": "ui.click-soft",
+        "newGain": 0.51
+      }
+    ],
+    "applied": {
+      "music.menu": "Approved 2026-08-27, unchanged.",
+      "music.office-ambient-1": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315.",
+      "music.office-ambient-2": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315.",
+      "music.walkthrough": "Approved 2026-08-27 with a 0.25 trim — applied, asset gain is now 0.175.",
+      "ui.click-soft": "Approved 2026-08-27 with a 0.6 trim — applied, asset gain is now 0.51.",
+      "ui.click": "REPLACED — you rejected the old one as too synthetic. This is a real mouse switch (freesound CC0, Pepe827), press only, 57 ms.",
+      "ui.window-open": "REPLACED — too synthetic. This is a real door latch being pressed (freesound CC0, JohnyTud), trimmed and pitched up 14 % so it reads as a drawer front.",
+      "ui.window-close": "REPLACED — too synthetic. Same door, the latch catching. Same trim and pitch, so open and close are one object.",
+      "ui.snap": "REPLACED — you have the Kenney set in too many games. This is a real toggle light switch (freesound CC0, Philip_Berger). Nothing from Kenney.",
+      "ui.submit": "REPLACED — same reason. A real sheet of paper gathered and released (freesound CC0, Lau7). Nothing from Kenney.",
+      "ui.tool-select": "REPLACED — same reason. One real key, down and up (freesound CC0, chris112233). Nothing from Kenney.",
+      "ui.error": "REPLACED with your own file (erro.mp3), trimmed and levelled. NOT CC0 — see CREDITS.md.",
+      "ui.mail-notify": "REPLACED with your own file (windows-10-notification.mp3). Microsoft audio, NOT CC0 — see CREDITS.md.",
+      "os.boot-tier1": "REPLACED with your own file (windows-xp-startup.mp3). Microsoft audio, NOT CC0 — see CREDITS.md.",
+      "os.boot-tier2": "REPLACED with your own file (windows-vista-startup.mp3). Microsoft audio, NOT CC0 — see CREDITS.md.",
+      "os.boot-tier3": "REPLACED with your own file (w.mp3): an unlabelled Microsoft startup chime, three struck notes F#3 -> C#4 -> G#4 and a 1.6 s tail. NOT CC0 — see CREDITS.md.",
+      "os.boot-tier4": "REPLACED with your own file (mac-os-big-sur-startup.mp3). Apple audio, NOT CC0 — see CREDITS.md."
+    }
+  }
 }

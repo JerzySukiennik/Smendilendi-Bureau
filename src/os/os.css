@@ -1,0 +1,57 @@
+/* os.css — how the OS canvas is put on the page.
+ *
+ * The OS itself owns every pixel it draws; this file only makes sure the
+ * browser does not soften them. The canvas is at the machine's own resolution
+ * (640x480 ... 1152x870) and is scaled by an INTEGER factor with nearest-
+ * neighbour sampling, so one OS pixel is always a whole number of screen pixels
+ * and nothing lands on a half.
+ *
+ * The host cursor is hidden over the screen: the OS draws its own 1-bit pointer
+ * (checklist item 20 — a CSS `cursor: pointer` hand from the browser is a fail).
+ */
+
+.os-host {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #101010;
+}
+
+.os-screen {
+  position: relative;
+  overflow: hidden;
+  background: #000000;
+  cursor: none;
+  /* no rounded corners, no shadow, no filter — ever */
+  border-radius: 0;
+  box-shadow: none;
+  line-height: 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.os-screen canvas.os-canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -ms-interpolation-mode: nearest-neighbor;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* A foreign app (the 3D editor) is a DOM layer positioned over the window's
+ * client rectangle. It is only visible on the full-screen path; on the monitor
+ * texture the editor supplies its own render target instead. */
+.os-foreign {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 0;
+  box-shadow: none;
+  background: #000000;
+}
+
+.os-foreign canvas { display: block; width: 100%; height: 100%; }

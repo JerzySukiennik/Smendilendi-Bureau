@@ -213,8 +213,12 @@ const OPS = {
     delete m.walls[op.id];
     changed.push(op.id);
     const orphans = [w.a, w.b].filter(n => nodeIsOrphan(m, n));
+    // Snapshot the node BEFORE deleting it: the inverse op has to put back the
+    // two endpoints the restored wall refers to, or undo leaves a wall whose
+    // `a`/`b` name nodes that no longer exist and every reader crashes on it.
+    const nodes = orphans.map(id => ({ ...m.nodes[id] })).filter(n => n && n.id);
     for (const n of orphans) delete m.nodes[n];
-    return { t: 'wall.restore', wall: { ...w, openings: [...w.openings] }, openings: removedOpenings, nodes: orphans.map(id => ({ ...(model_nodeCache[id] ?? {}) })) };
+    return { t: 'wall.restore', wall: { ...w, openings: [...w.openings] }, openings: removedOpenings, nodes };
   },
 
   'wall.deleteMany'(m, op, changed) {
@@ -519,9 +523,6 @@ const OPS = {
 
   noop() { return { t: 'noop' }; },
 };
-
-// Kept for wall.restore's node payload — populated lazily; harmless when empty.
-const model_nodeCache = {};
 
 // ---------------------------------------------------------------------------
 // wall insertion with automatic splitting

@@ -1,0 +1,368 @@
+/* walk.css — the walkthrough HUD, the "30 years later" cut, and the
+   post-occupancy sheet.
+
+   Two visual registers on purpose:
+   - IN THE WORLD the HUD is almost nothing: a clock, the room you are standing
+     in, a hairline crosshair. Nothing may compete with the building.
+   - THE REPORT is a document. White paper, a rule under every heading, a
+     monospaced column for every measured figure, a benchmark beside it. It is
+     meant to read like a page out of a practice's post-occupancy file, because
+     that is what the player is being handed.
+
+   Colours mirror src/core/palette.js (the UI block); nothing here invents one. */
+
+.walk-ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--font-ui, "Inter", Helvetica, Arial, sans-serif);
+  color: var(--text, #f3ece1);
+  --paper: #f3ece1;
+  --ink: #2b2825;
+  --rule: #c9bda9;
+  --dim: #7a736a;
+}
+.walk-ui[hidden] { display: none; }
+.walk-ui > * { pointer-events: none; }
+
+/* -- crosshair ------------------------------------------------------------ */
+
+.walk-crosshair {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 5px; height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: rgba(243, 236, 225, 0.55);
+  box-shadow: 0 0 0 1px rgba(32, 32, 30, 0.45);
+}
+
+/* -- clock ---------------------------------------------------------------- */
+
+.walk-clock {
+  position: absolute;
+  top: 18px; left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 14px;
+  background: rgba(24, 23, 21, 0.42);
+  border: 1px solid rgba(243, 236, 225, 0.10);
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+.wc-time {
+  font: 600 17px/1 var(--font-mono, ui-monospace, Menlo, monospace);
+  letter-spacing: 0.04em;
+}
+.wc-year {
+  font: 500 11px/1 var(--font-mono, ui-monospace, Menlo, monospace);
+  color: var(--accent, #d4763a);
+  letter-spacing: 0.14em;
+}
+
+/* -- the room you are in -------------------------------------------------- */
+
+.walk-room {
+  position: absolute;
+  left: 22px; bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+}
+.wr-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+.wr-area {
+  font: 11px/1.3 var(--font-mono, ui-monospace, Menlo, monospace);
+  color: rgba(243, 236, 225, 0.62);
+}
+
+/* -- who you are looking at ----------------------------------------------- */
+
+.walk-look {
+  position: absolute;
+  left: 50%; top: calc(50% + 26px);
+  transform: translateX(-50%);
+  max-width: 380px;
+  text-align: center;
+  padding: 7px 14px;
+  background: rgba(24, 23, 21, 0.55);
+  border: 1px solid rgba(243, 236, 225, 0.10);
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+.walk-look[hidden] { display: none; }
+.walk-look b { display: block; font-size: 13px; letter-spacing: 0.02em; }
+.walk-look span { display: block; font-size: 11.5px; color: rgba(243, 236, 225, 0.68); margin-top: 2px; }
+.walk-look.blocked { border-color: rgba(178, 71, 46, 0.7); }
+.walk-look.blocked span { color: #e29070; }
+
+/* -- hint and toast ------------------------------------------------------- */
+
+.walk-hint {
+  position: absolute;
+  right: 22px; bottom: 22px;
+  font: 11px/1.5 var(--font-mono, ui-monospace, Menlo, monospace);
+  color: rgba(243, 236, 225, 0.45);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  text-align: right;
+}
+.walk-hint.show { opacity: 1; }
+
+.walk-toast {
+  position: absolute;
+  top: 62px; left: 50%;
+  transform: translate(-50%, -8px);
+  padding: 8px 16px;
+  background: rgba(178, 71, 46, 0.88);
+  border-radius: 4px;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  opacity: 0;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.walk-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* -- chat ----------------------------------------------------------------- */
+
+.walk-chat {
+  position: absolute;
+  left: 22px; bottom: 86px;
+  width: min(380px, 42vw);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.walk-chat.show { opacity: 1; }
+.wch-log {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.wch-log b { font-weight: 600; color: var(--accent, #d4763a); }
+.wch-input {
+  display: none;
+  width: 100%;
+  padding: 6px 9px;
+  font: 13px var(--font-ui, Inter, sans-serif);
+  color: var(--text, #f3ece1);
+  background: rgba(24, 23, 21, 0.82);
+  border: 1px solid rgba(243, 236, 225, 0.22);
+  border-radius: 4px;
+  outline: none;
+  pointer-events: auto;
+}
+.walk-chat.typing .wch-input { display: block; }
+
+/* -- the "30 years later" cut -------------------------------------------- */
+
+.walk-transition {
+  position: absolute;
+  inset: 0;
+  --wt-bars: 1;
+  pointer-events: none;
+}
+.wt-bar {
+  position: absolute;
+  left: 0; right: 0;
+  height: calc(11vh * var(--wt-bars));
+  background: #100f0e;
+}
+.wt-top { top: 0; }
+.wt-bottom { bottom: 0; }
+
+.wt-centre {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: calc(11vh * var(--wt-bars) + 44px);
+  text-align: center;
+}
+.wt-year {
+  font: 300 clamp(52px, 9vw, 116px)/0.95 var(--font-mono, ui-monospace, Menlo, monospace);
+  letter-spacing: 0.04em;
+  color: #f3ece1;
+  text-shadow: 0 3px 26px rgba(0, 0, 0, 0.7);
+  font-variant-numeric: tabular-nums;
+}
+.wt-caption {
+  margin-top: 10px;
+  font-size: clamp(13px, 1.5vw, 17px);
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--accent, #d4763a);
+}
+.wt-sub {
+  margin-top: 8px;
+  font: 12px/1.4 var(--font-mono, ui-monospace, Menlo, monospace);
+  color: rgba(243, 236, 225, 0.55);
+}
+.wt-wipe {
+  position: absolute;
+  inset: 0;
+  background: #100f0e;
+  opacity: 1;
+}
+
+/* -- the post-occupancy sheet --------------------------------------------- */
+
+.walk-overlay {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  background: rgba(16, 15, 14, 0.86);
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
+  padding: 40px 20px 60px;
+}
+.walk-overlay[hidden] { display: none; }
+
+.walk-report {
+  max-width: 1040px;
+  margin: 0 auto;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 44px 52px 52px;
+  border-radius: 3px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
+}
+.walk-report h1 {
+  margin: 0;
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.walk-report h2 {
+  margin: 34px 0 12px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.poe-kicker {
+  font: 11px/1 var(--font-mono, ui-monospace, Menlo, monospace);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent, #d4763a);
+  margin-bottom: 12px;
+}
+.poe-sub {
+  margin-top: 6px;
+  font: 12.5px/1.5 var(--font-mono, ui-monospace, Menlo, monospace);
+  color: var(--dim);
+}
+
+.poe-verdict { margin-top: 6px; }
+.poe-quote {
+  margin: 0 0 12px;
+  padding-left: 16px;
+  border-left: 3px solid var(--accent, #d4763a);
+  font-size: 17px;
+  line-height: 1.5;
+  font-style: italic;
+}
+.poe-verdict.bad .poe-quote { border-left-color: #b2472e; }
+.poe-issues { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.65; }
+.poe-issues li.sev-blocker { color: #8e2f1c; }
+.poe-issues li.sev-major { color: #a8501f; }
+.poe-issues li.sev-minor { color: var(--dim); }
+.poe-issues li.sev-none { color: #4c6b34; list-style: none; margin-left: -18px; }
+
+.poe-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1px;
+  margin: 26px 0 4px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+}
+.poe-card { background: var(--paper); padding: 14px 16px 15px; }
+.poe-card .k {
+  font: 10px/1 var(--font-mono, ui-monospace, Menlo, monospace);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.poe-card .v {
+  margin-top: 8px;
+  font: 600 25px/1 var(--font-mono, ui-monospace, Menlo, monospace);
+  font-variant-numeric: tabular-nums;
+}
+.poe-card .s { margin-top: 5px; font-size: 11.5px; color: var(--dim); }
+.poe-card.good .v { color: #4c6b34; }
+.poe-card.warn .v { color: #9a7a12; }
+.poe-card.bad .v { color: #a8351c; }
+
+.poe-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.poe-table th {
+  text-align: left;
+  padding: 0 12px 8px 0;
+  font: 10px/1 var(--font-mono, ui-monospace, Menlo, monospace);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dim);
+  border-bottom: 1px solid var(--rule);
+}
+.poe-table th:nth-child(2), .poe-table th:nth-child(3) { width: 27%; }
+.poe-table td { padding: 9px 12px 9px 0; border-bottom: 1px solid rgba(201, 189, 169, 0.45); vertical-align: top; }
+.poe-measured, .poe-bench {
+  font: 12.5px/1.45 var(--font-mono, ui-monospace, Menlo, monospace);
+  font-variant-numeric: tabular-nums;
+}
+.poe-bench { color: var(--dim); }
+.poe-good .poe-measured { color: #4c6b34; }
+.poe-warn .poe-measured { color: #9a7a12; }
+.poe-bad .poe-measured { color: #a8351c; font-weight: 600; }
+.poe-bad .poe-label::before {
+  content: "";
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: #a8351c;
+  vertical-align: 1px;
+}
+
+.poe-fails ul { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.7; }
+.poe-fails li { color: #7a3a22; }
+
+.poe-plan { margin-top: 30px; }
+.poe-plan canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rule);
+  background: #fff;
+}
+
+.poe-actions { margin-top: 34px; display: flex; gap: 12px; }
+.poe-actions button {
+  font: 600 12px/1 var(--font-ui, Inter, sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 12px 22px;
+  border-radius: 3px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+.poe-actions .poe-stay { background: transparent; color: var(--ink); }
+.poe-actions button:hover { background: var(--accent, #d4763a); border-color: var(--accent, #d4763a); color: #fff; }
+
+@media (max-width: 720px) {
+  .walk-report { padding: 26px 20px 32px; }
+  .walk-report h1 { font-size: 21px; }
+}

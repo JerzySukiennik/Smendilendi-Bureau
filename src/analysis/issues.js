@@ -66,7 +66,7 @@ export const ISSUE_DEFS = {
   },
   ACCESS_DOOR_SWING_CLASH: {
     module: 'access', severity: 'minor', unit: 'm',
-    text: (c) => `Two doors near the ${c.room} swing into each other — their leaves overlap by ${m(c.measured)} m. Hang one of them the other way and it goes away.`,
+    text: (c) => `Two doors by the ${c.room} are hinged ${m(c.measured)} m apart and their leaves are ${m(c.leafA)} m and ${m(c.leafB)} m — open one and the other jams against it. Hang one the other way and it goes away.`,
   },
 
   // -- daylight ------------------------------------------------------------
@@ -97,6 +97,39 @@ export const ISSUE_DEFS = {
   COST_UNDER_SPENT: {
     module: 'cost', severity: 'minor', unit: 'units',
     text: (c) => `You have used ${money(c.measured)} of ${money(c.required)} — ${pct(c.underPct)} of the budget is still sitting there. If you can spend it on the building rather than hand it back, please do.`,
+  },
+
+  // -- the site ------------------------------------------------------------
+  // Raised by site.js. They carry module 'program' (compliance with what the
+  // brief put in writing) or 'access' (the entrance), so the Report interface
+  // is unchanged and the e-mail sorts them with everything else.
+  SITE_OUTSIDE_BOUNDARY: {
+    module: 'program', severity: 'blocker', unit: 'm',
+    text: (c) => `The building crosses my boundary by ${m(c.measured)} m. That is not my land, and no amount of drawing will make it mine.`,
+  },
+  SITE_SETBACK_BREACH: {
+    module: 'program', severity: 'blocker', unit: 'm',
+    text: (c) => `The building sits ${m(c.measured)} m over the buildable line. The setbacks are ${m(c.front, 1)} m front, ${m(c.side, 1)} m side and ${m(c.rear, 1)} m rear, and the planning office measures them the same way I do.`,
+  },
+  SITE_TOO_MANY_FLOORS: {
+    module: 'program', severity: 'blocker', unit: 'storeys',
+    text: (c) => `You have drawn ${m(c.measured, 0)} storeys above ground. The local plan allows ${m(c.required, 0)}.`,
+  },
+  SITE_COVERAGE: {
+    module: 'program', severity: 'major', unit: '%',
+    text: (c) => `The footprint covers ${pct(c.measured)} of the plot — ${m(c.footprint, 0)} m² of ${m(c.plotArea, 0)} m². The limit is ${pct(c.required)}.`,
+  },
+  SITE_GREEN_AREA: {
+    module: 'program', severity: 'major', unit: '%',
+    text: (c) => `Only ${pct(c.measured)} of the plot is left unbuilt where the local plan wants ${pct(c.required)} planted. The garden is not a leftover.`,
+  },
+  SITE_PROTECTED_TREE: {
+    module: 'program', severity: 'major', unit: 'm',
+    text: (c) => `A wall runs ${m(c.measured)} m inside the crown of the protected ${c.species} — its radius on the survey is ${m(c.radius, 1)} m. That tree was here before either of us.`,
+  },
+  SITE_ENTRANCE_OFF_STREET: {
+    module: 'access', severity: 'major', unit: 'doors',
+    text: (c) => `Not one of the ${m(c.doors, 0)} external doors faces the street. The main one opens ${c.facing}, and the street is to the ${c.street}.`,
   },
 
   // -- program -------------------------------------------------------------

@@ -1,0 +1,291 @@
+/* editor.css — the editor's own chrome.
+   Colours come from the shell's custom properties (src/style.css), which mirror
+   the UI block of src/core/palette.js. Nothing here is rounded or animated more
+   than it needs to be: this is a drawing tool, not a landing page. */
+
+.ed-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text);
+  --ed-panel: rgba(31, 30, 28, 0.94);
+  --ed-line: #4a4642;
+}
+.ed-root * { box-sizing: border-box; }
+.ed-root button { font: inherit; color: inherit; }
+
+/* ---- tool palette (left) ------------------------------------------------ */
+
+.ed-tools {
+  position: absolute;
+  left: 8px; top: 50%;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line);
+  padding: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, 30px);
+  gap: 2px;
+  max-height: 92vh;
+  overflow: auto;
+}
+.ed-tools .grp {
+  grid-column: 1 / -1;
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 5px 2px 2px;
+  border-top: 1px solid var(--ed-line);
+}
+.ed-tools .grp:first-child { border-top: 0; }
+.ed-tools button {
+  width: 30px; height: 30px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+}
+.ed-tools button:hover { background: #37342f; color: var(--text); }
+.ed-tools button.on { background: var(--accent); color: #1b1a18; border-color: #f0a570; }
+.ed-tools svg { width: 18px; height: 18px; display: block; }
+
+/* ---- top bar ------------------------------------------------------------ */
+
+.ed-top {
+  position: absolute;
+  left: 50%; top: 8px;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  display: flex;
+  gap: 4px;
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line);
+  padding: 4px;
+}
+.ed-top button {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  cursor: pointer;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.ed-top button:hover { background: #37342f; color: var(--text); }
+.ed-top button.on { background: var(--accent); color: #1b1a18; }
+.ed-top button:disabled { opacity: 0.35; cursor: default; }
+.ed-top .sep { width: 1px; background: var(--ed-line); margin: 2px 4px; }
+
+/* ---- right dock --------------------------------------------------------- */
+
+.ed-dock {
+  position: absolute;
+  right: 8px; top: 8px; bottom: 96px;
+  width: 300px;
+  pointer-events: auto;
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ed-dock .tabs { display: flex; border-bottom: 1px solid var(--ed-line); flex: none; }
+.ed-dock .tabs button {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--ed-line);
+  padding: 6px 2px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.ed-dock .tabs button:last-child { border-right: 0; }
+.ed-dock .tabs button.on { background: #37342f; color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.ed-dock .body { flex: 1; overflow: auto; min-height: 0; }
+.ed-pane { display: none; padding: 8px; }
+.ed-pane.on { display: block; }
+
+.ed-h { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin: 10px 0 4px; }
+.ed-h:first-child { margin-top: 0; }
+
+/* catalogue */
+.cat-search { width: 100%; padding: 5px 6px; background: #15140f; border: 1px solid var(--ed-line); color: var(--text); }
+.cat-cats { display: flex; flex-wrap: wrap; gap: 2px; margin: 6px 0; }
+.cat-cats button { background: #2b2926; border: 1px solid var(--ed-line); padding: 2px 6px; font-size: 10px; cursor: pointer; color: var(--text-dim); }
+.cat-cats button.on { background: var(--accent); color: #1b1a18; }
+.cat-list { display: flex; flex-direction: column; gap: 1px; }
+.cat-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 5px 6px;
+  background: #262421;
+  border: 1px solid transparent;
+  cursor: grab;
+  text-align: left;
+  width: 100%;
+}
+.cat-item:hover { border-color: var(--accent); background: #302d29; }
+.cat-item.on { border-color: var(--accent); background: #3a3229; }
+.cat-item .nm { color: var(--text); }
+.cat-item .pr { color: var(--warn); font-variant-numeric: tabular-nums; }
+.cat-item .dim { grid-column: 1 / -1; color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; }
+
+/* materials */
+.mat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.mat-sw { aspect-ratio: 1; border: 1px solid var(--ed-line); cursor: pointer; position: relative; padding: 0; }
+.mat-sw.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mat-sw span {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: rgba(20,19,17,0.78); font-size: 9px; padding: 1px 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text);
+}
+.mat-row { display: flex; justify-content: space-between; padding: 3px 0; color: var(--text-dim); }
+.mat-row b { color: var(--text); font-weight: 500; }
+
+/* schedule */
+.sched { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.sched th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); border-bottom: 1px solid var(--ed-line); padding: 3px 2px; }
+.sched td { padding: 3px 2px; border-bottom: 1px solid #34312d; }
+.sched td.n { text-align: right; font-family: var(--font-mono); }
+.sched tr:hover td { background: #302d29; cursor: pointer; }
+.sched tfoot td { border-top: 1px solid var(--ed-line); border-bottom: 0; color: var(--text); }
+
+/* validation */
+.issue { border-left: 3px solid var(--warn); padding: 5px 7px; margin-bottom: 4px; background: #262421; cursor: pointer; }
+.issue:hover { background: #302d29; }
+.issue.blocker { border-left-color: var(--bad); }
+.issue.major { border-left-color: var(--accent); }
+.issue.minor { border-left-color: var(--warn); }
+.issue .code { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); }
+.issue .num { font-family: var(--font-mono); color: var(--text-dim); font-size: 10px; }
+.ed-btn {
+  display: block; width: 100%;
+  padding: 6px; margin-bottom: 8px;
+  background: var(--accent); color: #1b1a18;
+  border: 0; cursor: pointer; font-weight: 600;
+}
+.ed-btn.ghost { background: #2b2926; color: var(--text); border: 1px solid var(--ed-line); font-weight: 400; }
+
+/* ---- status bar (bottom left) ------------------------------------------- */
+
+.ed-status {
+  position: absolute;
+  left: 8px; right: 320px; bottom: 8px;
+  pointer-events: none;
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line);
+  padding: 6px 10px;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.ed-status .tool { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.ed-status .hint { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- measurements box (bottom right) ------------------------------------ */
+
+.ed-measure {
+  position: absolute;
+  right: 8px; bottom: 8px;
+  width: 300px;
+  pointer-events: none;
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line);
+  padding: 5px 8px;
+}
+.ed-measure .lbl { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+.ed-measure .val {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  min-height: 22px;
+  color: var(--text);
+  border-bottom: 1px solid var(--ed-line);
+}
+.ed-measure.typing .val { color: var(--accent); border-bottom-color: var(--accent); }
+.ed-measure .val .caret { animation: edcaret 1s steps(1) infinite; }
+@keyframes edcaret { 50% { opacity: 0; } }
+.ed-measure .echo { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); min-height: 13px; }
+.ed-measure .echo.err { color: var(--bad); }
+
+/* ---- cost bar ----------------------------------------------------------- */
+
+.ed-cost {
+  position: absolute;
+  right: 8px; bottom: 72px;
+  width: 300px;
+  pointer-events: none;
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line);
+  padding: 5px 8px;
+}
+.ed-cost .row { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
+.ed-cost .row b { font-weight: 600; }
+.ed-cost .bar { height: 6px; background: #15140f; margin-top: 4px; border: 1px solid #15140f; position: relative; overflow: hidden; }
+.ed-cost .fill { height: 100%; background: var(--good); transition: width 0.18s linear; }
+.ed-cost .fill.warn { background: var(--warn); }
+.ed-cost .fill.over { background: var(--bad); }
+.ed-cost .mark { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--text); opacity: 0.55; }
+
+/* ---- inference ScreenTip ------------------------------------------------ */
+
+.ed-tip {
+  position: absolute;
+  pointer-events: none;
+  background: #fdf6c8;
+  color: #1c1a18;
+  border: 1px solid #8a8360;
+  padding: 1px 5px;
+  font-size: 11px;
+  white-space: nowrap;
+  transform: translate(14px, 10px);
+  display: none;
+}
+.ed-tip.on { display: block; }
+.ed-tip i { display: inline-block; width: 7px; height: 7px; margin-right: 5px; vertical-align: -1px; }
+
+/* ---- transient message -------------------------------------------------- */
+
+.ed-flash {
+  position: absolute;
+  left: 50%; top: 52px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: rgba(26, 24, 22, 0.95);
+  border: 1px solid var(--accent);
+  padding: 4px 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.ed-flash.on { opacity: 1; }
+
+/* ---- players ------------------------------------------------------------ */
+
+.ed-players {
+  position: absolute;
+  right: 316px; top: 8px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
+}
+.ed-players .p {
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line);
+  border-left-width: 3px;
+  padding: 2px 7px;
+}
+
+@media (max-width: 1100px) {
+  .ed-dock { width: 250px; }
+  .ed-status { right: 268px; }
+  .ed-measure, .ed-cost { width: 250px; }
+  .ed-players { right: 266px; }
+}

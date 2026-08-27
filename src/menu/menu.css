@@ -1,0 +1,320 @@
+/* menu.css — the menu's own DOM layer. Colours mirror src/core/palette.js (UI block);
+   nothing here invents a hue that is not in the palette.
+
+   Everything is corner- or edge-anchored: the centre of the frame belongs to the
+   building (reference/architect-life/ANALYSIS.md, checklist item 14). Only a modal
+   panel is allowed into the middle, and only while it is open. */
+
+.mn-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--font-ui);
+  color: var(--text);
+}
+.mn-root[hidden] { display: none; }
+.mn-root > * { pointer-events: auto; }
+
+/* ---------- shared chrome ------------------------------------------------ */
+
+.mn-chip,
+.mn-hint,
+.mn-tag,
+.mn-panel {
+  background: rgba(28, 27, 25, 0.82);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(8px) saturate(1.1);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.38);
+}
+
+.mn-chip-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.mn-mt { margin-top: 14px; }
+.mn-dim { color: var(--text-dim); }
+.mn-bad { color: var(--bad); }
+.mn-lead { margin: 0 0 14px; color: var(--text-dim); line-height: 1.55; font-size: 13px; }
+
+.mn-btn {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-hi);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 9px 15px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 90ms ease;
+}
+.mn-btn:hover { background: #43403a; border-color: #5d5850; }
+.mn-btn:active { transform: translateY(1px); }
+.mn-btn-primary {
+  background: var(--accent);
+  border-color: #e08a4d;
+  color: #1c1b19;
+  font-weight: 600;
+}
+.mn-btn-primary:hover { background: #e08a4d; }
+.mn-btn-ghost { background: transparent; }
+
+/* ---------- identity chip, bottom left ----------------------------------- */
+
+.mn-identity {
+  position: absolute;
+  left: 22px;
+  bottom: 22px;
+  width: 246px;
+  padding: 14px 15px 15px;
+}
+.mn-nick {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text);
+  background: #171614;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 8px 10px;
+  outline: none;
+}
+.mn-nick:focus { border-color: var(--accent); }
+.mn-swatches { display: flex; gap: 7px; margin-top: 7px; }
+.mn-swatch {
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 110ms ease, border-color 110ms ease;
+}
+.mn-swatch:hover { transform: scale(1.12); }
+.mn-swatch.on { border-color: var(--text); }
+
+/* ---------- tools, top right --------------------------------------------- */
+
+.mn-tools { position: absolute; right: 22px; top: 22px; display: flex; gap: 8px; }
+.mn-tools .mn-btn { background: rgba(28, 27, 25, 0.82); backdrop-filter: blur(8px); }
+.mn-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 8px;
+  vertical-align: 1px;
+}
+.mn-tools b { color: var(--accent); margin-left: 5px; }
+
+/* ---------- hint, bottom right ------------------------------------------- */
+
+.mn-hint {
+  position: absolute;
+  right: 22px;
+  bottom: 22px;
+  padding: 11px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: right;
+  max-width: 290px;
+}
+
+/* ---------- the surveyor's tag tooltip ----------------------------------- */
+
+.mn-tag {
+  position: absolute;
+  width: 348px;
+  padding: 13px 15px 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  pointer-events: none;
+}
+.mn-tag-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  margin-bottom: 7px;
+}
+.mn-tag-head b {
+  flex: none;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #1c1b19;
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+}
+.mn-tag p { margin: 0; color: var(--text-dim); }
+.mn-tag-code {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--warn);
+}
+
+/* ---------- modal panels -------------------------------------------------- */
+
+.mn-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 11, 10, 0.5);
+  display: grid;
+  place-items: center;
+  padding: 4vh 4vw;
+}
+.mn-veil[hidden] { display: none; }
+
+.mn-panel {
+  width: min(520px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.mn-panel.mn-wide { width: min(880px, 94vw); }
+.mn-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+.mn-panel h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+.mn-x {
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.mn-x:hover { color: var(--text); }
+.mn-body { padding: 18px; overflow: auto; }
+.mn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.mn-slot:not(:empty) { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+
+.mn-field { display: block; }
+.mn-field span { display: block; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); }
+.mn-code-input {
+  display: block;
+  width: 100%;
+  margin: 7px 0 10px;
+  font-family: var(--font-mono);
+  font-size: 26px;
+  letter-spacing: 0.18em;
+  text-align: center;
+  color: var(--text);
+  background: #171614;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 12px;
+  outline: none;
+}
+.mn-code-input:focus { border-color: var(--accent); }
+.mn-err { color: var(--bad); font-size: 12.5px; margin-bottom: 10px; }
+
+.mn-code { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.mn-code-value {
+  font-family: var(--font-mono);
+  font-size: 34px;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  user-select: all;
+}
+.mn-status { margin-top: 12px; font-size: 12.5px; line-height: 1.5; }
+.mn-status.ok { color: var(--good); }
+.mn-status.warn { color: var(--warn); }
+
+.mn-players { list-style: none; margin: 8px 0 16px; padding: 0; }
+.mn-players li { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 13.5px; }
+.mn-players i { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.mn-players em { font-style: normal; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; }
+
+.mn-facts { list-style: none; margin: 4px 0 14px; padding: 0; }
+.mn-facts li { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid rgba(74, 70, 66, 0.5); font-size: 13px; }
+.mn-facts span { color: var(--text-dim); }
+.mn-facts b { font-family: var(--font-mono); color: var(--accent); font-weight: 500; }
+
+/* ---------- settings ------------------------------------------------------ */
+
+.mn-slider { display: grid; grid-template-columns: 130px 1fr 34px; align-items: center; gap: 12px; padding: 5px 0; font-size: 13px; }
+.mn-slider b { font-family: var(--font-mono); font-weight: 500; color: var(--text-dim); text-align: right; }
+.mn-slider input[type="range"] { width: 100%; accent-color: var(--accent); }
+.mn-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; margin-top: 6px; }
+.mn-seg button {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--line);
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.mn-seg button:last-child { border-right: 0; }
+.mn-seg button.on { background: var(--accent); color: #1c1b19; font-weight: 600; }
+
+/* ---------- the report ---------------------------------------------------- */
+
+.mn-report { list-style: none; margin: 0; padding: 0; counter-reset: none; }
+.mn-report li {
+  display: flex;
+  gap: 14px;
+  padding: 14px 12px;
+  border-top: 1px solid rgba(74, 70, 66, 0.55);
+  border-radius: 5px;
+  transition: background 120ms ease;
+}
+.mn-report li:hover, .mn-report li.on { background: rgba(212, 118, 58, 0.09); }
+.mn-report li > b {
+  flex: none;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #1c1b19;
+  font-size: 12.5px;
+  display: grid;
+  place-items: center;
+}
+.mn-report h3 { margin: 2px 0 5px; font-size: 13.5px; font-weight: 600; }
+.mn-report p { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--text-dim); }
+
+/* ---------- credits ------------------------------------------------------- */
+
+.mn-body h2, .mn-body h3, .mn-body h4 { margin: 18px 0 8px; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); }
+.mn-body h2:first-child { margin-top: 0; }
+.mn-body p { margin: 0 0 9px; font-size: 12.5px; line-height: 1.6; color: var(--text-dim); }
+.mn-body p.mn-li { padding-left: 14px; position: relative; }
+.mn-body p.mn-li::before { content: '—'; position: absolute; left: 0; color: var(--line); }
+.mn-body a { color: var(--accent); text-decoration: none; }
+.mn-body a:hover { text-decoration: underline; }
+.mn-body code { font-family: var(--font-mono); font-size: 11.5px; color: var(--text); background: rgba(255, 255, 255, 0.06); padding: 1px 4px; border-radius: 3px; }
+.mn-table-wrap { overflow-x: auto; margin: 0 0 16px; }
+.mn-body table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+.mn-body th, .mn-body td { text-align: left; padding: 6px 10px; border-bottom: 1px solid rgba(74, 70, 66, 0.5); vertical-align: top; }
+.mn-body th { color: var(--text); font-weight: 600; white-space: nowrap; }
+.mn-body td { color: var(--text-dim); }
+
+/* ---------- small screens ------------------------------------------------- */
+
+@media (max-width: 780px) {
+  .mn-identity { width: 200px; left: 12px; bottom: 12px; }
+  .mn-hint { display: none; }
+  .mn-tools { right: 12px; top: 12px; }
+  .mn-slider { grid-template-columns: 96px 1fr 30px; }
+}

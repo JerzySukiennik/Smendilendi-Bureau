@@ -5,31 +5,35 @@
     "kind": "music",
     "loop": true,
     "gain": 0.7,
-    "positional": false
+    "positional": false,
+    "duration": "0:58"
   },
   "music.office-ambient-1": {
     "ogg": "music/office-ambient-1.ogg",
     "m4a": "music/office-ambient-1.m4a",
     "kind": "music",
     "loop": true,
-    "gain": 0.7,
-    "positional": false
+    "gain": 0.315,
+    "positional": false,
+    "duration": "1:15"
   },
   "music.office-ambient-2": {
     "ogg": "music/office-ambient-2.ogg",
     "m4a": "music/office-ambient-2.m4a",
     "kind": "music",
     "loop": true,
-    "gain": 0.7,
-    "positional": false
+    "gain": 0.315,
+    "positional": false,
+    "duration": "1:15"
   },
   "music.walkthrough": {
     "ogg": "music/walkthrough.ogg",
     "m4a": "music/walkthrough.m4a",
     "kind": "music",
     "loop": true,
-    "gain": 0.7,
-    "positional": false
+    "gain": 0.175,
+    "positional": false,
+    "duration": "1:30"
   },
   "radio.1": {
     "ogg": "radio/radio-1-jazz-brass.ogg",
@@ -37,7 +41,8 @@
     "kind": "radio",
     "loop": true,
     "gain": 0.8,
-    "positional": true
+    "positional": true,
+    "duration": "0:27"
   },
   "radio.2": {
     "ogg": "radio/radio-2-bossa-elevator.ogg",
@@ -45,7 +50,8 @@
     "kind": "radio",
     "loop": true,
     "gain": 0.8,
-    "positional": true
+    "positional": true,
+    "duration": "0:58"
   },
   "radio.3": {
     "ogg": "radio/radio-3-lofi.ogg",
@@ -53,7 +59,8 @@
     "kind": "radio",
     "loop": true,
     "gain": 0.8,
-    "positional": true
+    "positional": true,
+    "duration": "1:08"
   },
   "radio.4": {
     "ogg": "radio/radio-4-funk.ogg",
@@ -61,7 +68,8 @@
     "kind": "radio",
     "loop": true,
     "gain": 0.8,
-    "positional": true
+    "positional": true,
+    "duration": "1:03"
   },
   "radio.5": {
     "ogg": "radio/radio-5-acoustic.ogg",
@@ -69,7 +77,8 @@
     "kind": "radio",
     "loop": true,
     "gain": 0.8,
-    "positional": true
+    "positional": true,
+    "duration": "0:55"
   },
   "radio.6": {
     "ogg": "radio/radio-6-piano.ogg",
@@ -77,39 +86,56 @@
     "kind": "radio",
     "loop": true,
     "gain": 0.8,
-    "positional": true
+    "positional": true,
+    "duration": "0:55"
   },
-  "os.boot.1": {
+  "os.boot-tier1": {
     "ogg": "os/boot-tier1.ogg",
     "m4a": "os/boot-tier1.m4a",
     "kind": "os",
     "loop": false,
     "gain": 0.9,
-    "positional": true
+    "positional": true,
+    "proprietary": true,
+    "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+    "source": "owner-supplied file: windows-xp-startup.mp3",
+    "duration": "4.27 s"
   },
-  "os.boot.2": {
+  "os.boot-tier2": {
     "ogg": "os/boot-tier2.ogg",
     "m4a": "os/boot-tier2.m4a",
     "kind": "os",
     "loop": false,
     "gain": 0.9,
-    "positional": true
+    "positional": true,
+    "proprietary": true,
+    "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+    "source": "owner-supplied file: windows-vista-startup.mp3",
+    "duration": "4.02 s"
   },
-  "os.boot.3": {
+  "os.boot-tier3": {
     "ogg": "os/boot-tier3.ogg",
     "m4a": "os/boot-tier3.m4a",
     "kind": "os",
     "loop": false,
     "gain": 0.9,
-    "positional": true
+    "positional": true,
+    "proprietary": true,
+    "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+    "source": "owner-supplied file: w.mp3",
+    "duration": "2.28 s"
   },
-  "os.boot.4": {
+  "os.boot-tier4": {
     "ogg": "os/boot-tier4.ogg",
     "m4a": "os/boot-tier4.m4a",
     "kind": "os",
     "loop": false,
     "gain": 0.9,
-    "positional": true
+    "positional": true,
+    "proprietary": true,
+    "licence": "Proprietary — Apple macOS system audio, supplied by the project owner",
+    "source": "owner-supplied file: mac-os-big-sur-startup.mp3",
+    "duration": "2.83 s"
   },
   "ui.click": {
     "ogg": "ui/click.ogg",
@@ -117,15 +143,17 @@
     "kind": "ui",
     "loop": false,
     "gain": 0.85,
-    "positional": false
+    "positional": false,
+    "duration": "0.06 s"
   },
   "ui.click-soft": {
     "ogg": "ui/click-soft.ogg",
     "m4a": "ui/click-soft.m4a",
     "kind": "ui",
     "loop": false,
-    "gain": 0.85,
-    "positional": false
+    "gain": 0.51,
+    "positional": false,
+    "duration": "0.06 s"
   },
   "ui.error": {
     "ogg": "ui/error.ogg",
@@ -133,7 +161,11 @@
     "kind": "ui",
     "loop": false,
     "gain": 0.85,
-    "positional": false
+    "positional": false,
+    "proprietary": true,
+    "licence": "Proprietary — third-party system audio, supplied by the project owner",
+    "source": "owner-supplied file: erro.mp3",
+    "duration": "0.85 s"
   },
   "ui.mail-notify": {
     "ogg": "ui/mail-notify.ogg",
@@ -141,7 +173,11 @@
     "kind": "ui",
     "loop": false,
     "gain": 0.85,
-    "positional": false
+    "positional": false,
+    "proprietary": true,
+    "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+    "source": "owner-supplied file: windows-10-notification.mp3",
+    "duration": "1.99 s"
   },
   "ui.snap": {
     "ogg": "ui/snap.ogg",
@@ -149,7 +185,8 @@
     "kind": "ui",
     "loop": false,
     "gain": 0.85,
-    "positional": false
+    "positional": false,
+    "duration": "0.11 s"
   },
   "ui.submit": {
     "ogg": "ui/submit.ogg",
@@ -157,7 +194,8 @@
     "kind": "ui",
     "loop": false,
     "gain": 0.85,
-    "positional": false
+    "positional": false,
+    "duration": "0.44 s"
   },
   "ui.tool-select": {
     "ogg": "ui/tool-select.ogg",
@@ -165,7 +203,8 @@
     "kind": "ui",
     "loop": false,
     "gain": 0.85,
-    "positional": false
+    "positional": false,
+    "duration": "0.12 s"
   },
   "ui.window-close": {
     "ogg": "ui/window-close.ogg",
@@ -173,7 +212,8 @@
     "kind": "ui",
     "loop": false,
     "gain": 0.85,
-    "positional": false
+    "positional": false,
+    "duration": "0.18 s"
   },
   "ui.window-open": {
     "ogg": "ui/window-open.ogg",
@@ -181,215 +221,242 @@
     "kind": "ui",
     "loop": false,
     "gain": 0.85,
-    "positional": false
+    "positional": false,
+    "duration": "0.22 s"
   },
   "sfx.bin-hit": {
     "ogg": "sfx/bin-hit.ogg",
     "m4a": "sfx/bin-hit.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "1.12 s"
   },
   "sfx.blinds": {
     "ogg": "sfx/blinds.ogg",
     "m4a": "sfx/blinds.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "1.38 s"
   },
   "sfx.chair-roll": {
     "ogg": "sfx/chair-roll.ogg",
     "m4a": "sfx/chair-roll.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "2.40 s"
   },
   "sfx.chair-sit": {
     "ogg": "sfx/chair-sit.ogg",
     "m4a": "sfx/chair-sit.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "6.02 s"
   },
   "sfx.coffee-machine": {
     "ogg": "sfx/coffee-machine.ogg",
     "m4a": "sfx/coffee-machine.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0:12"
   },
   "sfx.coffee-pour": {
     "ogg": "sfx/coffee-pour.ogg",
     "m4a": "sfx/coffee-pour.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "5.00 s"
   },
   "sfx.door-close": {
     "ogg": "sfx/door-close.ogg",
     "m4a": "sfx/door-close.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "1.49 s"
   },
   "sfx.door-open": {
     "ogg": "sfx/door-open.ogg",
     "m4a": "sfx/door-open.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "1.30 s"
   },
   "sfx.footstep-carpet-1": {
     "ogg": "sfx/footstep-carpet-1.ogg",
     "m4a": "sfx/footstep-carpet-1.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.17 s"
   },
   "sfx.footstep-carpet-2": {
     "ogg": "sfx/footstep-carpet-2.ogg",
     "m4a": "sfx/footstep-carpet-2.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.14 s"
   },
   "sfx.footstep-carpet-3": {
     "ogg": "sfx/footstep-carpet-3.ogg",
     "m4a": "sfx/footstep-carpet-3.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.14 s"
   },
   "sfx.footstep-carpet-4": {
     "ogg": "sfx/footstep-carpet-4.ogg",
     "m4a": "sfx/footstep-carpet-4.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.14 s"
   },
   "sfx.footstep-tile-1": {
     "ogg": "sfx/footstep-tile-1.ogg",
     "m4a": "sfx/footstep-tile-1.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.10 s"
   },
   "sfx.footstep-tile-2": {
     "ogg": "sfx/footstep-tile-2.ogg",
     "m4a": "sfx/footstep-tile-2.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.10 s"
   },
   "sfx.footstep-tile-3": {
     "ogg": "sfx/footstep-tile-3.ogg",
     "m4a": "sfx/footstep-tile-3.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.11 s"
   },
   "sfx.footstep-tile-4": {
     "ogg": "sfx/footstep-tile-4.ogg",
     "m4a": "sfx/footstep-tile-4.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.11 s"
   },
   "sfx.keyboard-type-1": {
     "ogg": "sfx/keyboard-type-1.ogg",
     "m4a": "sfx/keyboard-type-1.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.11 s"
   },
   "sfx.keyboard-type-2": {
     "ogg": "sfx/keyboard-type-2.ogg",
     "m4a": "sfx/keyboard-type-2.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.22 s"
   },
   "sfx.keyboard-type-3": {
     "ogg": "sfx/keyboard-type-3.ogg",
     "m4a": "sfx/keyboard-type-3.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.15 s"
   },
   "sfx.keyboard-type-4": {
     "ogg": "sfx/keyboard-type-4.ogg",
     "m4a": "sfx/keyboard-type-4.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.25 s"
   },
   "sfx.light-switch": {
     "ogg": "sfx/light-switch.ogg",
     "m4a": "sfx/light-switch.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.25 s"
   },
   "sfx.mouse-click": {
     "ogg": "sfx/mouse-click.ogg",
     "m4a": "sfx/mouse-click.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.33 s"
   },
   "sfx.mug-set-down": {
     "ogg": "sfx/mug-set-down.ogg",
     "m4a": "sfx/mug-set-down.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.71 s"
   },
   "sfx.paper-crumple": {
     "ogg": "sfx/paper-crumple.ogg",
     "m4a": "sfx/paper-crumple.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.68 s"
   },
   "sfx.paper-toss": {
     "ogg": "sfx/paper-toss.ogg",
     "m4a": "sfx/paper-toss.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "0.50 s"
   },
   "sfx.pen-scribble": {
     "ogg": "sfx/pen-scribble.ogg",
     "m4a": "sfx/pen-scribble.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1.0,
-    "positional": true
+    "gain": 1,
+    "positional": true,
+    "duration": "3.20 s"
   },
   "amb.birds-outside": {
     "ogg": "amb/birds-outside.ogg",
@@ -397,7 +464,8 @@
     "kind": "amb",
     "loop": true,
     "gain": 0.55,
-    "positional": false
+    "positional": false,
+    "duration": "1:00"
   },
   "amb.crowd-interior": {
     "ogg": "amb/crowd-interior.ogg",
@@ -405,7 +473,8 @@
     "kind": "amb",
     "loop": true,
     "gain": 0.55,
-    "positional": false
+    "positional": false,
+    "duration": "1:00"
   },
   "amb.office-room-tone": {
     "ogg": "amb/office-room-tone.ogg",
@@ -413,7 +482,8 @@
     "kind": "amb",
     "loop": true,
     "gain": 0.55,
-    "positional": false
+    "positional": false,
+    "duration": "1:00"
   },
   "amb.rain-window": {
     "ogg": "amb/rain-window.ogg",
@@ -421,7 +491,8 @@
     "kind": "amb",
     "loop": true,
     "gain": 0.55,
-    "positional": false
+    "positional": false,
+    "duration": "1:00"
   },
   "amb.street-outside": {
     "ogg": "amb/street-outside.ogg",
@@ -429,6 +500,7 @@
     "kind": "amb",
     "loop": true,
     "gain": 0.55,
-    "positional": false
+    "positional": false,
+    "duration": "1:00"
   }
 }
