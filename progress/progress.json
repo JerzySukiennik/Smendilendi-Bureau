@@ -12,7 +12,218 @@
     "index.html"
    ],
    "at": "2026-08-27T09:51:37.590Z"
+  },
+  {
+   "piece": "rooms",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "Planar-subdivision room finder: half-edge faces, per-edge inward offset to clear area, door graph, courtyard handling, version-keyed cache",
+   "files": [
+    "src/model/rooms.js"
+   ],
+   "metrics": {
+    "rect_6x4_ext024_m2": 21.6576,
+    "split_pair_sum_m2": 21.2064,
+    "L_shape_m2": 51.9776,
+    "courtyard_annulus_m2": 322.56,
+    "computeRooms_220walls_100rooms_ms": 10.5
+   },
+   "at": "2026-08-27T10:12:16.690Z"
+  },
+  {
+   "piece": "geometry",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "Wall/slab mesh builder: mitred junctions (exact to 1e-6), openings as extrusion gaps with real reveals, vertex AO, 3 draw calls for a 12-room house",
+   "files": [
+    "src/model/geometry.js"
+   ],
+   "at": "2026-08-27T10:16:15.281Z"
+  },
+  {
+   "piece": "net",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "Session/transport layer: one interface, local hub + Firebase RTDB, optimistic ops with rebase, grab locks, presence, snapshot replay",
+   "detail": "createSession({mode,code,nick,color}) returns one Session over two interchangeable transports. Ops are applied optimistically and rebased onto the confirmed log order, so three clients converge byte-identically (verified over 67 concurrent ops and 524 ops). Locks are transactional (RTDB runTransaction / atomic table locally) with a 15 s TTL and onDisconnect release. Late joiners read /snapshot then replay ops after snapshot.seq. Placeholder or broken Firebase config degrades to local mode with exactly one console warning, never a throw.",
+   "files": [
+    "src/net/session.js",
+    "src/net/local.js",
+    "src/net/rtdb.js",
+    "src/net/code.js",
+    "src/net/presence.js",
+    "src/net/firebase-config.js"
+   ],
+   "metrics": {
+    "codeSpace": "31^8 = 852891037441",
+    "snapshotEvery": 50,
+    "opsCap": 500,
+    "lockTtlMs": 15000,
+    "playerTtlMs": 20000,
+    "heartbeatMs": 5000,
+    "cursorRateHz": 10,
+    "firebaseSdk": "10.14.1 ESM CDN"
+   },
+   "at": "2026-08-27T10:20:10.805Z"
+  },
+  {
+   "piece": "catalog",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "122 catalogue entries with verified real dimensions, clearances and prices; 37 procedural placeholder solids; a fully fitted 90 m2 house totals 436,709 units",
+   "files": [
+    "src/model/catalog.js",
+    "src/model/proc-shapes.js"
+   ],
+   "at": "2026-08-27T10:20:45.225Z"
+  },
+  {
+   "piece": "engine",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "Runtime shell live: one renderer, mode stack, adaptive dpr, palette, instancing, input, assets, audio, debug overlay. Placeholder scene renders at 1.00 ms/frame, 10 draw calls, 200 instances in 4 pooled calls.",
+   "detail": "Measured in Chrome on the target machine (AMD Radeon Pro 5500M, MacBook Pro 2019) at 2240x1260 drawing buffer, dpr 1.75. Adaptive quality state machine verified against the spec: 1.75->1.50->(6 s cooldown blocks)->1.25->1.00 floor under 30 ms frames, climbs back to the 1.75 ceiling under 10 ms frames, 19 ms deadband does nothing, stall frames (>200 ms) rejected. Zero JS console errors; the only network 404s are the four deliberate mode-module probes that vanish as menu/office/editor/walk land.",
+   "files": [
+    "src/main.js",
+    "src/core/engine.js",
+    "src/core/mode.js",
+    "src/core/input.js",
+    "src/core/palette.js",
+    "src/core/instancing.js",
+    "src/core/debug.js",
+    "src/core/assets.js",
+    "src/core/audio.js",
+    "src/style.css"
+   ],
+   "metrics": {
+    "avgFrameMs": 1,
+    "medianFrameMs": 0.8,
+    "p95FrameMs": 1.4,
+    "impliedFps": 996,
+    "drawCalls": 10,
+    "triangles": 3068,
+    "instances": 200,
+    "pooledDrawCalls": 4,
+    "geometries": 10,
+    "programs": 7,
+    "pixelRatio": 1.75,
+    "drawBuffer": "2240x1260",
+    "catalogEntriesVerified": 122,
+    "catalogEntriesOver2pctDrift": 46
+   },
+   "at": "2026-08-27T10:21:46.400Z"
+  },
+  {
+   "piece": "rooms",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "Courtyard detection only fires for a nested CONNECTED COMPONENT, never for a nested FACE. As soon as any wall joins the courtyard ring to the rest of the buildi",
+   "at": "2026-08-27T10:21:49.254Z"
+  },
+  {
+   "piece": "commission",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "8 real building programmes, 30 client personas, varied plots; 200 generated commissions pass every assertion",
+   "detail": "generateCommission(seed,difficulty,history) is byte-deterministic (JSON.stringify equal). Programmes carry defensible numbers (2.5 m2/child group room, 1 WC per 15 children, 10 m2/child outdoor play, 1.45 m2/cover cafe dining, Neufert 0.55 m2/cover kitchen, 14 m2 consulting room, 1.6 m2/waiting seat, accessible WC 2.20x2.10, 9 m2/workstation, 2.8 m2/reader seat, 100 volumes/m2). Constraint.check is a string id namespaced by module (plot.*, access.*, daylight.*, cost.*, program.*). Plots: 7 shapes, per-edge setback inset, quarter-turn rotation, guaranteed neighbour, tall south neighbour on 73% of plots, protected trees placed where they bite, sloped ground with heightAt(x,z). Briefs are prose in the client voice, 130-190 words, no bullet dumps.",
+   "files": [
+    "src/commission/index.js",
+    "src/commission/types.js",
+    "src/commission/plot.js",
+    "src/commission/clients.js",
+    "src/commission/names.js"
+   ],
+   "metrics": {
+    "commissionsTested": 200,
+    "briefWordsMin": 130,
+    "briefWordsMax": 190,
+    "buildableOverPerStoreyMin": 2.04,
+    "buildableOverPerStoreyMedian": 3.36,
+    "typesCovered": 8,
+    "plotShapes": 7,
+    "personas": 30
+   },
+   "at": "2026-08-27T10:22:21.101Z"
+  },
+  {
+   "piece": "net",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "LocalHub delivers an op TWICE to a client that is mid-connect, permanently diverging the models — the exact guarantee the piece is built to provide. Sequence: (",
+   "at": "2026-08-27T10:29:31.997Z"
+  },
+  {
+   "piece": "geometry",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "`insetPolygon()` in src/model/geometry.js rotates the edge the wrong way when it builds the inward normal, so the slab-top AO ring is dead code on 100% of input",
+   "at": "2026-08-27T10:30:10.318Z"
+  },
+  {
+   "piece": "rooms",
+   "role": "builder",
+   "round": 2,
+   "status": "pass",
+   "headline": "Courtyards detected per-face (not per-component), nested outlines label to their enclosing room, stub footprints netted out, sub-0.5 m2 rooms kept and flagged, stable id-derived room numbers. 60/60 assertions pass; remaining L1 failure is a wallExistsBetween bug in building.js.",
+   "files": [
+    "src/model/rooms.js"
+   ],
+   "at": "2026-08-27T10:30:18.380Z"
+  },
+  {
+   "piece": "analysis",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "Deterministic evaluation engine: access/daylight/cost/program + client e-mail. Good house scores 94 and is accepted; broken house raises 6 blockers, 16 majors, 6 minors, every complaint carrying a measured number.",
+   "files": [
+    "src/analysis/index.js",
+    "src/analysis/access.js",
+    "src/analysis/daylight.js",
+    "src/analysis/cost.js",
+    "src/analysis/program.js",
+    "src/analysis/issues.js",
+    "src/analysis/mail.js",
+    "src/analysis/geom.js",
+    "src/analysis/topology.js",
+    "src/analysis/classify.js",
+    "src/analysis/catalogue.js"
+   ],
+   "at": "2026-08-27T10:32:20.688Z"
+  },
+  {
+   "piece": "catalog",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "The clearance model has no vertical dimension, so a correctly drawn kitchen fails the game's own ergonomics check. kitchen-wall-600 is anchor:'wall', mount:1.45",
+   "at": "2026-08-27T10:33:30.111Z"
+  },
+  {
+   "piece": "engine",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "The shell was validated by looking at it, never by cross-checking its numbers against the modules that consume them or against a stopwatch. Three of the four th",
+   "at": "2026-08-27T10:35:21.336Z"
+  },
+  {
+   "piece": "commission",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "Protected trees are placed INSIDE the buildable polygon *after* the plot has already been sized, and nothing ever re-checks that the building still fits. plot.j",
+   "at": "2026-08-27T10:36:16.352Z"
   }
  ],
- "updated": "2026-08-27T09:51:37.590Z"
+ "updated": "2026-08-27T10:36:16.352Z"
 }

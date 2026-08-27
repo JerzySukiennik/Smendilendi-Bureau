@@ -1,8 +1,131 @@
-:root { --bg:#1a1714; }
-* { margin:0; padding:0; box-sizing:border-box; }
-html, body, #app { width:100%; height:100%; overflow:hidden; background:var(--bg); }
-#view { position:absolute; inset:0; width:100%; height:100%; display:block; }
-#ui { position:absolute; inset:0; pointer-events:none; }
-#ui > * { pointer-events:auto; }
-#debug { position:absolute; top:8px; left:8px; z-index:9999; font:11px/1.4 ui-monospace,Menlo,monospace;
-  color:#9f9; background:rgba(0,0,0,.55); padding:6px 8px; border-radius:4px; white-space:pre; }
+/* style.css — the shell. Anything mode-specific belongs to that mode's own CSS,
+   loaded by the mode. Colours mirror src/core/palette.js (UI block). */
+
+:root {
+  --bg:        #20201e;
+  --panel:     #2b2926;
+  --panel-hi:  #37342f;
+  --line:      #4a4642;
+  --text:      #f3ece1;
+  --text-dim:  #a89f92;
+  --accent:    #d4763a;
+  --good:      #7f9a52;
+  --warn:      #c9a227;
+  --bad:       #b2472e;
+  --radius:    6px;
+  --font-ui:   "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+#view {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  touch-action: none;
+}
+
+/* The UI layer sits over the canvas and is click-through by default; individual
+   panels re-enable pointer events. This is what lets the 3D world stay grabbable
+   underneath a HUD. */
+#ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+}
+#ui > * { pointer-events: auto; }
+
+.debug-overlay {
+  /* geometry and colour are set inline by debug.js so the overlay survives a
+     missing stylesheet; only the non-critical polish lives here */
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* crosshair for pointer-locked first-person modes */
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: rgba(243, 236, 225, 0.85);
+  box-shadow: 0 0 0 1px rgba(24, 23, 21, 0.55);
+  pointer-events: none;
+}
+
+/* the "click to play" / pointer-lock prompt */
+.prompt {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: rgba(24, 23, 21, 0.72);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(4px);
+}
+.prompt kbd {
+  font-family: var(--font-mono);
+  background: var(--panel-hi);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin: 0 2px;
+  font-size: 12px;
+}
+
+.fatal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6vw;
+  background: var(--bg);
+  color: var(--text);
+}
+.fatal h1 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--bad);
+  letter-spacing: 0.01em;
+}
+.fatal pre {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  max-height: 60vh;
+  overflow: auto;
+}

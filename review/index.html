@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smendiłendi Bureau — asset review</title>
+<link rel="stylesheet" href="review.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<!-- one shared WebGLRenderer for every turntable on the page -->
+<canvas id="gl"></canvas>
+
+<header>
+  <h1>Asset review</h1>
+  <div class="sub">
+    Sign off the music, the UI sounds and the headline models. Everything else follows the agreed
+    style automatically, so this is the only stop the build makes.
+    <strong>Approve</strong>, <strong>Reject</strong> or <strong>Needs&nbsp;work</strong> each item,
+    then hit <strong>Copy decisions</strong> at the bottom and paste the text back to Claude.
+  </div>
+  <div class="overall">
+    <div class="count" id="overallCount">—</div>
+    <div class="bar" id="overallBar"><i></i></div>
+    <button class="btn ghost" id="jumpExport" type="button">go to export ↓</button>
+  </div>
+</header>
+
+<main id="batches"></main>
+
+<section id="export">
+  <h2>Export <span class="tally">the copy button is the reliable path — a downloaded file may not leave the browser sandbox</span></h2>
+  <div class="exportbox">
+    <div class="exporthead">
+      <div class="lead">
+        <b>decisions.json</b>
+        <span id="exportSummary">nothing decided yet</span>
+      </div>
+      <button class="btn primary" id="copyBtn" type="button">Copy decisions</button>
+      <button class="btn" id="exportBtn" type="button">Export decisions ↓</button>
+      <button class="btn ghost" id="resetBtn" type="button">Clear all</button>
+    </div>
+    <pre id="json">{}</pre>
+  </div>
+</section>
+
+<!-- big model view -->
+<div id="big" hidden>
+  <div class="backdrop"></div>
+  <div class="chrome">
+    <div class="btitle">
+      <div>
+        <b id="bigName"></b>
+        <span class="m" id="bigMeta"></span>
+        <span class="why" id="bigWhy"></span>
+      </div>
+      <button class="close" id="bigClose" type="button">close · Esc</button>
+    </div>
+    <div class="bfoot">
+      <span id="bigHint">drag to orbit · scroll to zoom · the figure is 1.75 m</span>
+      <div class="bdecide" id="bigDecide"></div>
+    </div>
+  </div>
+</div>
+
+<div id="legend">
+  <span><b>keys</b></span>
+  <span><kbd>A</kbd> approve</span>
+  <span><kbd>R</kbd> reject</span>
+  <span><kbd>W</kbd> needs work</span>
+  <span><kbd>J</kbd>/<kbd>K</kbd> or <kbd>↑</kbd><kbd>↓</kbd> move</span>
+  <span><kbd>Space</kbd> play / spin</span>
+  <span><kbd>L</kbd> loop</span>
+  <span><kbd>Enter</kbd> note</span>
+  <span><kbd>Esc</kbd> close</span>
+  <button class="x" id="legendClose" type="button" title="hide">✕</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="review.js"></script>
+</body>
+</html>

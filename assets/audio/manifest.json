@@ -1,0 +1,434 @@
+{
+  "music.menu": {
+    "ogg": "music/menu.ogg",
+    "m4a": "music/menu.m4a",
+    "kind": "music",
+    "loop": true,
+    "gain": 0.7,
+    "positional": false
+  },
+  "music.office-ambient-1": {
+    "ogg": "music/office-ambient-1.ogg",
+    "m4a": "music/office-ambient-1.m4a",
+    "kind": "music",
+    "loop": true,
+    "gain": 0.7,
+    "positional": false
+  },
+  "music.office-ambient-2": {
+    "ogg": "music/office-ambient-2.ogg",
+    "m4a": "music/office-ambient-2.m4a",
+    "kind": "music",
+    "loop": true,
+    "gain": 0.7,
+    "positional": false
+  },
+  "music.walkthrough": {
+    "ogg": "music/walkthrough.ogg",
+    "m4a": "music/walkthrough.m4a",
+    "kind": "music",
+    "loop": true,
+    "gain": 0.7,
+    "positional": false
+  },
+  "radio.1": {
+    "ogg": "radio/radio-1-jazz-brass.ogg",
+    "m4a": "radio/radio-1-jazz-brass.m4a",
+    "kind": "radio",
+    "loop": true,
+    "gain": 0.8,
+    "positional": true
+  },
+  "radio.2": {
+    "ogg": "radio/radio-2-bossa-elevator.ogg",
+    "m4a": "radio/radio-2-bossa-elevator.m4a",
+    "kind": "radio",
+    "loop": true,
+    "gain": 0.8,
+    "positional": true
+  },
+  "radio.3": {
+    "ogg": "radio/radio-3-lofi.ogg",
+    "m4a": "radio/radio-3-lofi.m4a",
+    "kind": "radio",
+    "loop": true,
+    "gain": 0.8,
+    "positional": true
+  },
+  "radio.4": {
+    "ogg": "radio/radio-4-funk.ogg",
+    "m4a": "radio/radio-4-funk.m4a",
+    "kind": "radio",
+    "loop": true,
+    "gain": 0.8,
+    "positional": true
+  },
+  "radio.5": {
+    "ogg": "radio/radio-5-acoustic.ogg",
+    "m4a": "radio/radio-5-acoustic.m4a",
+    "kind": "radio",
+    "loop": true,
+    "gain": 0.8,
+    "positional": true
+  },
+  "radio.6": {
+    "ogg": "radio/radio-6-piano.ogg",
+    "m4a": "radio/radio-6-piano.m4a",
+    "kind": "radio",
+    "loop": true,
+    "gain": 0.8,
+    "positional": true
+  },
+  "os.boot.1": {
+    "ogg": "os/boot-tier1.ogg",
+    "m4a": "os/boot-tier1.m4a",
+    "kind": "os",
+    "loop": false,
+    "gain": 0.9,
+    "positional": true
+  },
+  "os.boot.2": {
+    "ogg": "os/boot-tier2.ogg",
+    "m4a": "os/boot-tier2.m4a",
+    "kind": "os",
+    "loop": false,
+    "gain": 0.9,
+    "positional": true
+  },
+  "os.boot.3": {
+    "ogg": "os/boot-tier3.ogg",
+    "m4a": "os/boot-tier3.m4a",
+    "kind": "os",
+    "loop": false,
+    "gain": 0.9,
+    "positional": true
+  },
+  "os.boot.4": {
+    "ogg": "os/boot-tier4.ogg",
+    "m4a": "os/boot-tier4.m4a",
+    "kind": "os",
+    "loop": false,
+    "gain": 0.9,
+    "positional": true
+  },
+  "ui.click": {
+    "ogg": "ui/click.ogg",
+    "m4a": "ui/click.m4a",
+    "kind": "ui",
+    "loop": false,
+    "gain": 0.85,
+    "positional": false
+  },
+  "ui.click-soft": {
+    "ogg": "ui/click-soft.ogg",
+    "m4a": "ui/click-soft.m4a",
+    "kind": "ui",
+    "loop": false,
+    "gain": 0.85,
+    "positional": false
+  },
+  "ui.error": {
+    "ogg": "ui/error.ogg",
+    "m4a": "ui/error.m4a",
+    "kind": "ui",
+    "loop": false,
+    "gain": 0.85,
+    "positional": false
+  },
+  "ui.mail-notify": {
+    "ogg": "ui/mail-notify.ogg",
+    "m4a": "ui/mail-notify.m4a",
+    "kind": "ui",
+    "loop": false,
+    "gain": 0.85,
+    "positional": false
+  },
+  "ui.snap": {
+    "ogg": "ui/snap.ogg",
+    "m4a": "ui/snap.m4a",
+    "kind": "ui",
+    "loop": false,
+    "gain": 0.85,
+    "positional": false
+  },
+  "ui.submit": {
+    "ogg": "ui/submit.ogg",
+    "m4a": "ui/submit.m4a",
+    "kind": "ui",
+    "loop": false,
+    "gain": 0.85,
+    "positional": false
+  },
+  "ui.tool-select": {
+    "ogg": "ui/tool-select.ogg",
+    "m4a": "ui/tool-select.m4a",
+    "kind": "ui",
+    "loop": false,
+    "gain": 0.85,
+    "positional": false
+  },
+  "ui.window-close": {
+    "ogg": "ui/window-close.ogg",
+    "m4a": "ui/window-close.m4a",
+    "kind": "ui",
+    "loop": false,
+    "gain": 0.85,
+    "positional": false
+  },
+  "ui.window-open": {
+    "ogg": "ui/window-open.ogg",
+    "m4a": "ui/window-open.m4a",
+    "kind": "ui",
+    "loop": false,
+    "gain": 0.85,
+    "positional": false
+  },
+  "sfx.bin-hit": {
+    "ogg": "sfx/bin-hit.ogg",
+    "m4a": "sfx/bin-hit.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.blinds": {
+    "ogg": "sfx/blinds.ogg",
+    "m4a": "sfx/blinds.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.chair-roll": {
+    "ogg": "sfx/chair-roll.ogg",
+    "m4a": "sfx/chair-roll.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.chair-sit": {
+    "ogg": "sfx/chair-sit.ogg",
+    "m4a": "sfx/chair-sit.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.coffee-machine": {
+    "ogg": "sfx/coffee-machine.ogg",
+    "m4a": "sfx/coffee-machine.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.coffee-pour": {
+    "ogg": "sfx/coffee-pour.ogg",
+    "m4a": "sfx/coffee-pour.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.door-close": {
+    "ogg": "sfx/door-close.ogg",
+    "m4a": "sfx/door-close.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.door-open": {
+    "ogg": "sfx/door-open.ogg",
+    "m4a": "sfx/door-open.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.footstep-carpet-1": {
+    "ogg": "sfx/footstep-carpet-1.ogg",
+    "m4a": "sfx/footstep-carpet-1.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.footstep-carpet-2": {
+    "ogg": "sfx/footstep-carpet-2.ogg",
+    "m4a": "sfx/footstep-carpet-2.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.footstep-carpet-3": {
+    "ogg": "sfx/footstep-carpet-3.ogg",
+    "m4a": "sfx/footstep-carpet-3.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.footstep-carpet-4": {
+    "ogg": "sfx/footstep-carpet-4.ogg",
+    "m4a": "sfx/footstep-carpet-4.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.footstep-tile-1": {
+    "ogg": "sfx/footstep-tile-1.ogg",
+    "m4a": "sfx/footstep-tile-1.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.footstep-tile-2": {
+    "ogg": "sfx/footstep-tile-2.ogg",
+    "m4a": "sfx/footstep-tile-2.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.footstep-tile-3": {
+    "ogg": "sfx/footstep-tile-3.ogg",
+    "m4a": "sfx/footstep-tile-3.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.footstep-tile-4": {
+    "ogg": "sfx/footstep-tile-4.ogg",
+    "m4a": "sfx/footstep-tile-4.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.keyboard-type-1": {
+    "ogg": "sfx/keyboard-type-1.ogg",
+    "m4a": "sfx/keyboard-type-1.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.keyboard-type-2": {
+    "ogg": "sfx/keyboard-type-2.ogg",
+    "m4a": "sfx/keyboard-type-2.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.keyboard-type-3": {
+    "ogg": "sfx/keyboard-type-3.ogg",
+    "m4a": "sfx/keyboard-type-3.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.keyboard-type-4": {
+    "ogg": "sfx/keyboard-type-4.ogg",
+    "m4a": "sfx/keyboard-type-4.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.light-switch": {
+    "ogg": "sfx/light-switch.ogg",
+    "m4a": "sfx/light-switch.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.mouse-click": {
+    "ogg": "sfx/mouse-click.ogg",
+    "m4a": "sfx/mouse-click.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.mug-set-down": {
+    "ogg": "sfx/mug-set-down.ogg",
+    "m4a": "sfx/mug-set-down.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.paper-crumple": {
+    "ogg": "sfx/paper-crumple.ogg",
+    "m4a": "sfx/paper-crumple.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.paper-toss": {
+    "ogg": "sfx/paper-toss.ogg",
+    "m4a": "sfx/paper-toss.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "sfx.pen-scribble": {
+    "ogg": "sfx/pen-scribble.ogg",
+    "m4a": "sfx/pen-scribble.m4a",
+    "kind": "sfx",
+    "loop": false,
+    "gain": 1.0,
+    "positional": true
+  },
+  "amb.birds-outside": {
+    "ogg": "amb/birds-outside.ogg",
+    "m4a": "amb/birds-outside.m4a",
+    "kind": "amb",
+    "loop": true,
+    "gain": 0.55,
+    "positional": false
+  },
+  "amb.crowd-interior": {
+    "ogg": "amb/crowd-interior.ogg",
+    "m4a": "amb/crowd-interior.m4a",
+    "kind": "amb",
+    "loop": true,
+    "gain": 0.55,
+    "positional": false
+  },
+  "amb.office-room-tone": {
+    "ogg": "amb/office-room-tone.ogg",
+    "m4a": "amb/office-room-tone.m4a",
+    "kind": "amb",
+    "loop": true,
+    "gain": 0.55,
+    "positional": false
+  },
+  "amb.rain-window": {
+    "ogg": "amb/rain-window.ogg",
+    "m4a": "amb/rain-window.m4a",
+    "kind": "amb",
+    "loop": true,
+    "gain": 0.55,
+    "positional": false
+  },
+  "amb.street-outside": {
+    "ogg": "amb/street-outside.ogg",
+    "m4a": "amb/street-outside.m4a",
+    "kind": "amb",
+    "loop": true,
+    "gain": 0.55,
+    "positional": false
+  }
+}

@@ -16,7 +16,18 @@
 import {
   MeshStandardMaterial, MeshPhysicalMaterial, Color, DoubleSide, FrontSide,
   DirectionalLight, HemisphereLight, AmbientLight, MathUtils,
+  BufferGeometry, BufferAttribute, Mesh, PlaneGeometry, CanvasTexture,
+  Vector3,
 } from 'three';
+
+// COMPASS CONVENTION — shared with src/commission/plot.js ("north is -z, south is
+// +z, east is +x, west is -x") and src/analysis/daylight.js sunVector()
+// ("+X east, -Z north, +Y up"). Azimuth is measured clockwise from north, so
+//     east  = +x = sin(az)
+//     north = -z = -cos(az)
+// A sun due south (az 180) therefore sits at +z and throws every shadow to -z.
+// This file used to have the sign flipped, which put the midday sun in the north
+// and contradicted the daylight analysis the client's e-mail is built from.
 
 // ---------------------------------------------------------------------------
 // 1. The palette proper — warm, limited, architectural.
@@ -94,6 +105,10 @@ export function tint(i) {
 // decorative: they are what makes plaster read as plaster next to tile.
 
 export const MATERIAL_CLASSES = {
+  // 'flat' is the base for ANYTHING that gets its colour per-instance or per-vertex.
+  // An InstancedMesh instance colour MULTIPLIES the material colour, so a tinted
+  // pool built on a coloured material double-darkens. Pools and furniture use this.
+  'flat':       { color: 0xffffff,          roughness: 0.72, metalness: 0.0,  cost: 0 },
   'plaster':    { color: COLORS.plaster,    roughness: 0.94, metalness: 0.0,  cost: 45 },
   'plaster-warm':{color: COLORS.plasterWarm,roughness: 0.94, metalness: 0.0,  cost: 45 },
   'paper':      { color: COLORS.paper,      roughness: 0.97, metalness: 0.0,  cost: 30 },
@@ -189,8 +204,16 @@ export function materialCost(id) {
  * Per-object colour arrives as an InstancedMesh instance colour or vertex colour,
  * so the whole catalogue can render in a handful of draw calls.
  */
-export function furnitureMaterial({ flatShading = false } = {}) {
-  return materialFor('paper', { vertexColors: true, flatShading });
+export function furnitureMaterial({ flatShading = false, vertexColors = true } = {}) {
+  return materialFor('flat', { vertexColors, flatShading });
+}
+
+/**
+ * The material an InstancePool should use when it supplies per-instance colours.
+ * White base, so the instance colour IS the colour the player sees.
+ */
+export function tintedMaterial({ flatShading = false } = {}) {
+  return materialFor('flat', { flatShading });
 }
 
 export function disposeMaterials() {
@@ -246,7 +269,7 @@ export function makeLightRig(scene, opts = {}) {
 
   // A whisper of ambient. Interiors in a low-poly game with no GI go pure black
   // in shadow otherwise; 0.10-0.18 is enough to keep material colour readable.
-  const ambient = new AmbientLight(0xfff0dd, indoor ? 0.30 : 0.14);
+  const ambient = new AmbientLight(0xfff0dd, indoor ? 0.30 : 0.18);
   scene.add(ambient);
 
   let current = timeOfDay;

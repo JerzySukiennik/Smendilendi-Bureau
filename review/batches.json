@@ -1,0 +1,676 @@
+{
+  "generated": "tools/make-batch.mjs",
+  "batches": [
+    {
+      "id": "audio-music",
+      "title": "Music",
+      "kind": "audio",
+      "note": "The four long-form tracks. Listen with the loop toggle on: the only question that matters for music here is whether you can hear the seam when it wraps.",
+      "items": [
+        {
+          "id": "music.menu",
+          "name": "Menu",
+          "why": "Plays under the badly-designed building on the main menu. Wants to be curious rather than grand — this is a game about drawing, not about saving the world.",
+          "whyAuto": false,
+          "loop": true,
+          "src": {
+            "ogg": "../assets/audio/music/menu.ogg",
+            "m4a": "../assets/audio/music/menu.m4a"
+          },
+          "meta": {
+            "duration": "0:58",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "music.office-ambient-1",
+          "name": "Office ambient 1",
+          "why": "Long-form office-ambient-1 track. Rationale not recorded yet — check the loop point.",
+          "whyAuto": true,
+          "loop": true,
+          "src": {
+            "ogg": "../assets/audio/music/office-ambient-1.ogg",
+            "m4a": "../assets/audio/music/office-ambient-1.m4a"
+          },
+          "meta": {
+            "duration": "1:15",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "music.office-ambient-2",
+          "name": "Office ambient 2",
+          "why": "Long-form office-ambient-2 track. Rationale not recorded yet — check the loop point.",
+          "whyAuto": true,
+          "loop": true,
+          "src": {
+            "ogg": "../assets/audio/music/office-ambient-2.ogg",
+            "m4a": "../assets/audio/music/office-ambient-2.m4a"
+          },
+          "meta": {
+            "duration": "1:15",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "music.walkthrough",
+          "name": "Walkthrough",
+          "why": "The \"30 years later\" walk. Warmer and slower than the office track — the building is finished and full of people, and the music should let that land.",
+          "whyAuto": false,
+          "loop": true,
+          "src": {
+            "ogg": "../assets/audio/music/walkthrough.ogg",
+            "m4a": "../assets/audio/music/walkthrough.m4a"
+          },
+          "meta": {
+            "duration": "1:30",
+            "licence": "unrecorded",
+            "source": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "audio-ui",
+      "title": "UI sounds",
+      "kind": "audio",
+      "note": "Every click, snap and chime the player hears through the in-game computer. Play them back to back — they have to sound like one set of hardware, not thirteen downloads.",
+      "items": [
+        {
+          "id": "ui.click-soft",
+          "name": "Click soft",
+          "why": "Hover and secondary presses. The same character as the confirm click but quieter and duller, so the two read as one family.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/ui/click-soft.ogg",
+            "m4a": "../assets/audio/ui/click-soft.m4a"
+          },
+          "meta": {
+            "duration": "0:00",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "ui.click",
+          "name": "Click",
+          "why": "The default confirm. Short, dry, no tail — a hundred of these happen per minute in the editor and anything ringy becomes torture.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/ui/click.ogg",
+            "m4a": "../assets/audio/ui/click.m4a"
+          },
+          "meta": {
+            "duration": "0:00",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "ui.error",
+          "name": "Error",
+          "why": "A refused action. Flat and short — an unpleasant sound is a punishment, and the analysis engine already does the criticising.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/ui/error.ogg",
+            "m4a": "../assets/audio/ui/error.m4a"
+          },
+          "meta": {
+            "duration": "0:01",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "ui.mail-notify",
+          "name": "Mail notify",
+          "why": "A brief or a client reply lands in Mail. Must cut through the room tone from across the office but never startle.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/ui/mail-notify.ogg",
+            "m4a": "../assets/audio/ui/mail-notify.m4a"
+          },
+          "meta": {
+            "duration": "0:00",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "ui.snap",
+          "name": "Snap",
+          "why": "A wall endpoint snapping to the grid or to another node. This one has to be felt more than heard — it is the tactile core of drawing.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/ui/snap.ogg",
+            "m4a": "../assets/audio/ui/snap.m4a"
+          },
+          "meta": {
+            "duration": "0:00",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "ui.submit",
+          "name": "Submit",
+          "why": "Sending a design to the client. The one UI sound allowed to feel like a small ceremony, because it commits you to the single revision round.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/ui/submit.ogg",
+            "m4a": "../assets/audio/ui/submit.m4a"
+          },
+          "meta": {
+            "duration": "0:01",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "ui.tool-select",
+          "name": "Tool select",
+          "why": "Switching tool in the editor. Slightly pitched so it is distinguishable from a plain click without being a separate event in your head.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/ui/tool-select.ogg",
+            "m4a": "../assets/audio/ui/tool-select.m4a"
+          },
+          "meta": {
+            "duration": "0:00",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "ui.window-close",
+          "name": "Window close",
+          "why": "The counterpart to window-open: same material, shorter, falling instead of rising.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/ui/window-close.ogg",
+            "m4a": "../assets/audio/ui/window-close.m4a"
+          },
+          "meta": {
+            "duration": "0:00",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "ui.window-open",
+          "name": "Window open",
+          "why": "A window opening in the in-game OS. Retro-mechanical, matching the fictional operating system rather than anything modern.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/ui/window-open.ogg",
+            "m4a": "../assets/audio/ui/window-open.m4a"
+          },
+          "meta": {
+            "duration": "0:00",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "os.boot-tier1",
+          "name": "Boot tier1",
+          "why": "Startup chime for the Pentagram 133, the starter machine. Should sound cheap and a bit sad; it is the sound you upgrade away from.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/os/boot-tier1.ogg",
+            "m4a": "../assets/audio/os/boot-tier1.m4a"
+          },
+          "meta": {
+            "duration": "0:01",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "os.boot-tier2",
+          "name": "Boot tier2",
+          "why": "Kompakt 2000. Recognisably the same idea as tier 1, but cleaner — the progression has to be audible in one A/B.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/os/boot-tier2.ogg",
+            "m4a": "../assets/audio/os/boot-tier2.m4a"
+          },
+          "meta": {
+            "duration": "0:02",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "os.boot-tier3",
+          "name": "Boot tier3",
+          "why": "Sunstation Pro. A workstation noise: confident, a little corporate.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/os/boot-tier3.ogg",
+            "m4a": "../assets/audio/os/boot-tier3.m4a"
+          },
+          "meta": {
+            "duration": "0:02",
+            "licence": "unrecorded",
+            "source": null
+          }
+        },
+        {
+          "id": "os.boot-tier4",
+          "name": "Boot tier4",
+          "why": "Melon Studio M5, the endgame machine. Short, expensive, over before you can get bored of it.",
+          "whyAuto": false,
+          "loop": false,
+          "src": {
+            "ogg": "../assets/audio/os/boot-tier4.ogg",
+            "m4a": "../assets/audio/os/boot-tier4.m4a"
+          },
+          "meta": {
+            "duration": "0:02",
+            "licence": "unrecorded",
+            "source": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "models-1",
+      "title": "Headline models",
+      "kind": "model",
+      "note": "The headline pieces — every catalogue item that is modelled by hand rather than generated. Judge them at the scale figure: 1.75 m, standing next to the model, with the real bounding box in metres under it. If a dimension looks wrong to you, it is wrong. — 15 of 15 GLBs are not on disk yet; those tiles render the procedural proxy solid instead, clearly marked.",
+      "items": [
+        {
+          "id": "chair-task",
+          "name": "Task chair",
+          "why": "Seat adjusts 0.42-0.53. Needs 1.00 m clear behind the desk edge to roll back.",
+          "whyAuto": false,
+          "glb": "../assets/models/chair-task.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            0.65,
+            1.1,
+            0.65
+          ],
+          "price": 1400,
+          "meta": {
+            "category": "seating",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 0.1 / 1 / 0.15 / 0.15 m",
+            "seatHeight": 0.46,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "sofa-3seat",
+          "name": "Sofa, 3 seats",
+          "why": "Sofa, 3 seats — 2.1 x 0.82 x 0.92 m, 3800 units. No rationale recorded in the catalogue; check the dimensions against the scale figure.",
+          "whyAuto": true,
+          "glb": "../assets/models/sofa-3seat.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            2.1,
+            0.82,
+            0.92
+          ],
+          "price": 3800,
+          "meta": {
+            "category": "seating",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 0.45 / 0.05 / 0.1 / 0.1 m",
+            "seatHeight": 0.42,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "table-dining-4",
+          "name": "Dining table, 4",
+          "why": "Top at 0.75. 0.60 m of edge per diner; 0.80 m all round to seat and pass.",
+          "whyAuto": false,
+          "glb": "../assets/models/table-dining-4.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            1.4,
+            0.75,
+            0.8
+          ],
+          "price": 1900,
+          "meta": {
+            "category": "tables",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 0.8 / 0.8 / 0.8 / 0.8 m",
+            "seatHeight": null,
+            "workHeight": 0.75,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "bed-double-1600",
+          "name": "Double bed 160 x 200",
+          "why": "Both sides need 0.70 m when two people sleep in it.",
+          "whyAuto": false,
+          "glb": "../assets/models/bed-double-1600.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            1.6,
+            0.55,
+            2
+          ],
+          "price": 2600,
+          "meta": {
+            "category": "beds",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 0.55 / 0.02 / 0.7 / 0.7 m",
+            "seatHeight": null,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "wc-floor",
+          "name": "WC, close-coupled",
+          "why": "Pan projection 0.70, cistern against the wall. 0.60 m clear in front, 0.20 m each side of the centre line.",
+          "whyAuto": false,
+          "glb": "../assets/models/wc-floor.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            0.38,
+            0.79,
+            0.7
+          ],
+          "price": 1300,
+          "meta": {
+            "category": "sanitary",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 0.6 / 0 / 0.2 / 0.2 m",
+            "seatHeight": 0.42,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "basin-560",
+          "name": "Washbasin 560",
+          "why": "Rim at 0.85. 0.70 m of activity space in front (0.60 is the absolute minimum).",
+          "whyAuto": false,
+          "glb": "../assets/models/basin-560.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            0.56,
+            0.85,
+            0.46
+          ],
+          "price": 900,
+          "meta": {
+            "category": "sanitary",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 0.7 / 0 / 0.1 / 0.1 m",
+            "seatHeight": null,
+            "workHeight": 0.85,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "kitchen-base-sink-800",
+          "name": "Kitchen sink unit 800",
+          "why": "Single bowl 0.50 x 0.40 x 0.18 deep, mixer to the rear.",
+          "whyAuto": false,
+          "glb": "../assets/models/kitchen-base-sink-800.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            0.8,
+            0.9,
+            0.6
+          ],
+          "price": 2300,
+          "meta": {
+            "category": "kitchen",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 1.2 / 0 / 0 / 0 m",
+            "seatHeight": null,
+            "workHeight": 0.9,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "fridge-freezer-tall",
+          "name": "Fridge-freezer, tall",
+          "why": "The door sweeps 0.65 m; 1.20 m keeps the run usable with the door open.",
+          "whyAuto": false,
+          "glb": "../assets/models/fridge-freezer-tall.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            0.6,
+            2,
+            0.65
+          ],
+          "price": 3200,
+          "meta": {
+            "category": "kitchen",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 1.2 / 0.05 / 0 / 0 m",
+            "seatHeight": null,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "door-internal-900",
+          "name": "Internal door 900",
+          "why": "The default. Leaf 0.90 x 2.05; 0.90 m clear width satisfies wheelchair access.",
+          "whyAuto": false,
+          "glb": "../assets/models/door-internal-900.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            0.9,
+            2.05,
+            0.06
+          ],
+          "price": 1400,
+          "meta": {
+            "category": "doors",
+            "anchor": "wall",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 0.9 / 0.3 / 0 / 0 m",
+            "seatHeight": null,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "window-1200x1400",
+          "name": "Window 1200 x 1400",
+          "why": "The workhorse. 1.68 m2 of opening; 0.86 m2 of glass per 1.00 m2 of hole.",
+          "whyAuto": false,
+          "glb": "../assets/models/window-1200x1400.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            1.2,
+            1.4,
+            0.12
+          ],
+          "price": 2600,
+          "meta": {
+            "category": "windows",
+            "anchor": "wall",
+            "mount": 0.85,
+            "clearance": null,
+            "seatHeight": null,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "pendant-lamp",
+          "name": "Pendant lamp",
+          "why": "Hung 1.20 below the ceiling — 1.50 m above a dining table top.",
+          "whyAuto": false,
+          "glb": "../assets/models/pendant-lamp.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            0.4,
+            0.24,
+            0.4
+          ],
+          "price": 460,
+          "meta": {
+            "category": "lighting",
+            "anchor": "ceiling",
+            "mount": 1.2,
+            "clearance": null,
+            "seatHeight": null,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "plant-ficus-large",
+          "name": "Large ficus",
+          "why": "Large ficus — 0.8 x 1.8 x 0.8 m, 900 units. No rationale recorded in the catalogue; check the dimensions against the scale figure.",
+          "whyAuto": true,
+          "glb": "../assets/models/plant-ficus-large.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            0.8,
+            1.8,
+            0.8
+          ],
+          "price": 900,
+          "meta": {
+            "category": "plants",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 0.05 / 0.05 / 0.05 / 0.05 m",
+            "seatHeight": null,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "desk-reception",
+          "name": "Reception desk",
+          "why": "Counter at 1.10 with a 0.75 m accessible ledge. 1.20 m of queuing space in front.",
+          "whyAuto": false,
+          "glb": "../assets/models/desk-reception.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            2.2,
+            1.1,
+            0.8
+          ],
+          "price": 6800,
+          "meta": {
+            "category": "office",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 1.2 / 1 / 0.1 / 0.1 m",
+            "seatHeight": null,
+            "workHeight": 0.74,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "espresso-machine",
+          "name": "Espresso machine",
+          "why": "Two-group commercial machine, sits on the 0.95 m bar top.",
+          "whyAuto": false,
+          "glb": "../assets/models/espresso-machine.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            0.75,
+            0.55,
+            0.55
+          ],
+          "price": 12000,
+          "meta": {
+            "category": "retail",
+            "anchor": "floor",
+            "mount": 0.95,
+            "clearance": "Clearance F/B/L/R 0.6 / 0.1 / 0.1 / 0.1 m",
+            "seatHeight": null,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        },
+        {
+          "id": "exam-couch",
+          "name": "Examination couch",
+          "why": "1900 x 620 mm at 0.70 m. Clinicians need 0.90 m on the examination side.",
+          "whyAuto": false,
+          "glb": "../assets/models/exam-couch.glb",
+          "present": false,
+          "proc": true,
+          "size": [
+            0.62,
+            0.7,
+            1.9
+          ],
+          "price": 4800,
+          "meta": {
+            "category": "clinic",
+            "anchor": "floor",
+            "mount": 0,
+            "clearance": "Clearance F/B/L/R 0.75 / 0.3 / 0.9 / 0.75 m",
+            "seatHeight": null,
+            "workHeight": null,
+            "licence": "authored in Blender for this project",
+            "source": null
+          }
+        }
+      ]
+    }
+  ]
+}
