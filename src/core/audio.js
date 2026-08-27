@@ -17,7 +17,7 @@
  *       "sfx.coffee-machine": { ogg, m4a, kind, loop, gain, positional }
  *
  *   assets/audio/mix.json — how loud that actually comes out:
- *       effective = master x buses[kindToBus[kind]] x entry.gain
+ *       effective = master x buses[kindToBus[kind]] x entry.gain x context
  *     The review page plays every sound through exactly this arithmetic, so the
  *     numbers the human signed off ARE these numbers. Round 2 shipped mix.json
  *     and taught the review page to honour it, but left this file with its own
@@ -26,9 +26,46 @@
  *     review page was therefore promising a level the engine would not play.
  *     mix.json is now the only source of the mix, and DEFAULTS below exist purely
  *     so a failed fetch is quiet rather than silent.
+ *
+ * ONE ID, ONE REVIEWED LEVEL (round 3).
+ *   Until round 3, callers passed `volume: 0.55` and friends straight into play(),
+ *   and that factor multiplied on top of everything above. The four levels the
+ *   human signed off were then quietly cut again — music.office-ambient-1 was
+ *   approved at 12.8% and played at 7.0%; ui.click-soft was approved at 32.1% and
+ *   played at 11.2 / 16.1 / 19.3 / 32.1% depending on which of six call sites
+ *   fired. The review page's promise ("what Jurek hears is what ships") was false,
+ *   and the verifier could not see it because it only compared two copies of the
+ *   same incomplete arithmetic.
+ *
+ *   So: play() NO LONGER ACCEPTS `volume`. Passing it logs a warning and is
+ *   ignored. A caller that genuinely needs a different level in a different place
+ *   declares it in the manifest as a NAMED CONTEXT and names it at the call site:
+ *
+ *       "sfx.door-open": { ..., "gain": 1, "contexts": { "door": 0.55, "drawer": 0.5 } }
+ *       audio.play('sfx.door-open', { context: 'drawer', rate: 1.35 })
+ *
+ *   Every level a sound can ever have is therefore written down in one file, and
+ *   assets/audio/build/verify-signoff.mjs parses every call site in src/ and fails
+ *   if any of them can produce a level the manifest does not declare.
+ *
+ *   `dynamic` (0..1) is the one runtime factor left, and it can only ATTENUATE:
+ *   footsteps get quieter as you slow down. It is treated exactly like distance on
+ *   a positional sound — the reviewed number is the loudest the sound ever gets,
+ *   and the world only takes away from it.
  */
-export const MANIFEST_PATH = 'assets/audio/manifest.json';
-export const MIX_PATH = 'assets/audio/mix.json';
+
+/**
+ * Config paths are resolved against THIS MODULE, not against the page. The dev
+ * harnesses live at src/walk/dev.html, src/os/dev.html, src/editor/dev.html —
+ * two directories down — where a page-relative 'assets/audio/manifest.json'
+ * resolves to /src/walk/assets/... and 404s, and the bus then runs silent with a
+ * single "[audio] manifest unavailable" line. Anchoring on import.meta.url makes
+ * every page depth work, including a project served from a sub-path.
+ */
+const AUDIO_DIR = new URL('../../assets/audio/', import.meta.url).href;
+export const AUDIO_BASE_PATH = AUDIO_DIR;
+export const MANIFEST_PATH = AUDIO_DIR + 'manifest.json';
+export const MIX_PATH = AUDIO_DIR + 'mix.json';
 
 /** Mirror of assets/audio/mix.json, used only when the fetch fails. */
 export const DEFAULT_MIX = Object.freeze({
@@ -51,11 +88,29 @@ export function busForKind(kind, mix = DEFAULT_MIX) {
 }
 
 /**
- * The one piece of arithmetic that has to agree with the review page:
- *   effective = master x busGain x assetGain
+ * The declared factor for a named context, or 1 for the base level.
+ * An undeclared context is a bug in the caller, never a number to invent: it
+ * returns 1 (the reviewed level) so the game stays audible, and the verifier
+ * fails the build.
+ */
+export function contextFactor(entry, context) {
+  if (!context) return 1;
+  const f = entry?.contexts?.[context];
+  return typeof f === 'number' && Number.isFinite(f) ? f : 1;
+}
+
+/** Context names declared for an entry, base first. */
+export function contextNames(entry) {
+  return Object.keys(entry?.contexts || {});
+}
+
+/**
+ * The one piece of arithmetic that has to agree with the review page AND with
+ * every call site:
+ *   effective = master x busGain x assetGain x contextFactor
  * Pure, so the node check can call it with the same manifest entry the browser gets.
  */
-export function effectiveGain(entry, mix = DEFAULT_MIX) {
+export function effectiveGain(entry, mix = DEFAULT_MIX, context = null) {
   const master = Number.isFinite(mix?.master) ? mix.master : DEFAULT_MIX.master;
   let bus = busForKind(entry?.kind, mix);
   // A kind pointed at a bus the mix does not define would be a NaN gain node in
@@ -63,7 +118,20 @@ export function effectiveGain(entry, mix = DEFAULT_MIX) {
   if (mix?.buses && mix.buses[bus] === undefined) bus = 'sfx';
   const busGain = mix?.buses?.[bus] ?? DEFAULT_MIX.buses[bus] ?? 0.8;
   const asset = typeof entry?.gain === 'number' ? entry.gain : 1;
-  return { bus, master, busGain, asset, effective: master * busGain * asset };
+  const ctx = contextFactor(entry, context);
+  return { bus, master, busGain, asset, context: context || null, contextGain: ctx,
+           effective: master * busGain * asset * ctx };
+}
+
+/** Contexts named by an entry that are not finite numbers in 0..1. */
+export function validateContexts(manifest) {
+  const bad = [];
+  for (const [id, e] of Object.entries(manifest || {})) {
+    for (const [name, f] of Object.entries(e?.contexts || {})) {
+      if (!Number.isFinite(f) || f < 0 || f > 1) bad.push(`${id}.${name} = ${f}`);
+    }
+  }
+  return bad;
 }
 
 /** Entries whose `kind` this mix cannot route. Should always be empty. */
@@ -125,7 +193,7 @@ export class AudioBus {
     this.buses = {};
     this.buffers = new Map();      // name -> AudioBuffer | null (null = known missing)
     this.loading = new Map();      // name -> Promise
-    this.basePath = opts.basePath ?? 'assets/audio/';
+    this.basePath = opts.basePath ?? AUDIO_BASE_PATH;
     this.mix = normaliseMix(opts.mix || DEFAULT_MIX);
     this.mixPath = opts.mixPath ?? MIX_PATH;
     this._mixFromFile = !!opts.mix;          // an injected mix is not re-fetched
@@ -138,6 +206,11 @@ export class AudioBus {
     this._playing = new Set();
     this._loops = new Map();       // name -> node handle
     this._missing = new Set();
+    this._volumeWarned = new Set();
+    this._contextWarned = new Set();
+    this._manifestPromise = null;  // in-flight loadManifest(), so load() can wait
+    this._musicGen = 0;            // bumped by every music()/musicPlaylist() call
+    this._playlist = null;
     this._ready = false;
     this._listenerPos = { x: 0, y: 0, z: 0 };
     this.manifest = opts.manifest || null;   // name -> entry, from manifest.json
@@ -175,19 +248,37 @@ export class AudioBus {
    * caller that only asks for the manifest still gets the real mix.
    */
   async loadManifest(url = this.manifestPath) {
-    if (!this._mixFromFile) await this.loadMix();
-    try {
-      const res = await fetch(url, CONFIG_FETCH);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      this.manifest = await res.json();
-      const bad = validateManifest(this.manifest, this.mix);
-      if (bad.length) console.warn(`[audio] unroutable manifest kinds: ${bad.join(', ')}`);
-      console.info(`[audio] manifest: ${Object.keys(this.manifest).length} sounds, codec ${this.preferred()}`);
-    } catch (err) {
-      console.warn(`[audio] manifest ${url} unavailable — running silent`, err);
-      this.manifest = this.manifest || {};
-    }
-    return this.manifest;
+    if (this._manifestPromise) return this._manifestPromise;
+    this._manifestPromise = (async () => {
+      if (!this._mixFromFile) await this.loadMix();
+      try {
+        const res = await fetch(url, CONFIG_FETCH);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        this.manifest = await res.json();
+        const bad = validateManifest(this.manifest, this.mix);
+        if (bad.length) console.warn(`[audio] unroutable manifest kinds: ${bad.join(', ')}`);
+        const badCtx = validateContexts(this.manifest);
+        if (badCtx.length) console.warn(`[audio] contexts outside 0..1: ${badCtx.join(', ')}`);
+        console.info(`[audio] manifest: ${Object.keys(this.manifest).length} sounds, codec ${this.preferred()}`);
+      } catch (err) {
+        console.warn(`[audio] manifest ${url} unavailable — running silent`, err);
+        this.manifest = this.manifest || {};
+      }
+      return this.manifest;
+    })();
+    return this._manifestPromise;
+  }
+
+  /**
+   * Resolves once the manifest is in hand — fetching it if nobody has yet.
+   * Anything that decides a name is missing has to go through here first: a mode
+   * that starts before the harness's loadManifest() has resolved (the walkthrough
+   * did exactly this, asking for music.walkthrough on frame one) would otherwise
+   * be told the id is not in the manifest and cache that verdict permanently.
+   */
+  async ready() {
+    if (this.manifest) return this.manifest;
+    return this.loadManifest();
   }
 
   /** Load the mix first, then the manifest — validation needs the mix. */
@@ -213,18 +304,46 @@ export class AudioBus {
   busOf(name) { return busForKind(this.entry(name)?.kind, this.mix); }
 
   /**
-   * How loud `name` really comes out: master x bus x the asset's own gain, using
-   * the LIVE bus values (so it tracks the settings screen). Positional sounds get
-   * this at their reference distance and only ever get quieter than it.
+   * How loud `name` really comes out in `context`: master x bus x the asset's own
+   * gain x the context factor, using the LIVE bus values (so it tracks the
+   * settings screen). Positional sounds get this at their reference distance and
+   * only ever get quieter than it; so does anything modulated by `dynamic`.
    * Returns the same shape as the pure effectiveGain().
    */
-  gainOf(name) {
+  gainOf(name, context = null) {
     const e = this.entry(name) || {};
     const bus = busForKind(e.kind, this.mix);
     const master = this.volumes.master ?? this.mix.master;
     const busGain = this.volumes[bus] ?? this.mix.buses[bus] ?? 0.8;
     const asset = typeof e.gain === 'number' ? e.gain : 1;
-    return { bus, master, busGain, asset, effective: master * busGain * asset };
+    const ctx = contextFactor(e, context);
+    return { bus, master, busGain, asset, context: context || null, contextGain: ctx,
+             effective: master * busGain * asset * ctx };
+  }
+
+  /**
+   * The asset-side factor a play() will put on the sound's own gain node:
+   * the authored gain times the named context, times any dynamic attenuation.
+   * The bus and the master are further down the graph.
+   */
+  _assetGain(name, opts = {}) {
+    const meta = this.entry(name) || {};
+    if (opts.volume !== undefined && !this._volumeWarned.has(name)) {
+      this._volumeWarned.add(name);
+      console.warn(`[audio] play("${name}", { volume: ${opts.volume} }) — ignored. `
+        + 'A raw volume would silently cut the level the review page signed off. '
+        + 'Declare it in assets/audio/manifest.json as contexts:{ name: factor } and pass { context: "name" }.');
+    }
+    if (opts.context && meta.contexts && meta.contexts[opts.context] === undefined
+        && !this._contextWarned.has(name + '/' + opts.context)) {
+      this._contextWarned.add(name + '/' + opts.context);
+      console.warn(`[audio] "${name}" has no context "${opts.context}" in the manifest `
+        + `(declared: ${contextNames(meta).join(', ') || 'none'}) — playing at the reviewed level.`);
+    }
+    const base = (meta.gain ?? 1) * contextFactor(meta, opts.context);
+    // `dynamic` may only take away (a footstep at walking pace, a quiet variant).
+    const dyn = opts.dynamic === undefined ? 1 : Math.max(0, Math.min(1, opts.dynamic));
+    return base * dyn;
   }
 
   /**
@@ -318,19 +437,22 @@ export class AudioBus {
     if (this.buffers.has(name)) return this.buffers.get(name);
     if (this.loading.has(name)) return this.loading.get(name);
     this.init();
-    // The path comes from the manifest, never from the name. A name with no
-    // manifest entry is a bug in the caller, not a filename to guess at.
-    const url = file ? this.basePath + file : this.urlFor(name);
-    if (!url) {
-      if (!this._missing.has(name)) {
-        this._missing.add(name);
-        console.warn(`[audio] "${name}" is not in ${this.manifestPath} — nothing to play`);
-      }
-      this.buffers.set(name, null);
-      return null;
-    }
+    let url = null;                      // hoisted: the catch below reports it
     const p = (async () => {
       try {
+        // The path comes from the manifest, never from the name. A name with no
+        // manifest entry is a bug in the caller, not a filename to guess at —
+        // but only once the manifest has actually arrived.
+        if (!file && !this.manifest) await this.ready();
+        url = file ? this.basePath + file : this.urlFor(name);
+        if (!url) {
+          if (!this._missing.has(name)) {
+            this._missing.add(name);
+            console.warn(`[audio] "${name}" is not in ${this.manifestPath} — nothing to play`);
+          }
+          this.buffers.set(name, null);
+          return null;
+        }
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.arrayBuffer();
@@ -363,14 +485,17 @@ export class AudioBus {
 
   /**
    * play(name, opts) -> handle | null
-   * opts: { bus, volume=1, rate=1, loop=false, detune=0,
+   * opts: { bus, context, dynamic=1, rate=1, loop=false, detune=0,
    *         position:{x,y,z}, refDistance=2, maxDistance=25, delay=0 }
    *
-   * The gain node carries the ASSET gain (times any caller override). The bus
-   * gain and the master are further down the graph, so what leaves the speakers
-   * is master x bus x asset — the same product the review page showed. A
-   * positional sound puts its panner between the asset gain and the bus, so it
-   * starts at the asset gain and only attenuates from there with distance.
+   * The gain node carries the ASSET gain x the named context x any dynamic
+   * attenuation. The bus gain and the master are further down the graph, so what
+   * leaves the speakers is master x bus x asset x context — the same product the
+   * review page shows. A positional sound puts its panner between the asset gain
+   * and the bus, so it starts there and only attenuates with distance.
+   *
+   * There is deliberately NO `volume` option: see the header. Passing one warns
+   * and is ignored.
    */
   play(name, opts = {}) {
     if (!this.enabled) return null;
@@ -397,7 +522,10 @@ export class AudioBus {
     if (opts.detune && src.detune) src.detune.value = opts.detune;
 
     const gain = this.ctx.createGain();
-    gain.gain.value = (opts.volume ?? 1) * (meta.gain ?? 1);
+    const level = this._assetGain(name, opts);
+    // `fadeIn` seconds: start near silence and ramp to the reviewed level. The
+    // level itself is never negotiable, only how long it takes to get there.
+    gain.gain.value = opts.fadeIn ? 1e-4 : level;
 
     const busName = opts.bus || busForKind(meta.kind, this.mix);
     const bus = this.buses[busName] || this.buses.sfx || this.master;
@@ -419,9 +547,11 @@ export class AudioBus {
 
     const when = this.ctx.currentTime + (opts.delay ?? 0);
     src.start(when);
+    if (opts.fadeIn) gain.gain.setTargetAtTime(level, when, opts.fadeIn / 3);
     const handle = {
-      name, src, gain, panner, bus: busName,
+      name, src, gain, panner, bus: busName, level, stopped: false, onEnd: null,
       stop: (fade = 0.06) => {
+        handle.stopped = true;
         try {
           gain.gain.setTargetAtTime(0, this.ctx.currentTime, fade / 3);
           src.stop(this.ctx.currentTime + fade);
@@ -430,18 +560,39 @@ export class AudioBus {
       },
       setPosition: (p) => { if (panner) setPos(panner, p); },
       setVolume: (v, t = 0.05) => gain.gain.setTargetAtTime(v, this.ctx.currentTime, t),
+      /** Fade back to the reviewed level for this id and context. */
+      fadeIn: (t = 0.4) => gain.gain.setTargetAtTime(level, this.ctx.currentTime, t),
     };
-    src.onended = () => this._playing.delete(handle);
+    src.onended = () => {
+      this._playing.delete(handle);
+      if (!handle.stopped && handle.onEnd) { try { handle.onEnd(); } catch (_) {} }
+    };
     this._playing.add(handle);
     return handle;
   }
 
-  /** A named looping sound (office ambience, radio). Calling twice is a no-op. */
+  /**
+   * A named looping sound (office ambience, radio). Calling twice is a no-op.
+   * If the buffer is not decoded yet the loop is started as soon as it is —
+   * a room tone that arrives 300 ms late is fine, one that never starts is a bug.
+   */
   loop(name, opts = {}) {
     if (this._loops.has(name)) return this._loops.get(name);
     const h = this.play(name, { ...opts, loop: true });
-    if (h) this._loops.set(name, h);
-    return h;
+    if (h) { this._loops.set(name, h); return h; }
+    if (this.buffers.get(name) === null) return null;      // known missing
+    const pending = { name, pending: true, stopped: false, stop() { this.stopped = true; } };
+    this._loops.set(name, pending);
+    this.load(name).then((buf) => {
+      if (!buf || pending.stopped || this._loops.get(name) !== pending) {
+        if (this._loops.get(name) === pending) this._loops.delete(name);
+        return;
+      }
+      this._loops.delete(name);
+      const late = this.play(name, { ...opts, loop: true });
+      if (late) this._loops.set(name, late);
+    });
+    return null;
   }
 
   stopLoop(name, fade = 0.4) {
@@ -452,22 +603,63 @@ export class AudioBus {
   }
 
   /**
-   * Cross-fade the music bus to a new track. `volume` is a multiplier ON TOP of
-   * the track's authored gain, so music(name) plays at exactly the level the
-   * review page showed.
+   * Cross-fade the music bus to a new track. There is no volume argument: a track
+   * plays at exactly the level the review page showed, which is the whole point
+   * of the manifest carrying the authored gain. Starting a track that has not
+   * been decoded yet is fine — it fades in when it arrives.
    */
-  music(name, { fade = 1.2, volume = 1 } = {}) {
+  music(name, { fade = 1.2, context = null } = {}) {
+    const gen = ++this._musicGen;
+    this._playlist = null;
     const prev = this._loops.get('__music');
     if (prev) { prev.stop(fade); this._loops.delete('__music'); }
     if (!name) return null;
-    const meta = this.entry(name) || {};
-    const target = volume * (meta.gain ?? 1);
-    const h = this.play(name, { loop: true, volume: 0.001 });
-    if (h) {
-      h.setVolume(target, fade / 3);
+    return this._startMusic(name, { fade, context, loop: true, gen });
+  }
+
+  /**
+   * Rotate through several tracks on the music bus, one after another, wrapping
+   * for as long as the mode lives. Written for the office, where two ambient
+   * tracks were levelled by hand and only one of them had a call site.
+   */
+  musicPlaylist(names, { fade = 1.2, context = null, start = 0 } = {}) {
+    const list = (Array.isArray(names) ? names : [names]).filter(Boolean);
+    const gen = ++this._musicGen;
+    const prev = this._loops.get('__music');
+    if (prev) { prev.stop(fade); this._loops.delete('__music'); }
+    if (!list.length) { this._playlist = null; return null; }
+    this._playlist = { list, i: ((start % list.length) + list.length) % list.length, fade, context, gen };
+    return this._advancePlaylist();
+  }
+
+  _advancePlaylist() {
+    const pl = this._playlist;
+    if (!pl || pl.gen !== this._musicGen) return null;
+    const name = pl.list[pl.i];
+    pl.i = (pl.i + 1) % pl.list.length;
+    return this._startMusic(name, {
+      fade: pl.fade, context: pl.context, loop: pl.list.length === 1, gen: pl.gen,
+      onEnd: () => this._advancePlaylist(),
+    });
+  }
+
+  /** Shared by music() and the playlist: fade a track in at its reviewed level. */
+  _startMusic(name, { fade, context, loop, gen, onEnd = null }) {
+    const startIt = (h) => {
+      if (!h) return null;
+      h.onEnd = onEnd;
       this._loops.set('__music', h);
-    }
-    return h;
+      return h;
+    };
+    const opts = { loop, context, fadeIn: fade };
+    const h = this.play(name, opts);
+    if (h) return startIt(h);
+    if (this.buffers.get(name) === null) return null;      // known missing
+    this.load(name).then((buf) => {
+      if (!buf || gen !== this._musicGen) return;
+      startIt(this.play(name, opts));
+    });
+    return null;
   }
 
   /** Update the WebAudio listener from a camera. Call once per frame. */
@@ -498,6 +690,8 @@ export class AudioBus {
   }
 
   stopAll(fade = 0.15) {
+    this._playlist = null;
+    this._musicGen++;                       // any pending late start is now stale
     for (const h of [...this._playing]) h.stop(fade);
     this._loops.clear();
   }

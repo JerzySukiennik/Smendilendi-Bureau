@@ -323,6 +323,45 @@ and asserts two full runs are byte-identical. It exits non-zero on any throw or 
 assertion. Run it after touching anything under `src/model/`, `src/analysis/`,
 `src/commission/` or `src/net/`.
 
+## Measuring frame rate — read this before optimising anything
+
+**Do not trust fps or frame-ms read out of the Claude browser pane.** The pane throttles
+`requestAnimationFrame` whenever it is not the visible foreground surface, so the debug
+overlay reports 10-20 fps / 60-100 ms for scenes that are actually fast, and the adaptive
+quality controller's clock stops advancing with it (its `time`, `_acc` and `_frames`
+freeze). Two hours were spent on 2026-08-27 diagnosing a "20 fps menu" that does not exist.
+
+Measure the render cost directly instead — it does not depend on the rAF cadence:
+
+```js
+const gl = renderer.getContext();
+renderer.render(scene, camera); gl.finish();          // warm up, flush the pipe
+const t0 = performance.now();
+for (let i = 0; i < 40; i++) renderer.render(scene, camera);
+gl.finish();                                          // GPU must actually be done
+const msPerFrame = (performance.now() - t0) / 40;
+```
+
+Measured this way on 2026-08-27, on an **Intel UHD 630** (the same GPU class as the target
+MacBook Pro 2019), at a 1057x1004 canvas:
+
+| mode | dpr 1.75 | dpr 1.25 | dpr 1.00 | dpr 0.75 |
+|---|---|---|---|---|
+| menu (64 calls, 24 370 tris, 6 lights, 49 shadow casters) | **7.35 ms** | 6.10 ms | 5.83 ms | 5.55 ms |
+
+That is ~136 fps against a 16.7 ms budget, and dropping the pixel ratio all the way to
+0.75 saves only 1.8 ms — so the menu is neither fill-rate bound nor draw-call bound, and
+there is nothing to optimise there. Re-measure with the loop above before claiming a
+performance problem in any mode, and quote the ms-per-render, not the overlay's fps.
+
+**Related pane quirk:** the pane also serves the first load of a file from its own HTTP
+cache and will not re-execute an edited ES module or stylesheet, even against a `no-store`
+server, a fresh tab and a cache-busting query. `fetch(url, {cache:'reload'})` returns the
+correct new bytes while the running page still holds the old ones. If a fix appears not to
+work, fetch the file and check the bytes before concluding anything. `tools/devserver.py`
+(what `preview_start {name:"game"}` now runs) sends `Cache-Control: no-store` to reduce,
+but does not eliminate, this.
+
 ## Definition of done for any piece
 
 - Runs in the browser with zero console errors.

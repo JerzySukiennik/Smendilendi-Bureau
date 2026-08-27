@@ -12,7 +12,18 @@
 //   5  the four level trims equal review/decisions-2026-08-27.json exactly
 //   6  every .ogg and .m4a decodes (ffmpeg -f null) and none clips
 //   7  the ENGINE (src/core/audio.js) and the REVIEW PAGE (review/batches.json)
-//      compute the same effective gain for every reviewed id
+//      compute the same effective gain for every reviewed id and context
+//   8  every manifest duration matches its file
+//   9  no CALL SITE in src/ can produce a level other than the reviewed one
+//
+// Check 9 is the one that had to exist. Until round 3 this script "passed"
+// because checks 1-8 compared two copies of the same incomplete arithmetic: the
+// engine's master x bus x asset against the review page's master x bus x asset.
+// Neither looked at what the game actually calls, and what the game actually
+// called was play('music.office-ambient-1', { volume: 0.55 }) — cutting a level
+// the human had signed off at 12.8% down to 7.0%. So this script now reads every
+// play/music/loop call in src/ and fails if any of them lands anywhere other than
+// the number in the manifest.
 
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync, execFile } from 'node:child_process';
@@ -24,7 +35,8 @@ import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const AUDIO = join(ROOT, 'assets/audio');
-const { effectiveGain } = await import(join(ROOT, 'src/core/audio.js'));
+const { effectiveGain, contextNames } = await import(join(ROOT, 'src/core/audio.js'));
+const { scanCallSites, rawVolumeHits, stringRefs } = await import(join(dirname(fileURLToPath(import.meta.url)), 'scan-callsites.mjs'));
 
 const manifest = JSON.parse(readFileSync(join(AUDIO, 'manifest.json'), 'utf8'));
 const mix = JSON.parse(readFileSync(join(AUDIO, 'mix.json'), 'utf8'));
@@ -121,24 +133,30 @@ if (over.length) console.log('      inherited codec overshoot, harmless at the m
   + over.map(r => `${r.id}.${r.codec} ${r.peak.toFixed(2)} dBFS`).join(', '));
 
 // 7 -------------------------------------------------------------------------
+// The tolerance is EXACT now (1e-12, i.e. float noise only). It used to allow a
+// 4-decimal match, which hid make-batch.mjs storing +(x).toFixed(4) — a 2.5e-5
+// lie on exactly the three ids the human re-levelled.
 const reviewed = [];
 for (const b of batches.batches) if (b.kind === 'audio') for (const i of b.items) reviewed.push(i);
 console.log('\n7. effective gain — engine vs review page');
-console.log('   ' + 'id'.padEnd(24) + 'kind'.padEnd(7) + 'bus'.padEnd(9)
-          + 'engine'.padEnd(11) + 'review page'.padEnd(13) + 'match');
-let mismatch = 0;
+console.log('   ' + 'id'.padEnd(24) + 'context'.padEnd(13) + 'kind'.padEnd(7) + 'bus'.padEnd(9)
+          + 'engine'.padEnd(13) + 'review page'.padEnd(13) + 'match');
+let mismatch = 0, rows = 0;
 for (const item of reviewed) {
   const entry = manifest[item.id];
   if (!entry) { console.log(`   ${item.id.padEnd(24)} NOT IN MANIFEST`); mismatch++; continue; }
-  const eng = effectiveGain(entry, mix);
-  const page = item.mix.effective;
-  const same = Math.abs(eng.effective - page) < 1e-9 || eng.effective.toFixed(4) === page.toFixed(4);
-  if (!same) mismatch++;
-  console.log(`   ${item.id.padEnd(24)}${String(entry.kind).padEnd(7)}${eng.bus.padEnd(9)}`
-            + `${eng.effective.toFixed(4).padEnd(11)}${page.toFixed(4).padEnd(13)}${same ? 'yes' : 'NO'}`);
+  const pairs = [[null, item.mix.effective], ...(item.mix.contexts || []).map(c => [c.name, c.effective])];
+  for (const [ctx, page] of pairs) {
+    const eng = effectiveGain(entry, mix, ctx);
+    const same = Math.abs(eng.effective - page) < 1e-12;
+    if (!same) mismatch++;
+    rows++;
+    console.log(`   ${item.id.padEnd(24)}${String(ctx || '(base)').padEnd(13)}${String(entry.kind).padEnd(7)}`
+              + `${eng.bus.padEnd(9)}${eng.effective.toFixed(6).padEnd(13)}${page.toFixed(6).padEnd(13)}${same ? 'yes' : 'NO'}`);
+  }
 }
 console.log('');
-ok(`7. engine and review page agree on all ${reviewed.length} reviewed ids`, mismatch === 0,
+ok(`7. engine and review page agree on all ${rows} reviewed levels (${reviewed.length} ids)`, mismatch === 0,
    mismatch ? `${mismatch} mismatched` : '');
 
 // 8 -------------------------------------------------------------------------
@@ -154,6 +172,128 @@ for (const [id, e] of Object.entries(manifest)) {
   if (dfmt(real) !== e.duration) stale.push(`${id} says ${e.duration}, file is ${dfmt(real)}`);
 }
 ok('8. every manifest duration matches its file', stale.length === 0, stale.slice(0, 5).join(', '));
+
+// 9 -------------------------------------------------------------------------
+// THE CALL SITES. Everything above this line describes what the game is supposed
+// to play. This is the only part that reads what it actually does.
+const scan = scanCallSites({ root: ROOT, manifest });
+const reviewedIds = new Map(reviewed.map(i => [i.id, i]));
+
+// 9a — a raw `volume:` anywhere in src/ is the whole defect, in one grep.
+const rawVol = rawVolumeHits(ROOT);
+ok(`9a. no call site passes a raw volume (${scan.files} source files scanned)`,
+   rawVol.length === 0, rawVol.slice(0, 8).join(' | '));
+
+// 9b — every named context exists in the manifest.
+const badCtx = [];
+for (const s of scan.sites) {
+  if (!s.context) continue;
+  for (const id of s.ids) {
+    if (manifest[id]?.contexts?.[s.context] === undefined)
+      badCtx.push(`${s.file}:${s.line} ${id} context "${s.context}"`);
+  }
+  if (s.contextExpr) badCtx.push(`${s.file}:${s.line} context is a variable — not statically reviewable`);
+}
+ok('9b. every context named at a call site is declared in manifest.json',
+   badCtx.length === 0, badCtx.slice(0, 6).join(', '));
+
+// 9c — a sound that declares contexts must never be played without one: the base
+// level of such an id was never reviewed and is louder than every context.
+const PLAYS = new Set(['play', 'music', 'musicPlaylist', 'loop']);
+const missingCtx = [];
+for (const s of scan.sites) {
+  if (!PLAYS.has(s.fn) || s.context || s.contextExpr) continue;
+  for (const id of s.ids) if (contextNames(manifest[id]).length)
+    missingCtx.push(`${s.file}:${s.line} ${id} (declares ${contextNames(manifest[id]).join('/')})`);
+}
+ok('9c. no sound with declared contexts is played at its unreviewed base level',
+   missingCtx.length === 0, missingCtx.slice(0, 6).join(', '));
+
+// 9d — a level the human approved and the game never plays is a bug. That is how
+// music.office-ambient-2 sat in the manifest, hand-trimmed, with no call site.
+// An id reached through a variable (the boot chimes, via computerTier().bootSound)
+// counts as played: the string is in src/ and it resolves at runtime.
+const refs = stringRefs(ROOT, new Set(Object.keys(manifest)));
+const played = new Set();
+for (const s of scan.sites) if (PLAYS.has(s.fn)) for (const id of s.ids) played.add(id);
+const reachable = (id) => played.has(id) || refs.has(id);
+const approvedSilent = [...reviewedIds.entries()]
+  .filter(([id, i]) => i.decided?.verdict === 'approve' && !reachable(id)).map(([id]) => id);
+ok('9d. every APPROVED sound has a call site', approvedSilent.length === 0, approvedSilent.join(', '));
+
+// 9e — the review page renders one level per id. A context on a reviewed id
+// would be a level the human never sees, which is the defect wearing a hat.
+const ctxOnReviewed = [...reviewedIds.keys()].filter(id => contextNames(manifest[id]).length);
+ok('9e. no reviewed id carries contexts the review page cannot show',
+   ctxOnReviewed.length === 0, ctxOnReviewed.join(', '));
+
+// 9f — THE TABLE: id x call site x the level that leaves the speakers.
+console.log('\n9. every audio id x every call site x the level that leaves the speakers');
+console.log('   ' + 'id'.padEnd(23) + 'context'.padEnd(12) + 'call site'.padEnd(30)
+          + 'level'.padEnd(9) + 'reviewed'.padEnd(10) + 'ok');
+const byId = new Map();
+for (const s of scan.sites) {
+  if (!PLAYS.has(s.fn)) continue;
+  for (const id of s.ids) {
+    if (!byId.has(id)) byId.set(id, []);
+    byId.get(id).push(s);
+  }
+}
+let levelBad = 0, levelRows = 0;
+const pct = x => (x * 100).toFixed(2) + '%';
+for (const id of Object.keys(manifest)) {
+  const entry = manifest[id];
+  const sites = byId.get(id) || [];
+  if (!sites.length) {
+    // No literal call site. Either the id is reached through a variable (the
+    // string is still in src/) or nothing plays it at all.
+    const via = refs.get(id);
+    const why = via ? `via ${via[0].replace(/^src\//, '')}` : 'nothing plays this id';
+    console.log(`   ${id.padEnd(23)}${'—'.padEnd(12)}${why.padEnd(30)}`
+              + `${(via ? pct(effectiveGain(entry, mix).effective) : '—').padEnd(9)}`
+              + `${pct(effectiveGain(entry, mix).effective).padEnd(10)}${via ? 'yes' : 'unused'}`);
+    if (via) levelRows++;
+    continue;
+  }
+  for (const s of sites) {
+    const eng = effectiveGain(entry, mix, s.context);
+    // The reviewed number for this id and context: the review page's if the id is
+    // in a batch, otherwise the manifest's own declared level.
+    const item = reviewedIds.get(id);
+    const pageCtx = item && s.context ? (item.mix.contexts || []).find(c => c.name === s.context) : null;
+    const want = item ? (s.context ? (pageCtx ? pageCtx.effective : NaN) : item.mix.effective)
+                      : eng.effective;
+    // A raw volume would multiply in on top; a dynamic factor only attenuates.
+    const actual = eng.effective * (s.volume ? Number(s.volume) || NaN : 1);
+    const good = Number.isFinite(want) && Math.abs(actual - want) < 1e-12 && !s.volume;
+    if (!good) levelBad++;
+    levelRows++;
+    console.log(`   ${id.padEnd(23)}${String(s.context || '(base)').padEnd(12)}`
+              + `${(s.file.replace(/^src\//, '') + ':' + s.line).padEnd(30)}`
+              + `${(s.dynamic ? '≤' : '') + pct(actual)}`.padEnd(9)
+              + `${pct(want).padEnd(10)}${good ? 'yes' : 'NO'}`);
+  }
+}
+for (const s of scan.sites) {
+  if (!PLAYS.has(s.fn) || s.ids.length || s.form === 'stop') continue;
+  // An id that only exists at runtime. It cannot be resolved here, but it also
+  // cannot bend its level: with no override, whatever it names plays at that
+  // id's reviewed number. An override on such a call IS unreviewable, so it fails.
+  const bad = !!s.volume || !!s.context || s.contextExpr;
+  if (bad) levelBad++;
+  levelRows++;
+  console.log(`   ${s.arg.slice(0, 22).padEnd(23)}${'—'.padEnd(12)}`
+            + `${(s.file.replace(/^src\//, '') + ':' + s.line).padEnd(30)}`
+            + `${'runtime id'.padEnd(9)}${'—'.padEnd(10)}`
+            + `${bad ? 'NO — unreviewable override' : 'yes'}`);
+}
+console.log('');
+ok(`9f. all ${levelRows} playback paths land on the reviewed level`, levelBad === 0,
+   levelBad ? `${levelBad} path(s) off` : '');
+
+const unused = Object.keys(manifest).filter(id => !byId.has(id) && !refs.has(id));
+if (unused.length) console.log(`      note: ${unused.length} id(s) nothing plays yet — `
+  + `not a level bug, but they ship dead weight: ${unused.join(', ')}`);
 
 console.log(`\n${fails ? fails + ' CHECK(S) FAILED' : 'all checks passed'}`);
 process.exit(fails ? 1 : 0);

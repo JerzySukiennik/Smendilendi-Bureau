@@ -2,16 +2,66 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "game",
+      "name": "g-weird",
+      "runtimeExecutable": "/Users/jurek/Downloads/Claude/Projects/AIe/G-Images/.venv/bin/python",
+      "runtimeArgs": [
+        "/Users/jurek/Downloads/Claude/Projects/AIe/G-Weird/serve.py",
+        "--ckpt",
+        "/Users/jurek/Downloads/Claude/Projects/AIe/G-Weird/run/gweird.pt",
+        "--vqvae",
+        "/Users/jurek/Downloads/Claude/Projects/AIe/G-Weird/run/vqvae.pt",
+        "--tokenizer",
+        "/Users/jurek/Downloads/Claude/Projects/AIe/G-Weird/run/text.json",
+        "--port",
+        "8000"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "narew",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
         "-m",
         "http.server",
-        "5179",
+        "8080",
         "--directory",
+        "/Users/jurek/Downloads/Claude/Projects/Narew-Labs"
+      ],
+      "port": 8080
+    },
+    {
+      "name": "oceny",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8123",
+        "--directory",
+        "/Users/jurek/Downloads/Claude/Projects/475"
+      ],
+      "port": 8123
+    },
+    {
+      "name": "game",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau/tools/devserver.py",
+        "5179",
         "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau"
       ],
       "port": 5179
+    },
+    {
+      "name": "gzowo-labs",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4321",
+        "--directory",
+        "/Users/jurek/Downloads/Claude/Projects/gzowo-labs/site"
+      ],
+      "port": 4321
     }
   ]
 }

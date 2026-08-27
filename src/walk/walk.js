@@ -255,7 +255,7 @@ export class WalkthroughMode extends Mode {
     this._startTransition();
 
     this.ctx?.engine?.debug?.report('walk', `nav ${tNav.toFixed(0)} ms · ${this.crowd.agents.length} people`);
-    this.ctx?.audio?.music?.('music.walkthrough', { fade: 2.0, volume: 0.55 });
+    this.ctx?.audio?.music?.('music.walkthrough', { fade: 2.0 });
     this._bindNet();
     console.info(`[walk] ${this.crowd.agents.length} people, ${this.nav.roomIds.length} rooms, nav in ${tNav.toFixed(0)} ms`);
   }
@@ -521,7 +521,7 @@ export class WalkthroughMode extends Mode {
     this.playerY = L.elevation;
     this.phase = 'reveal';
     this._placeCamera();
-    this.ctx?.audio?.loop?.('amb.crowd-interior', { volume: 0.35 });
+    this.ctx?.audio?.loop?.('amb.crowd-interior');
     this._hint('Click to look around · WASD to walk · H heat map · R the report');
   }
 
@@ -630,7 +630,7 @@ export class WalkthroughMode extends Mode {
     const hard = kind === 'bathroom' || kind === 'wc' || kind === 'kitchen' || kind === 'corridor';
     const n = 1 + Math.floor(Math.random() * 4);
     this.ctx?.audio?.play?.(`sfx.footstep-${hard ? 'tile' : 'carpet'}-${n}`, {
-      volume: 0.22, rate: 0.94 + Math.random() * 0.12,
+      context: 'walkthrough', rate: 0.94 + Math.random() * 0.12,
     });
   }
 
@@ -836,7 +836,7 @@ export class WalkthroughMode extends Mode {
     this.el.overlay.innerHTML = '';
     this.el.overlay.appendChild(sheet);
     this.el.overlay.hidden = false;
-    this.ctx?.audio?.play?.('ui.window-open', { volume: 0.5 });
+    this.ctx?.audio?.play?.('ui.window-open');
   }
 
   _closeReport() {

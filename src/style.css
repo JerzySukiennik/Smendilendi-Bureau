@@ -56,6 +56,16 @@ html, body {
 }
 #ui > * { pointer-events: auto; }
 
+/* ...but a MODE's own full-screen root layer must opt back out. It spans the whole
+   viewport, so leaving it clickable swallows every mousemove and click before the
+   canvas sees one, and the 3D scene underneath goes dead. A mode stylesheet cannot
+   fix this itself: the `#ui > *` rule above carries an id and out-specifies a plain
+   `.mn-root { pointer-events: none }`. Mode roots therefore opt out here, by class,
+   and re-enable pointer events on their own panels.
+   (This is exactly what killed the menu's 3D signage buttons.) */
+#ui > .mn-root,
+#ui > .passthrough { pointer-events: none; }
+
 .debug-overlay {
   /* geometry and colour are set inline by debug.js so the overlay survives a
      missing stylesheet; only the non-critical polish lives here */

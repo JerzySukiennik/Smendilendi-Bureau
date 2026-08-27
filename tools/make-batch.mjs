@@ -184,6 +184,7 @@ function readAudioManifest() {
         why: v.why || v.reason || undefined,
         duration: v.duration ?? undefined,
         gain: typeof v.gain === 'number' ? v.gain : undefined,
+        contexts: v.contexts && typeof v.contexts === 'object' ? v.contexts : undefined,
         kind: v.kind || undefined,
         positional: v.positional ?? undefined,
       };
@@ -272,12 +273,26 @@ function mixFor(mix, id, mf, dir) {
   const busGain = mix.buses[bus] ?? 0.8;
   const master = mix.master ?? 0.9;
   const asset = typeof mf?.gain === 'number' ? mf.gain : 1;
-  return {
+  // NOT rounded. Rounding the STORED number made the review page's level differ
+  // from the level the engine plays by 2.5e-5 on exactly the three ids the human
+  // re-levelled (0.9 x 0.45 x 0.315 = 0.127575, stored as 0.1276), which is a
+  // sign-off page quietly disagreeing with the game about what was signed off.
+  // Round for display, never in the file.
+  const out = {
     kind, bus,
     master, busGain, asset,
-    effective: +(master * busGain * asset).toFixed(4),
+    effective: master * busGain * asset,
     positional: !!mf?.positional,
   };
+  // Named per-context factors, if this sound is deliberately played at more than
+  // one level. EVERY level it can ever have is listed here so the human reviews
+  // all of them, not just the base one.
+  if (mf?.contexts && Object.keys(mf.contexts).length) {
+    out.contexts = Object.entries(mf.contexts).map(([name, factor]) => ({
+      name, factor, effective: master * busGain * asset * factor,
+    }));
+  }
+  return out;
 }
 
 function buildAudioBatches() {
@@ -428,17 +443,28 @@ function defaultModelWhy(e) {
 // ---------------------------------------------------------------------------
 // merge + write
 
+// Fields this generator has no opinion about because a human put them there.
+// `decided` is the recorded verdict and the note about how it was applied —
+// regenerating the batch used to wipe it, which is the generator quietly
+// deleting the sign-off it exists to serve. (Caught 2026-08-27 round 3: a
+// routine `make-batch.mjs audio` dropped all five recorded verdicts.)
+const HUMAN_FIELDS = ['decided', 'note'];
+
 function mergeBatch(prevBatches, next) {
   const prev = prevBatches.find(b => b.id === next.id);
   if (!prev) return next;
   const prevItems = new Map((prev.items || []).map(i => [i.id, i]));
   next.items = next.items.map(item => {
     const old = prevItems.get(item.id);
+    if (!old) return item;
+    const out = { ...item };
     // a hand-edited `why` (whyAuto absent or false) always wins
-    if (old && old.why && old.whyAuto !== true && item.whyAuto === true) {
-      return { ...item, why: old.why, whyAuto: false };
+    if (old.why && old.whyAuto !== true && item.whyAuto === true) {
+      out.why = old.why;
+      out.whyAuto = false;
     }
-    return item;
+    for (const f of HUMAN_FIELDS) if (old[f] !== undefined && out[f] === undefined) out[f] = old[f];
+    return out;
   });
   return next;
 }

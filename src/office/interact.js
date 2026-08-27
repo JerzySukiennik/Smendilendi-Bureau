@@ -261,7 +261,7 @@ export class Interaction {
     if (!c || c.sips <= 0) return null;
     c.sips--;
     const boost = MathUtils.clamp((c.temp - 21) / 57, 0, 1);
-    this.audio?.play('ui.click-soft', { volume: 0.5 });
+    this.audio?.play('ui.click-soft');
     if (c.sips <= 0) {
       this.camera.remove(c.mesh);
       this.carry = null;
@@ -333,7 +333,7 @@ export class Interaction {
       if (p.mesh.position.y <= 0.035) {
         p.mesh.position.y = 0.035;
         p.vel.set(0, 0, 0); p.spin.set(0, 0, 0);
-        this.audio?.play('sfx.paper-toss', { volume: 0.4 });
+        this.audio?.play('sfx.paper-toss');
         this.projectiles.splice(i, 1);
         this.onScore?.(false);
       }

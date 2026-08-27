@@ -69,7 +69,7 @@ export class Lobby {
         this.prefs.color = c;
         savePrefs(this.prefs);
         this._applyPrefs();
-        this.ctx?.audio?.play('ui.click-soft', { bus: 'ui', volume: 0.6 });
+        this.ctx?.audio?.play('ui.click-soft');
       });
       sw.appendChild(b);
       return b;
@@ -176,7 +176,7 @@ export class Lobby {
     this._panel = p;
     this.opts.onBlock?.(true);
     this.hideTag();
-    this.ctx?.audio?.play('ui.window-open', { bus: 'ui', volume: 0.7 });
+    this.ctx?.audio?.play('ui.window-open');
     return p;
   }
 
@@ -186,7 +186,7 @@ export class Lobby {
     this._panel = null;
     this.veil.hidden = true;
     this.opts.onBlock?.(false);
-    this.ctx?.audio?.play('ui.window-close', { bus: 'ui', volume: 0.6 });
+    this.ctx?.audio?.play('ui.window-close');
   }
 
   // -- single player --------------------------------------------------------
@@ -233,7 +233,7 @@ export class Lobby {
       if (msg) {
         err.textContent = msg;
         err.hidden = false;
-        this.ctx?.audio?.play('ui.error', { bus: 'ui', volume: 0.7 });
+        this.ctx?.audio?.play('ui.error');
         return;
       }
       err.hidden = true;
@@ -348,7 +348,7 @@ export class Lobby {
         i.parentElement.querySelector('b').textContent = String(Math.round(val * 100));
         savePrefs(this.prefs);
       });
-      i.addEventListener('change', () => this.ctx?.audio?.play('ui.click-soft', { bus: 'ui', volume: 0.5 }));
+      i.addEventListener('change', () => this.ctx?.audio?.play('ui.click-soft'));
     });
     const sens = p.querySelector('[data-sens]');
     sens.addEventListener('input', () => {
@@ -363,7 +363,7 @@ export class Lobby {
         savePrefs(this.prefs);
         p.querySelectorAll('[data-q]').forEach((o) => o.classList.toggle('on', o === b));
         this._applyQuality();
-        this.ctx?.audio?.play('ui.click', { bus: 'ui', volume: 0.6 });
+        this.ctx?.audio?.play('ui.click');
       });
     });
   }

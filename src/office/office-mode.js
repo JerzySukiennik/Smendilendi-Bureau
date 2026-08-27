@@ -47,8 +47,11 @@ export class OfficeMode extends Mode {
   enter(params = {}) {
     super.enter(params);
     const { audio, input } = this.ctx;
-    audio?.loop('amb.office-room-tone', { volume: 0.5 });
-    audio?.music('music.office-ambient-1', { volume: 0.55 });
+    audio?.loop('amb.office-room-tone');
+    // Both office tracks were levelled by hand in the sign-off, but only the
+    // first one had a call site. The playlist alternates them, so the second is
+    // heard at the level it was approved at instead of never at all.
+    audio?.musicPlaylist(['music.office-ambient-1', 'music.office-ambient-2']);
     this.office.refreshHud();
     this.office.hudEl?.classList.remove('hidden');
 

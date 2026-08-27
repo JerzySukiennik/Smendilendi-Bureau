@@ -296,7 +296,21 @@
    "status": "fail",
    "headline": "The review page's central promise — \"what Jurek hears is what ships\" — is false. The whole sign-off apparatus (mix.json, review.js, batches.json, the builder's own verify-signoff.m",
    "at": "2026-08-27T16:47:32.721Z"
+  },
+  {
+   "piece": "menu",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "Menu scene live: 3D facade lettering as buttons, 12 tagged design crimes, nick + colour entry, zero console errors",
+   "metrics": {
+    "fps": 20,
+    "ms": 58.2,
+    "calls": 66,
+    "tris": "24.5k"
+   },
+   "at": "2026-08-27T20:52:48.537Z"
   }
  ],
- "updated": "2026-08-27T16:47:32.721Z"
+ "updated": "2026-08-27T20:52:48.537Z"
 }

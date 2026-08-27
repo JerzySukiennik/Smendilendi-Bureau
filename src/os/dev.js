@@ -21,13 +21,10 @@ import { AudioBus } from '../core/audio.js';
 const host = document.getElementById('host');
 const state = createState();
 
-// Audio: the same bus the game uses, pointed at the real manifest. Paths in the
-// manifest are relative to assets/audio/, and this page lives two levels down.
-const audio = new AudioBus({
-  basePath: '../../assets/audio/',
-  manifestPath: '../../assets/audio/manifest.json',
-  mixPath: '../../assets/audio/mix.json',
-});
+// Audio: the same bus the game uses, pointed at the real manifest. No path
+// override — AudioBus resolves assets/audio/ against its own module URL, so this
+// page works at any depth.
+const audio = new AudioBus();
 audio.init();
 audio.loadManifest().then(() => audio.preloadAll((n, e) => e.kind === 'os' || e.kind === 'ui' || n === 'sfx.mouse-click')).catch(() => {});
 

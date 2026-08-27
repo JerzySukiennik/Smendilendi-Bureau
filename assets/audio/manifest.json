@@ -40,7 +40,7 @@
     "m4a": "radio/radio-1-jazz-brass.m4a",
     "kind": "radio",
     "loop": true,
-    "gain": 0.8,
+    "gain": 0.72,
     "positional": true,
     "duration": "0:27"
   },
@@ -49,7 +49,7 @@
     "m4a": "radio/radio-2-bossa-elevator.m4a",
     "kind": "radio",
     "loop": true,
-    "gain": 0.8,
+    "gain": 0.72,
     "positional": true,
     "duration": "0:58"
   },
@@ -58,7 +58,7 @@
     "m4a": "radio/radio-3-lofi.m4a",
     "kind": "radio",
     "loop": true,
-    "gain": 0.8,
+    "gain": 0.72,
     "positional": true,
     "duration": "1:08"
   },
@@ -67,7 +67,7 @@
     "m4a": "radio/radio-4-funk.m4a",
     "kind": "radio",
     "loop": true,
-    "gain": 0.8,
+    "gain": 0.72,
     "positional": true,
     "duration": "1:03"
   },
@@ -76,7 +76,7 @@
     "m4a": "radio/radio-5-acoustic.m4a",
     "kind": "radio",
     "loop": true,
-    "gain": 0.8,
+    "gain": 0.72,
     "positional": true,
     "duration": "0:55"
   },
@@ -85,7 +85,7 @@
     "m4a": "radio/radio-6-piano.m4a",
     "kind": "radio",
     "loop": true,
-    "gain": 0.8,
+    "gain": 0.72,
     "positional": true,
     "duration": "0:55"
   },
@@ -247,7 +247,7 @@
     "m4a": "sfx/chair-roll.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1,
+    "gain": 0.6,
     "positional": true,
     "duration": "2.40 s"
   },
@@ -283,7 +283,7 @@
     "m4a": "sfx/door-close.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1,
+    "gain": 0.45,
     "positional": true,
     "duration": "1.49 s"
   },
@@ -293,6 +293,10 @@
     "kind": "sfx",
     "loop": false,
     "gain": 1,
+    "contexts": {
+      "door": 0.55,
+      "drawer": 0.5
+    },
     "positional": true,
     "duration": "1.30 s"
   },
@@ -302,6 +306,10 @@
     "kind": "sfx",
     "loop": false,
     "gain": 1,
+    "contexts": {
+      "office": 0.55,
+      "walkthrough": 0.22
+    },
     "positional": true,
     "duration": "0.17 s"
   },
@@ -311,6 +319,10 @@
     "kind": "sfx",
     "loop": false,
     "gain": 1,
+    "contexts": {
+      "office": 0.55,
+      "walkthrough": 0.22
+    },
     "positional": true,
     "duration": "0.14 s"
   },
@@ -320,6 +332,10 @@
     "kind": "sfx",
     "loop": false,
     "gain": 1,
+    "contexts": {
+      "office": 0.55,
+      "walkthrough": 0.22
+    },
     "positional": true,
     "duration": "0.14 s"
   },
@@ -329,6 +345,10 @@
     "kind": "sfx",
     "loop": false,
     "gain": 1,
+    "contexts": {
+      "office": 0.55,
+      "walkthrough": 0.22
+    },
     "positional": true,
     "duration": "0.14 s"
   },
@@ -338,6 +358,10 @@
     "kind": "sfx",
     "loop": false,
     "gain": 1,
+    "contexts": {
+      "office": 0.55,
+      "walkthrough": 0.22
+    },
     "positional": true,
     "duration": "0.10 s"
   },
@@ -347,6 +371,10 @@
     "kind": "sfx",
     "loop": false,
     "gain": 1,
+    "contexts": {
+      "office": 0.55,
+      "walkthrough": 0.22
+    },
     "positional": true,
     "duration": "0.10 s"
   },
@@ -356,6 +384,10 @@
     "kind": "sfx",
     "loop": false,
     "gain": 1,
+    "contexts": {
+      "office": 0.55,
+      "walkthrough": 0.22
+    },
     "positional": true,
     "duration": "0.11 s"
   },
@@ -365,6 +397,10 @@
     "kind": "sfx",
     "loop": false,
     "gain": 1,
+    "contexts": {
+      "office": 0.55,
+      "walkthrough": 0.22
+    },
     "positional": true,
     "duration": "0.11 s"
   },
@@ -418,7 +454,7 @@
     "m4a": "sfx/mouse-click.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1,
+    "gain": 0.5,
     "positional": true,
     "duration": "0.33 s"
   },
@@ -445,7 +481,7 @@
     "m4a": "sfx/paper-toss.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1,
+    "gain": 0.4,
     "positional": true,
     "duration": "0.50 s"
   },
@@ -463,7 +499,7 @@
     "m4a": "amb/birds-outside.m4a",
     "kind": "amb",
     "loop": true,
-    "gain": 0.55,
+    "gain": 0.275,
     "positional": false,
     "duration": "1:00"
   },
@@ -472,7 +508,7 @@
     "m4a": "amb/crowd-interior.m4a",
     "kind": "amb",
     "loop": true,
-    "gain": 0.55,
+    "gain": 0.1925,
     "positional": false,
     "duration": "1:00"
   },
@@ -481,7 +517,7 @@
     "m4a": "amb/office-room-tone.m4a",
     "kind": "amb",
     "loop": true,
-    "gain": 0.55,
+    "gain": 0.275,
     "positional": false,
     "duration": "1:00"
   },

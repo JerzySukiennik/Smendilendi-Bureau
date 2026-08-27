@@ -546,7 +546,7 @@ export class OS {
       && Math.abs(x - this.lastClick.x) < 4 && Math.abs(y - this.lastClick.y) < 4;
     this.lastClick = { t: now, x, y };
     this.mouseDown = true;
-    this.play('sfx.mouse-click', { volume: 0.5 });
+    this.play('sfx.mouse-click');
 
     // Start menu / start button
     const th = this.theme;
@@ -682,7 +682,7 @@ export class OS {
       this.bootT += dt;
       if (!this.bootPlayed && this.bootT >= spec.soundAt) {
         this.bootPlayed = true;
-        this.play(this.config.sound, { volume: 0.9 });
+        this.play(this.config.sound);
       }
       this.invalidate();
       if (this.bootT >= spec.duration) {

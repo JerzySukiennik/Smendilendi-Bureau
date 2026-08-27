@@ -682,7 +682,7 @@ export const TIERS = [
     cursorKind: 'chunky',
     crt: true,                 // scanlines and grain on the office monitor
     slow: true,                // outline window drag, visible redraw
-    sound: 'os.boot.1',
+    sound: 'os.boot-tier1',
     grants: {
       undo: 5, viewportScale: 0.55, daylightPreview: false, shadowPreview: false,
       autosave: false, maxVariants: 2, orbitSmoothing: 0,
@@ -706,7 +706,7 @@ export const TIERS = [
     cursorKind: 'arrow',
     crt: true,
     slow: false,
-    sound: 'os.boot.2',
+    sound: 'os.boot-tier2',
     grants: {
       undo: 25, viewportScale: 0.72, daylightPreview: false, shadowPreview: false,
       autosave: true, maxVariants: 6, orbitSmoothing: 0.15,
@@ -728,7 +728,7 @@ export const TIERS = [
     waitCursor: 'watch',
     crt: false,
     slow: false,
-    sound: 'os.boot.3',
+    sound: 'os.boot-tier3',
     grants: {
       undo: 80, viewportScale: 0.85, daylightPreview: true, shadowPreview: false,
       autosave: true, maxVariants: 12, orbitSmoothing: 0.25,
@@ -750,7 +750,7 @@ export const TIERS = [
     waitCursor: 'watch',
     crt: false,
     slow: false,
-    sound: 'os.boot.4',
+    sound: 'os.boot-tier4',
     grants: {
       undo: 250, viewportScale: 1.0, daylightPreview: true, shadowPreview: true,
       autosave: true, maxVariants: 32, orbitSmoothing: 0.35,

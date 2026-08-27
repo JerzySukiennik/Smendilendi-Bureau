@@ -189,7 +189,7 @@ export class Doors {
       s.sounded = true;
       this.audio?.play('sfx.door-open', {
         position: { x: s.leaf.cx, y: s.leaf.elevation + 1.0, z: s.leaf.cz },
-        volume: 0.55, refDistance: 3, maxDistance: 22, rate: 0.94 + Math.random() * 0.12,
+        context: 'door', refDistance: 3, maxDistance: 22, rate: 0.94 + Math.random() * 0.12,
       });
     }
   }
@@ -204,7 +204,7 @@ export class Doors {
         s.sounded = false;
         this.audio?.play('sfx.door-close', {
           position: { x: s.leaf.cx, y: s.leaf.elevation + 1.0, z: s.leaf.cz },
-          volume: 0.45, refDistance: 3, maxDistance: 22, rate: 0.95 + Math.random() * 0.1,
+          refDistance: 3, maxDistance: 22, rate: 0.95 + Math.random() * 0.1,
         });
       }
     }

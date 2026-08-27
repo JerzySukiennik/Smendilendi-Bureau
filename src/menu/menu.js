@@ -86,7 +86,16 @@ export class MenuMode extends Mode {
     scene.background = new Color(sky.sky);
     scene.fog = new Fog(sky.sky, 70, 220);
 
-    this.camera = new PerspectiveCamera(CAM.fov, 1, 0.1, 500);
+    // near/far matter more here than anywhere else in the game. The menu camera
+    // orbits the building at roughly 40-60 m, and the facade is covered in trim
+    // that sits only a few millimetres proud of the wall behind it. A 0.1 m near
+    // plane against a 500 m far plane spends almost the whole 24-bit depth buffer
+    // on the first metre in front of the lens, leaving ~1.5 mm of depth resolution
+    // out where the building actually is - so the string courses, the sign panel
+    // and the window reveals z-fight against their own walls. Nothing is ever
+    // within 3 m of this camera, so pulling the near plane out to 1 m costs
+    // nothing visible and buys a 10x finer depth step at the building.
+    this.camera = new PerspectiveCamera(CAM.fov, 1, 1.0, 400);
     this.camera.position.copy(CAM.eye);
     this.camera.lookAt(CAM.look);
 
@@ -511,8 +520,8 @@ export class MenuMode extends Mode {
     if (audio) {
       // music.menu is deliberately not preloaded (it is a megabyte), so load it
       // and start it when it arrives rather than dropping it on the floor.
-      audio.load('music.menu').then((buf) => { if (buf && this.active) audio.music('music.menu', { fade: 2.0, volume: 0.9 }); }).catch(() => {});
-      audio.load('amb.birds-outside').then((buf) => { if (buf && this.active) audio.loop('amb.birds-outside', { bus: 'ambient', volume: 0.5 }); }).catch(() => {});
+      audio.load('music.menu').then((buf) => { if (buf && this.active) audio.music('music.menu', { fade: 2.0 }); }).catch(() => {});
+      audio.load('amb.birds-outside').then((buf) => { if (buf && this.active) audio.loop('amb.birds-outside'); }).catch(() => {});
     }
     this.ctx?.engine?.debug?.report('mode', 'menu — 17 Ambition Road');
   }
@@ -613,7 +622,7 @@ export class MenuMode extends Mode {
         this.tagRing.position.copy(c.at).addScaledVector(this._tagBasis.fwd, 0.44);
         this.tagRing.quaternion.copy(this.camera.quaternion);
         this.tagRing.visible = true;
-        this.ctx?.audio?.play('ui.click-soft', { bus: 'ui', volume: 0.35 });
+        this.ctx?.audio?.play('ui.click-soft');
       } else if (this.pinnedTag < 0) {
         this.lobby?.hideTag();
         this.tagRing.visible = false;
@@ -632,7 +641,7 @@ export class MenuMode extends Mode {
 
     if (input.mousePressed(0)) {
       if (item >= 0) {
-        this.ctx?.audio?.play('ui.click', { bus: 'ui', volume: 0.8 });
+        this.ctx?.audio?.play('ui.click');
         this._act(this.lines[item].id);
       } else if (tag >= 0) {
         this.pinnedTag = this.pinnedTag === tag ? -1 : tag;
@@ -644,7 +653,7 @@ export class MenuMode extends Mode {
   _setHover(i) {
     if (i === this.hoverItem) return;
     this.hoverItem = i;
-    if (i >= 0) this.ctx?.audio?.play('ui.tool-select', { bus: 'ui', volume: 0.45, rate: 1.15 });
+    if (i >= 0) this.ctx?.audio?.play('ui.tool-select', { rate: 1.15 });
   }
 
   _tweenLines(dt) {
@@ -692,7 +701,7 @@ export class MenuMode extends Mode {
         'session.playerId': session.playerId,
       });
     }
-    this.ctx?.audio?.play('ui.submit', { bus: 'ui', volume: 0.8 });
+    this.ctx?.audio?.play('ui.submit');
     if (engine.modes.has('office')) {
       this.ctx?.audio?.music(null, { fade: 1.0 });
       engine.replace('office', { session });

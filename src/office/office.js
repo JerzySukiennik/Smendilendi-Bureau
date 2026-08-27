@@ -148,7 +148,7 @@ export class Office {
     this.player.onFootstep = (kind, speed) => {
       const n = 1 + ((Math.random() * 4) | 0);
       this.ctx?.audio?.play(`sfx.footstep-${kind}-${n}`, {
-        volume: MathUtils.clamp(speed / PLAYER.run, 0.35, 1) * 0.55,
+        context: 'office', dynamic: MathUtils.clamp(speed / PLAYER.run, 0.35, 1),
         rate: 0.94 + Math.random() * 0.12,
       });
     };
@@ -850,7 +850,7 @@ export class Office {
     I.register({
       id: 'planchest', mesh: pc, label: 'Plan chest', verb: 'Open a drawer',
       onUse: () => {
-        this.ctx?.audio?.play('sfx.door-open', { volume: 0.5, rate: 1.35 });
+        this.ctx?.audio?.play('sfx.door-open', { context: 'drawer', rate: 1.35 });
         this.toast('A0 prints, three commissions old.');
       },
     });
@@ -879,7 +879,7 @@ export class Office {
 
   stand() {
     this.player.stand();
-    this.ctx?.audio?.play('sfx.chair-roll', { volume: 0.6 });
+    this.ctx?.audio?.play('sfx.chair-roll');
   }
 
   cycleRadio(item) {
@@ -892,7 +892,7 @@ export class Office {
     }
     item.verb = 'Next station';
     this.radioHandle = this.ctx?.audio?.play(`radio.${this.radioStation}`, {
-      loop: true, position: this.radioPos, refDistance: 1.6, maxDistance: 18, rolloff: 1.5, volume: 0.9,
+      loop: true, position: this.radioPos, refDistance: 1.6, maxDistance: 18, rolloff: 1.5,
     });
     this.toast(`Radio ${this.radioStation}.`);
   }

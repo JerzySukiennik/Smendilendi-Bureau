@@ -55,7 +55,7 @@
             "master": 0.9,
             "busGain": 0.45,
             "asset": 0.315,
-            "effective": 0.1276,
+            "effective": 0.12757500000000002,
             "positional": false
           },
           "meta": {
@@ -87,7 +87,7 @@
             "master": 0.9,
             "busGain": 0.45,
             "asset": 0.315,
-            "effective": 0.1276,
+            "effective": 0.12757500000000002,
             "positional": false
           },
           "meta": {
@@ -119,7 +119,7 @@
             "master": 0.9,
             "busGain": 0.45,
             "asset": 0.175,
-            "effective": 0.0709,
+            "effective": 0.070875,
             "positional": false
           },
           "meta": {
@@ -159,7 +159,7 @@
             "master": 0.9,
             "busGain": 0.7,
             "asset": 0.51,
-            "effective": 0.3213,
+            "effective": 0.32130000000000003,
             "positional": false
           },
           "meta": {
@@ -447,7 +447,7 @@
             "master": 0.9,
             "busGain": 0.7,
             "asset": 0.9,
-            "effective": 0.567,
+            "effective": 0.5670000000000001,
             "positional": true
           },
           "meta": {
@@ -479,7 +479,7 @@
             "master": 0.9,
             "busGain": 0.7,
             "asset": 0.9,
-            "effective": 0.567,
+            "effective": 0.5670000000000001,
             "positional": true
           },
           "meta": {
@@ -511,7 +511,7 @@
             "master": 0.9,
             "busGain": 0.7,
             "asset": 0.9,
-            "effective": 0.567,
+            "effective": 0.5670000000000001,
             "positional": true
           },
           "meta": {
@@ -543,7 +543,7 @@
             "master": 0.9,
             "busGain": 0.7,
             "asset": 0.9,
-            "effective": 0.567,
+            "effective": 0.5670000000000001,
             "positional": true
           },
           "meta": {
@@ -947,7 +947,7 @@
   ],
   "decisions": {
     "source": "review/decisions-2026-08-27.json",
-    "appliedAt": "2026-08-27T16:34:12.359Z",
+    "appliedAt": "2026-08-27T21:15:10.867Z",
     "appliedBy": "audio-signoff",
     "levelChanges": [
       {

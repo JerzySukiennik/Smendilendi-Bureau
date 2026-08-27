@@ -49,13 +49,9 @@ const canvas = document.getElementById('view');
 const state = createState();
 const engine = new Engine(canvas);
 const input = new Input(canvas);
-// The harness lives two directories down, so the audio bus needs absolute
-// paths to the asset folder that index.html reaches relatively.
-const audio = new AudioBus({
-  basePath: '/assets/audio/',
-  manifestPath: '/assets/audio/manifest.json',
-  mixPath: '/assets/audio/mix.json',
-});
+// No path override: AudioBus resolves assets/audio/ against its own module URL,
+// so the harness works at any page depth (and under a sub-path deploy).
+const audio = new AudioBus();
 const assets = new Assets();
 const ctx = { engine, state, input, audio, assets, net: null, app: { ui: document.getElementById('ui') } };
 engine.setContext(ctx);
