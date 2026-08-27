@@ -801,16 +801,75 @@ function polygonArea(poly) {
   return a / 2;
 }
 
+/** Inside or on the boundary of the triangle. */
 function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
   const d1 = (px - bx) * (ay - by) - (ax - bx) * (py - by);
   const d2 = (px - cx) * (by - cy) - (bx - cx) * (py - cy);
   const d3 = (px - ax) * (cy - ay) - (cx - ax) * (py - ay);
-  const neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-  const pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+  const e = 1e-9;
+  const neg = (d1 < -e) || (d2 < -e) || (d3 < -e);
+  const pos = (d1 > e) || (d2 > e) || (d3 > e);
   return !(neg && pos);
 }
 
-/** Ear clipping. `poly` is [[x,z], ...] CCW. Returns index triples. */
+/** True when two plan points are the same vertex within tolerance. */
+function samePlanPoint(px, py, q) {
+  return Math.abs(px - q[0]) < 1e-7 && Math.abs(py - q[1]) < 1e-7;
+}
+
+/**
+ * Winding number of `poly` around (x, z), i.e. the NONZERO fill rule.
+ *
+ * This is the rule bridged rings are built for. A slab with a courtyard has no
+ * separate hole list — the ring is cut open and stitched to the hole, so the two
+ * bridge edges lie on top of each other and cancel. Under nonzero the courtyard
+ * comes out 0 (outside) however many courtyards there are; under the even-odd
+ * rule two courtyards start reporting each other's interiors as solid.
+ */
+function windingNumber(poly, x, z) {
+  let w = 0;
+  for (let i = 0, n = poly.length; i < n; i++) {
+    const a = poly[i], b = poly[(i + 1) % n];
+    if (a[1] <= z) {
+      if (b[1] > z && (b[0] - a[0]) * (z - a[1]) - (x - a[0]) * (b[1] - a[1]) > 0) w++;
+    } else if (b[1] <= z && (b[0] - a[0]) * (z - a[1]) - (x - a[0]) * (b[1] - a[1]) < 0) w--;
+  }
+  return w;
+}
+
+/** Do ab and cd cross at an interior point of both? Shared endpoints do not count. */
+function segmentsCross(a, b, c, d) {
+  const o = (p, q, r) => {
+    const v = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    return Math.abs(v) < 1e-12 ? 0 : Math.sign(v);
+  };
+  const o1 = o(a, b, c), o2 = o(a, b, d), o3 = o(c, d, a), o4 = o(c, d, b);
+  return o1 !== 0 && o2 !== 0 && o3 !== 0 && o4 !== 0 && o1 !== o2 && o3 !== o4;
+}
+
+/** Does the ring repeat a vertex position? That is the signature of a bridge. */
+function isBridgedRing(poly) {
+  for (let i = 0; i < poly.length; i++) {
+    for (let j = i + 1; j < poly.length; j++) {
+      if (samePlanPoint(poly[i][0], poly[i][1], poly[j])) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Ear clipping. `poly` is [[x,z], ...] in either winding — the traversal order
+ * is normalised here, so callers never have to pre-wind. Returns index triples.
+ *
+ * Two ear tests. Simple rings use the cheap one: no other vertex inside the ear.
+ * BRIDGED rings (a slab with one or more courtyards) use the exact one: the
+ * diagonal must not cross an edge and must run through solid material by the
+ * nonzero rule. The cheap test cannot see a bridge at all — a repeated vertex
+ * sits on every candidate ear, so every ear is vetoed, the loop bails on its
+ * first pass and the slab is emitted with ZERO triangles. That is what removed
+ * 100 % of the soffit on a courtyard slab, and the top face too whenever
+ * insetPolygon() declined.
+ */
 export function triangulate(poly) {
   const n = poly.length;
   if (n < 3) return [];
@@ -818,8 +877,15 @@ export function triangulate(poly) {
   for (let i = 0; i < n; i++) idx.push(i);
   if (polygonArea(poly) < 0) idx.reverse();
   const tris = [];
+  earClip(poly, idx, isBridgedRing(poly), tris, 0);
+  return tris;
+}
+
+/** Ear-clip one ring, given as indices into `poly`. Appends triples to `out`. */
+function earClip(poly, idx, exact, out, depth) {
+  const budget = idx.length * idx.length + 16;
   let guard = 0;
-  while (idx.length > 3 && guard++ < n * n + 16) {
+  while (idx.length > 3 && guard++ < budget) {
     let clipped = false;
     for (let i = 0; i < idx.length; i++) {
       const i0 = idx[(i + idx.length - 1) % idx.length];
@@ -828,21 +894,84 @@ export function triangulate(poly) {
       const a = poly[i0], b = poly[i1], c = poly[i2];
       const cr = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
       if (cr <= 1e-12) continue;                    // reflex or degenerate
-      let ok = true;
-      for (const j of idx) {
-        if (j === i0 || j === i1 || j === i2) continue;
-        if (pointInTriangle(poly[j][0], poly[j][1], a[0], a[1], b[0], b[1], c[0], c[1])) { ok = false; break; }
-      }
-      if (!ok) continue;
-      tris.push([i0, i1, i2]);
+      if (!earClear(poly, idx, i0, i1, i2, a, b, c)) continue;
+      // A bridged ring can also present an ear that is clear of vertices yet
+      // still swallows a courtyard, because the ear only TOUCHES the hole at a
+      // corner. The diagonal test catches that; it is skipped on simple rings,
+      // where it is redundant and O(n) more expensive per candidate.
+      if (exact && !diagonalOk(poly, idx, a, c, b)) continue;
+      out.push([i0, i1, i2]);
       idx.splice(i, 1);
       clipped = true;
       break;
     }
-    if (!clipped) break;                            // self-intersecting input
+    if (clipped) continue;
+    // Stalled. A bridged ring can genuinely have NO ear: bridge the courtyard of
+    // a square building to a far outer corner and every convex vertex's diagonal
+    // runs through the courtyard. Cut the ring in two along any valid diagonal
+    // and clip the halves — each of them does have ears. Without this the slab
+    // came out with zero triangles, i.e. invisible, and said nothing about it.
+    if (exact && depth < 32 && splitClip(poly, idx, out, depth)) return;
+    break;                                          // self-intersecting input
   }
-  if (idx.length === 3) tris.push([idx[0], idx[1], idx[2]]);
-  return tris;
+  if (idx.length === 3) out.push([idx[0], idx[1], idx[2]]);
+}
+
+/** Split a stalled ring along the first valid interior diagonal and recurse. */
+function splitClip(poly, idx, out, depth) {
+  const m = idx.length;
+  for (let i = 0; i < m; i++) {
+    for (let j = i + 2; j < m; j++) {
+      if (i === 0 && j === m - 1) continue;          // adjacent in the ring
+      const a = poly[idx[i]], b = poly[idx[j]];
+      if (samePlanPoint(a[0], a[1], b)) continue;
+      if (!diagonalValid(poly, idx, a, b)) continue;
+      earClip(poly, idx.slice(i, j + 1), true, out, depth + 1);
+      earClip(poly, idx.slice(j).concat(idx.slice(0, i + 1)), true, out, depth + 1);
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Cheap ear test for a simple ring: no remaining vertex inside it. */
+function earClear(poly, idx, i0, i1, i2, a, b, c) {
+  for (const j of idx) {
+    if (j === i0 || j === i1 || j === i2) continue;
+    const px = poly[j][0], py = poly[j][1];
+    // A bridge repeats a vertex POSITION under a different index; that copy is
+    // the same point of the plan, not an intruder into the ear.
+    if (samePlanPoint(px, py, a) || samePlanPoint(px, py, b) || samePlanPoint(px, py, c)) continue;
+    if (pointInTriangle(px, py, a[0], a[1], b[0], b[1], c[0], c[1])) return false;
+  }
+  return true;
+}
+
+/**
+ * Exact ear test: the diagonal a-c may not cross an edge of the ring being
+ * clipped, and its midpoint (nudged off b, so a sliver ear still samples inside)
+ * must be solid under the nonzero rule of the WHOLE plan — a courtyard is solid
+ * nowhere, however the ring that describes it has been cut open.
+ */
+function diagonalOk(ring, idx, a, c, b) {
+  for (let k = 0, m = idx.length; k < m; k++) {
+    const p = ring[idx[k]], q = ring[idx[(k + 1) % m]];
+    if (segmentsCross(a, c, p, q)) return false;
+  }
+  const mx = (a[0] + c[0]) / 2, mz = (a[1] + c[1]) / 2;
+  const gx = mx + (b[0] - mx) * 1e-4, gz = mz + (b[1] - mz) * 1e-4;
+  return windingNumber(ring, gx, gz) !== 0;
+}
+
+/** Diagonal a-b for the split: crosses nothing, runs through solid material. */
+function diagonalValid(ring, idx, a, b) {
+  for (let k = 0, m = idx.length; k < m; k++) {
+    const p = ring[idx[k]], q = ring[idx[(k + 1) % m]];
+    if (segmentsCross(a, b, p, q)) return false;
+  }
+  const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+  for (const v of ring) if (samePlanPoint(mx, mz, v)) return false;
+  return windingNumber(ring, mx, mz) !== 0;
 }
 
 /** Distance from (x,z) to the nearest polygon edge. */
@@ -892,7 +1021,14 @@ function emitSlab(model, slab, sinkFor, opts = {}) {
   // top face — subdivided against an inward-offset ring so the edge darkening
   // has vertices to interpolate over. Falls back to a flat fan if the inset
   // self-intersects (thin or awkward polygons).
-  const inset = insetPolygon(poly, Math.min(AO_SLAB_BAND, 0.45));
+  // A slab narrower than 2 x AO_SLAB_BAND (a corridor, a balcony, a 0.5 m strip)
+  // cannot take the full offset — the ring would turn itself inside out and the
+  // whole strip would flatten to the darkest AO value, reading as a black band.
+  // Back the offset off until it survives, so narrow slabs keep a gradient.
+  let inset = null;
+  for (let d = Math.min(AO_SLAB_BAND, 0.45); d > 0.02 && !inset; d *= 0.6) {
+    inset = insetPolygon(poly, d);
+  }
   const upN = { x: 0, y: isRoof ? 1 : 1, z: 0 };
   if (inset) {
     // ring between outer and inset

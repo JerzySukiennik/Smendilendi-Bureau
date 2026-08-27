@@ -176,6 +176,175 @@ export function buildableAreaSize(plot) {
 }
 
 // ---------------------------------------------------------------------------
+// solvability
+//
+// Sizing the plot from the footprint is not enough: setbacks, protected trees
+// and the slope all eat into the site AFTER it has been sized, and a brief that
+// cannot be built is a bug, not a challenge. Everything below re-measures the
+// site once every obstruction is on it, and generatePlot() refuses to return a
+// plot that fails.
+//
+// The measurement rasterises the buildable polygon, subtracts protected tree
+// crowns, and looks for one connected obstruction-free region that
+//   - holds the required footprint (plus slack for walls),
+//   - is at least minSide wide somewhere, so rooms actually fit,
+//   - has clear frontage towards the street the entrance must face,
+//   - and is flat enough for one floor plate.
+
+export const SOLVABILITY = {
+  cell: 0.5,          // raster resolution, metres
+  areaMargin: 1.10,   // footprint plus slack for wall thickness and setting out
+  minSide: 4.0,       // narrowest bay habitable rooms fit in
+  minFrontage: 3.0,   // clear street frontage for an entrance bay
+  maxFall: 2.40,      // 1.20 m of cut plus 1.20 m of fill under one floor plate
+  // The generator holds itself strictly INSIDE those limits, so a site that
+  // only just scrapes past a raster tie is regenerated rather than shipped.
+  slack: 2.0,         // extra square metres over the footprint requirement
+  fallSlack: 0.05,    // metres kept in hand under maxFall
+};
+
+function crownBlocks(trees, x, z) {
+  for (const t of trees) {
+    if (!t.protected) continue;
+    if (Math.hypot(x - t.x, z - t.z) < t.radius) return true;
+  }
+  return false;
+}
+
+/** Largest axis-aligned all-true rectangle in a mask (histogram sweep). */
+function maxRectangle(mask, W, H) {
+  const heights = new Int32Array(W);
+  let best = { w: 0, h: 0, area: 0 };
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) heights[i] = mask[j * W + i] ? heights[i] + 1 : 0;
+    const stack = [];
+    for (let i = 0; i <= W; i++) {
+      const cur = i === W ? 0 : heights[i];
+      let start = i;
+      while (stack.length && stack[stack.length - 1].h >= cur) {
+        const top = stack.pop();
+        const w = i - top.i;
+        if (w * top.h > best.area) best = { w, h: top.h, area: w * top.h };
+        start = top.i;
+      }
+      stack.push({ i: start, h: cur });
+    }
+  }
+  return best;
+}
+
+/**
+ * assessSolvability(plot, footprint) -> report
+ * `footprint` is the gross area the building needs on ONE storey at the storey
+ * count the brief allows. The report is attached to the plot as plot.solvable.
+ */
+export function assessSolvability(plot, footprint) {
+  const need = Math.max(1, footprint);
+  const S = SOLVABILITY;
+  const build = plot.buildable || buildableArea(plot);
+  const trees = plot.trees || [];
+  const bb = polygonBounds(build);
+  const W = Math.max(1, Math.ceil(bb.width / S.cell));
+  const H = Math.max(1, Math.ceil(bb.depth / S.cell));
+  const cellArea = S.cell * S.cell;
+  const cx = i => bb.minX + (i + 0.5) * S.cell;
+  const cz = j => bb.minZ + (j + 0.5) * S.cell;
+  const heightAt = (plot.terrain && plot.terrain.heightAt) || (() => 0);
+
+  const free = new Uint8Array(W * H);
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      const x = cx(i), z = cz(j);
+      if (!pointInPolygon(build, x, z)) continue;
+      if (crownBlocks(trees, x, z)) continue;
+      free[j * W + i] = 1;
+    }
+  }
+
+  // connected regions, 4-neighbour
+  const label = new Int32Array(W * H).fill(-1);
+  const regions = [];
+  const stack = [];
+  for (let s = 0; s < W * H; s++) {
+    if (!free[s] || label[s] >= 0) continue;
+    const id = regions.length;
+    regions.push([]);
+    label[s] = id;
+    stack.push(s);
+    while (stack.length) {
+      const p = stack.pop();
+      regions[id].push(p);
+      const i = p % W, j = (p / W) | 0;
+      if (i > 0 && free[p - 1] && label[p - 1] < 0) { label[p - 1] = id; stack.push(p - 1); }
+      if (i < W - 1 && free[p + 1] && label[p + 1] < 0) { label[p + 1] = id; stack.push(p + 1); }
+      if (j > 0 && free[p - W] && label[p - W] < 0) { label[p - W] = id; stack.push(p - W); }
+      if (j < H - 1 && free[p + W] && label[p + W] < 0) { label[p + W] = id; stack.push(p + W); }
+    }
+  }
+
+  const facing = plot.entranceFacing || (plot.streetSides || [])[0] || 'north';
+  const [ox, oz] = outwardVector(facing);
+  let best = null;
+
+  for (const cells of regions) {
+    const area = R(cells.length * cellArea, 1);
+    const mask = new Uint8Array(W * H);
+    for (const p of cells) mask[p] = 1;
+    const rect = maxRectangle(mask, W, H);
+    const minSide = R(Math.min(rect.w, rect.h) * S.cell, 2);
+
+    // frontage: cells that can see the street they must face, walking straight
+    // out without passing through a protected crown
+    const lanes = new Set();
+    for (const p of cells) {
+      const i = p % W, j = (p / W) | 0;
+      let x = cx(i), z = cz(j), clear = true;
+      for (let step = 0; step < 600; step++) {
+        x += ox * S.cell; z += oz * S.cell;
+        if (crownBlocks(trees, x, z)) { clear = false; break; }
+        if (!pointInPolygon(plot.boundary, x, z)) break;
+      }
+      if (clear) lanes.add(ox === 0 ? i : j);
+    }
+    const frontage = R(lanes.size * S.cell, 2);
+
+    // fall across the flattest footprint-sized band: on a planar slope that is
+    // the strip the building would actually sit on
+    const hs = cells.map(p => heightAt(cx(p % W), cz((p / W) | 0))).sort((a, b) => a - b);
+    const band = Math.min(hs.length, Math.max(1, Math.ceil(need * S.areaMargin / cellArea)));
+    let fall = Infinity;
+    for (let s0 = 0; s0 + band <= hs.length; s0++) {
+      const f = hs[s0 + band - 1] - hs[s0];
+      if (f < fall) fall = f;
+    }
+    if (!Number.isFinite(fall)) fall = hs.length ? hs[hs.length - 1] - hs[0] : 0;
+    const rawFall = fall;
+    fall = R(fall, 2);
+
+    const reasons = [];
+    // compare on the raw measurements, never on the rounded report values
+    if (cells.length * cellArea < need * S.areaMargin + S.slack) reasons.push('area');
+    if (Math.min(rect.w, rect.h) * S.cell < S.minSide) reasons.push('narrow');
+    if (lanes.size * S.cell < S.minFrontage) reasons.push('frontage');
+    if (rawFall > S.maxFall - S.fallSlack) reasons.push('slope');
+    const cand = { area, minSide, frontage, fall, reasons, ok: reasons.length === 0 };
+    if (!best || (cand.ok && !best.ok) || (cand.ok === best.ok && cand.area > best.area)) best = cand;
+  }
+
+  const b = best || { area: 0, minSide: 0, frontage: 0, fall: 0, reasons: ['empty'], ok: false };
+  return {
+    ok: b.ok,
+    need: R(need, 1),
+    freeArea: b.area,
+    minSide: b.minSide,
+    frontage: b.frontage,
+    fall: b.fall,
+    regions: regions.length,
+    reasons: b.reasons,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // generation
 
 const SHAPES = ['rect', 'rect', 'deep-narrow', 'wide-shallow', 'corner', 'L', 'trapezoid', 'chamfer'];
@@ -213,10 +382,16 @@ function outwardVector(dir) {
 }
 
 /**
- * generatePlot(rng, { difficulty, targetFootprint, typeKey })
+ * generatePlot(rng, { difficulty, targetFootprint, minPlotArea, typeKey })
  * `targetFootprint` is the gross footprint the building needs on one storey;
  * the plot is sized so the buildable area comfortably exceeds it, tightening
  * as difficulty rises.
+ *
+ * The returned plot is GUARANTEED solvable: after the setbacks, the protected
+ * trees, the slope and the neighbours are all on the site, the remaining
+ * obstruction-free area is re-measured (assessSolvability) and the site is
+ * regenerated, larger and gentler, until the building fits with its entrance
+ * able to face the street. The report is attached as plot.solvable.
  */
 export function generatePlot(rng, opts = {}) {
   const difficulty = Math.min(1, Math.max(0, opts.difficulty ?? 0.5));
@@ -225,14 +400,51 @@ export function generatePlot(rng, opts = {}) {
   // the planted-area limit and (for a kindergarten) the outdoor play area.
   const minPlotArea = Math.max(0, opts.minPlotArea ?? 0);
 
+  let plot = null;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    plot = buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt });
+    if (plot.solvable.ok) return plot;
+  }
+  // Last resort: a site the brief cannot be built on is a bug, so strip its
+  // teeth rather than ship it. Never reached in the seeded sweep, kept so the
+  // guarantee holds for every possible seed.
+  plot = disarmPlot(plot, targetFootprint);
+  if (!plot.solvable.ok) {
+    const s = plot.solvable;
+    throw new Error(`generatePlot: unsolvable site [${s.reasons.join('+')}] `
+      + `need ${s.need} m2, free ${s.freeArea} m2, min side ${s.minSide} m, `
+      + `frontage ${s.frontage} m, fall ${s.fall} m`);
+  }
+  return plot;
+}
+
+/** Drop every obstruction that can be dropped, then re-measure. */
+function disarmPlot(plot, targetFootprint) {
+  for (const t of plot.trees) t.protected = false;
+  if (plot.terrain.kind === 'slope') {
+    plot.terrain = {
+      kind: 'flat', slopeDir: 0, slopeDirName: null, slopePercent: 0,
+      origin: plot.terrain.origin, heightAt: () => 0,
+    };
+    plot.fallAcrossSite = 0;
+  }
+  plot.solvable = assessSolvability(plot, targetFootprint);
+  return plot;
+}
+
+/** One attempt at a site. `attempt` > 0 means the previous one was unbuildable. */
+function buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt }) {
   // ---- shape ------------------------------------------------------------
   const awkwardBias = 0.25 + 0.55 * difficulty;
   const kind = rng() < awkwardBias
     ? SHAPES[2 + Math.floor(rng() * (SHAPES.length - 2))]
     : 'rect';
 
-  const coverage = lerp(2.40, 1.35, difficulty);   // buildable / footprint target
+  // each retry buys the building more room
+  const roomier = 1 + 0.18 * attempt;
+  const coverage = lerp(2.40, 1.35, difficulty) * roomier;   // buildable / footprint
   const needBuildable = targetFootprint * coverage;
+  const needGross = minPlotArea * roomier;
 
   let aspect;
   if (kind === 'deep-narrow') aspect = lerp(0.34, 0.26, rng());
@@ -251,7 +463,6 @@ export function generatePlot(rng, opts = {}) {
   let D = W / aspect;
   let poly = null, k = 0;
   const cornerPlot = kind === 'corner';
-  const streetSide0 = 'north';
 
   for (let i = 0; i < 14; i++) {
     poly = shapePolygon(cornerPlot ? 'rect' : kind, W, D);
@@ -265,10 +476,10 @@ export function generatePlot(rng, opts = {}) {
     });
     const got = polygonArea(test) > 1 ? polygonArea(test) : 0;
     const gross = polygonArea(poly);
-    if (got >= needBuildable && gross >= minPlotArea) break;
+    if (got >= needBuildable && gross >= needGross) break;
     const grow = Math.min(1.6, Math.max(1.04, Math.sqrt(Math.max(
       needBuildable / Math.max(got, 1),
-      minPlotArea / Math.max(gross, 1),
+      needGross / Math.max(gross, 1),
     )) * 1.02));
     W *= grow; D *= grow;
   }
@@ -305,6 +516,12 @@ export function generatePlot(rng, opts = {}) {
   const neighbours = [];
   const free = DIRS.filter(d => !streetSides.includes(d));
   const wantTallSouth = !streetSides.includes('south') && (difficulty >= 0.45 || rng() < 0.35);
+  const boxOf = p => polygonBounds(p);
+  const clashes = (box) => neighbours.some(n => {
+    const o = boxOf(n.polygon);
+    return box.minX < o.maxX + 1 && box.maxX + 1 > o.minX
+      && box.minZ < o.maxZ + 1 && box.maxZ + 1 > o.minZ;
+  });
   for (let fi = 0; fi < free.length; fi++) {
     const dir = free[fi];
     const isSouth = dir === 'south';
@@ -318,13 +535,24 @@ export function generatePlot(rng, opts = {}) {
     const gap = R(lerp(2.5, 7.0, rng()));
     const long = R(lerp(11, 26, rng()));
     const deep = R(lerp(9, 16, rng()));
-    // anchor just outside the boundary bbox on that side
-    const ax = nx === 0 ? R(lerp(bounds.minX, bounds.maxX, rng()) - long / 2)
-      : (nx > 0 ? bounds.maxX + gap : bounds.minX - gap - deep);
-    const az = nz === 0 ? R(lerp(bounds.minZ, bounds.maxZ, rng()) - long / 2)
-      : (nz > 0 ? bounds.maxZ + gap : bounds.minZ - gap - deep);
-    const w = nx === 0 ? long : deep;
-    const d = nz === 0 ? long : deep;
+    // anchor just outside the boundary bbox on that side; retry the slide along
+    // the edge so two neighbours never end up inside each other at a corner
+    let chosen = null, fallback = null;
+    for (let tryI = 0; tryI < 8; tryI++) {
+      const ax = nx === 0 ? R(lerp(bounds.minX, bounds.maxX, rng()) - long / 2)
+        : (nx > 0 ? R(bounds.maxX + gap) : R(bounds.minX - gap - deep));
+      const az = nz === 0 ? R(lerp(bounds.minZ, bounds.maxZ, rng()) - long / 2)
+        : (nz > 0 ? R(bounds.maxZ + gap) : R(bounds.minZ - gap - deep));
+      const w = nx === 0 ? long : deep;
+      const d = nz === 0 ? long : deep;
+      const box = { minX: ax, maxX: ax + w, minZ: az, maxZ: az + d };
+      fallback = { ax, az, w, d };
+      if (!clashes(box)) { chosen = fallback; break; }
+      if (nx !== 0 && nz !== 0) break;                 // nothing to slide, give up
+    }
+    const spot = chosen || (lastChance ? fallback : null);
+    if (!spot) continue;
+    const { ax, az, w, d } = spot;
     neighbours.push({
       name: tall ? `${storeys}-storey block to the ${dir}` : `house to the ${dir}`,
       height,
@@ -334,15 +562,21 @@ export function generatePlot(rng, opts = {}) {
   }
 
   // ---- trees ------------------------------------------------------------
-  const buildableTest = insetPolygon(poly, (a, b) => {
+  const inset = insetPolygon(poly, (a, b) => {
     const f = edgeFacing(a, b);
     if (streetSides.includes(f)) return setbacks.front;
     if (streetSides.map(s => OPPOSITE[s]).includes(f)) return setbacks.rear;
     return setbacks.side;
   });
+  const buildableTest = polygonArea(inset) > 1 ? inset : poly;
   const treeCount = Math.round(lerp(1, 6, difficulty * 0.7 + rng() * 0.5));
-  const protectedTarget = Math.min(treeCount, Math.round(difficulty * 3));
+  const protectedTarget = Math.max(0, Math.min(treeCount, Math.round(difficulty * 3)) - attempt);
   const trees = [];
+  // probe used to re-measure the site as each protected tree lands on it
+  const probe = {
+    boundary: poly, buildable: buildableTest, trees,
+    entranceFacing, streetSides, terrain: null,
+  };
   for (let i = 0; i < treeCount * 14 && trees.length < treeCount; i++) {
     const x = R(lerp(bounds.minX, bounds.maxX, rng()));
     const z = R(lerp(bounds.minZ, bounds.maxZ, rng()));
@@ -354,31 +588,45 @@ export function generatePlot(rng, opts = {}) {
     const inBuildable = pointInPolygon(buildableTest, x, z);
     // a protected tree only bites if it stands where you would want to build
     if (wantProtected && !inBuildable && i < treeCount * 10) continue;
-    trees.push({
+    const tree = {
       x, z, radius,
       height: R(lerp(7, 19, rng()), 1),
       species: ['oak', 'lime', 'birch', 'maple', 'pine'][Math.floor(rng() * 5) % 5],
       protected: wantProtected,
-    });
+    };
+    trees.push(tree);
+    // ...but a protected tree that leaves nowhere to put the building would make
+    // the brief impossible, so that one keeps growing as an ordinary tree
+    if (tree.protected && !assessSolvability(probe, targetFootprint).ok) tree.protected = false;
   }
 
   // ---- terrain ----------------------------------------------------------
-  const sloped = rng() < 0.22 + 0.48 * difficulty;
-  const slopePercent = sloped ? R(lerp(3.5, 12.0, difficulty * 0.6 + rng() * 0.6), 1) : 0;
-  const slopeAngle = sloped ? R(Math.floor(rng() * 8) * (Math.PI / 4), 4) : 0;
   const [ccx, ccz] = polygonCentroid(poly);
+  const slopeAngle = R(Math.floor(rng() * 8) * (Math.PI / 4), 4);
   const fx = Math.cos(slopeAngle), fz = Math.sin(slopeAngle);
-  const terrain = {
-    kind: sloped ? 'slope' : 'flat',
-    slopeDir: slopeAngle,                       // radians in the xz plane, ground FALLS this way
-    slopeDirName: sloped ? compassOf(fx, fz) : null,
-    slopePercent,
+  const makeTerrain = (percent) => ({
+    kind: percent > 0 ? 'slope' : 'flat',
+    slopeDir: percent > 0 ? slopeAngle : 0,     // radians in xz, ground FALLS this way
+    slopeDirName: percent > 0 ? compassOf(fx, fz) : null,
+    slopePercent: percent,
     origin: [R(ccx), R(ccz)],
     heightAt(x, z) {
-      if (!sloped) return 0;
-      return R(-((x - ccx) * fx + (z - ccz) * fz) * (slopePercent / 100), 3);
+      if (percent <= 0) return 0;
+      return R(-((x - ccx) * fx + (z - ccz) * fz) * (percent / 100), 3);
     },
-  };
+  });
+  let slopePercent = rng() < 0.22 + 0.48 * difficulty
+    ? R(lerp(3.5, 12.0, difficulty * 0.6 + rng() * 0.6), 1)
+    : 0;
+  let terrain = makeTerrain(slopePercent);
+  // ease the slope until one floor plate can sit on the flattest band of the
+  // buildable area within the cut-and-fill the brief allows
+  for (let guard = 0; guard < 14 && slopePercent > 0; guard++) {
+    probe.terrain = terrain;
+    if (!assessSolvability(probe, targetFootprint).reasons.includes('slope')) break;
+    slopePercent = slopePercent > 2.0 ? R(slopePercent * 0.75, 1) : 0;
+    terrain = makeTerrain(slopePercent);
+  }
 
   const plot = {
     kind,
@@ -397,8 +645,9 @@ export function generatePlot(rng, opts = {}) {
   plot.buildable = buildableArea(plot);
   plot.buildableArea = R(polygonArea(plot.buildable), 1);
   plot.fallAcrossSite = terrain.kind === 'slope'
-    ? R(Math.max(bounds.width, bounds.depth) * (slopePercent / 100), 1)
+    ? R(Math.max(bounds.width, bounds.depth) * (terrain.slopePercent / 100), 1)
     : 0;
+  plot.solvable = assessSolvability(plot, targetFootprint);
   return plot;
 }
 

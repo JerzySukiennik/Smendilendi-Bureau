@@ -28,6 +28,107 @@ export const QUALITY = {
   COOLDOWN: 6.0,      // s between steps
 };
 
+/**
+ * QualityController — the adaptive-quality state machine, with NO renderer in it.
+ *
+ * Round 1 shipped this logic inline in Engine, where the only way to check it was
+ * to read it. It is a clock-driven state machine, so it now takes its clock as an
+ * argument: tick(frameMs, dt) is the whole input, `onChange` is the whole output,
+ * and tools/verify-core.mjs drives thousands of synthetic seconds through it in
+ * node and asserts the resulting ladder.
+ *
+ * Rules (ARCHITECTURE.md, "non-negotiable"):
+ *   start at min(devicePixelRatio, 1.75)
+ *   average frame time over a 2 s window
+ *   avg > 22 ms  -> ratio -= 0.25, floor 1.0
+ *   avg <= 17 ms -> ratio += 0.25, ceiling min(devicePixelRatio, 1.75)
+ *   6 s cooldown between steps
+ * Plus two guards that are not decoration: WARMUP frames after any start, resize
+ * or step are ignored (shader compilation), and any frame over STALL_MS is thrown
+ * away rather than averaged (a GC pause or a backgrounded tab is not a quality
+ * signal — averaged in, one 900 ms hitch drags a healthy 16 ms average over the
+ * 22 ms line and permanently downgrades a machine that was fine).
+ */
+export class QualityController {
+  constructor({ maxRatio = QUALITY.MAX_RATIO, onChange = null, spec = QUALITY } = {}) {
+    this.spec = spec;
+    this.maxRatio = Math.max(spec.MIN_RATIO, Math.min(maxRatio, spec.MAX_RATIO));
+    this.pixelRatio = this.maxRatio;
+    this.onChange = onChange;
+    this.stepCount = 0;
+    this.locked = false;
+    this.time = 0;          // seconds of ticks seen — the injected clock
+    this.lastStepAt = -Infinity;
+    this._acc = 0;          // ms of accepted frames in the current window
+    this._frames = 0;
+    this._warmup = spec.WARMUP;
+    this._rejected = 0;     // frames thrown away as stalls (debug overlay)
+  }
+
+  /** Ignore the next `n` frames — call after a resize or an expensive mode init. */
+  warmup(n = 20) { this._warmup = Math.max(this._warmup, n); }
+
+  /** Force a ratio without touching the cooldown (settings screen, tests). */
+  set(v) {
+    const next = Math.max(this.spec.MIN_RATIO, Math.min(v, this.maxRatio));
+    if (Math.abs(next - this.pixelRatio) < 1e-6) return false;
+    this.pixelRatio = next;
+    this._acc = 0; this._frames = 0;
+    this.warmup(20);
+    this.onChange?.(next, { dir: 'set', avg: null, at: this.time });
+    return true;
+  }
+
+  /** Pin the ratio and stop adapting. */
+  lock(v = this.pixelRatio) { this.set(v); this.locked = true; }
+  unlock() { this.locked = false; this.lastStepAt = this.time; }
+
+  /** The device changed DPI (window dragged to another display). */
+  setMaxRatio(v) {
+    this.maxRatio = Math.max(this.spec.MIN_RATIO, Math.min(v, this.spec.MAX_RATIO));
+    if (this.pixelRatio > this.maxRatio) this.set(this.maxRatio);
+  }
+
+  /**
+   * One frame. `frameMs` is how long the frame took, `dt` how long since the
+   * previous one, in seconds. Returns true if the pixel ratio changed.
+   */
+  tick(frameMs, dt) {
+    const s = this.spec;
+    this.time += dt;
+    if (this.locked) return false;
+    if (this._warmup > 0) { this._warmup--; return false; }
+    if (frameMs > s.STALL_MS) { this._rejected++; return false; }
+
+    this._acc += frameMs;
+    this._frames++;
+    if (this._acc < s.WINDOW * 1000) return false;
+
+    const avg = this._acc / this._frames;
+    this._acc = 0;
+    this._frames = 0;
+    if (this.time - this.lastStepAt < s.COOLDOWN) return false;
+
+    if (avg > s.DOWN_MS && this.pixelRatio > s.MIN_RATIO) {
+      return this._step(Math.max(s.MIN_RATIO, this.pixelRatio - s.STEP), avg, 'down');
+    }
+    if (avg <= s.UP_MS && this.pixelRatio < this.maxRatio) {
+      return this._step(Math.min(this.maxRatio, this.pixelRatio + s.STEP), avg, 'up');
+    }
+    return false;
+  }
+
+  _step(v, avg, dir) {
+    if (Math.abs(v - this.pixelRatio) < 1e-6) return false;
+    this.pixelRatio = v;
+    this.stepCount++;
+    this.lastStepAt = this.time;
+    this.warmup(20);
+    this.onChange?.(v, { dir, avg, at: this.time });
+    return true;
+  }
+}
+
 export class Engine {
   constructor(canvas, opts = {}) {
     ColorManagement.enabled = true;
@@ -50,13 +151,16 @@ export class Engine {
     r.shadowMap.autoUpdate = true;
     r.info.autoReset = true;
 
-    this.maxRatio = Math.min(window.devicePixelRatio || 1, QUALITY.MAX_RATIO);
-    this.pixelRatio = this.maxRatio;
-    this.qualityStepCount = 0;
-    this._qAcc = 0;
-    this._qFrames = 0;
-    this._qCooldown = 0;
-    this._qWarmup = QUALITY.WARMUP;
+    this.quality = new QualityController({
+      maxRatio: Math.min(window.devicePixelRatio || 1, QUALITY.MAX_RATIO),
+      onChange: (v, why) => {
+        this.renderer.setPixelRatio(v);
+        this.renderer.setSize(this.width, this.height, false);
+        if (why.dir !== 'set') {
+          console.info(`[engine] quality ${why.dir} -> dpr ${v.toFixed(2)} (avg ${why.avg.toFixed(1)} ms)`);
+        }
+      },
+    });
 
     this.width = 1;
     this.height = 1;
@@ -95,6 +199,11 @@ export class Engine {
 
     this.resize();
   }
+
+  // The renderer-facing view of the quality state machine.
+  get pixelRatio() { return this.quality.pixelRatio; }
+  get maxRatio() { return this.quality.maxRatio; }
+  get qualityStepCount() { return this.quality.stepCount; }
 
   setContext(ctx) { this.ctx = ctx; }
 
@@ -168,7 +277,7 @@ export class Engine {
     this.height = h;
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(w, h, false);
-    this._qWarmup = Math.max(this._qWarmup, 20);
+    this.quality.warmup(20);
     for (const m of this.modeStack) m.resize?.(w, h);
     for (const fn of this._hooks.resize) fn(w, h);
   }
@@ -178,8 +287,7 @@ export class Engine {
     const attach = () => {
       const q = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
       const onChange = () => {
-        this.maxRatio = Math.min(window.devicePixelRatio || 1, QUALITY.MAX_RATIO);
-        this.pixelRatio = Math.min(this.pixelRatio, this.maxRatio);
+        this.quality.setMaxRatio(Math.min(window.devicePixelRatio || 1, QUALITY.MAX_RATIO));
         this.resize();
         attach();
       };
@@ -191,51 +299,13 @@ export class Engine {
 
   // -- adaptive quality ----------------------------------------------------
 
-  _adapt(frameMs, dt) {
-    // A stall is not a quality signal. Shader compilation on the first frames, a
-    // backgrounded tab, a GC pause or a mode init all produce frame times in the
-    // hundreds of ms; letting them into the average drops the resolution of a
-    // machine that is actually fine. Warm up, then reject outliers.
-    if (this._qWarmup > 0) { this._qWarmup--; return; }
-    if (frameMs > QUALITY.STALL_MS) return;
-
-    this._qAcc += frameMs;
-    this._qFrames++;
-    if (this._qCooldown > 0) this._qCooldown -= dt;
-    const windowMs = QUALITY.WINDOW * 1000;
-    if (this._qAcc < windowMs) return;
-
-    const avg = this._qAcc / this._qFrames;
-    this._qAcc = 0;
-    this._qFrames = 0;
-    if (this._qCooldown > 0) return;
-
-    if (avg > QUALITY.DOWN_MS && this.pixelRatio > QUALITY.MIN_RATIO) {
-      this._setRatio(Math.max(QUALITY.MIN_RATIO, this.pixelRatio - QUALITY.STEP), avg);
-    } else if (avg <= QUALITY.UP_MS && this.pixelRatio < this.maxRatio) {
-      this._setRatio(Math.min(this.maxRatio, this.pixelRatio + QUALITY.STEP), avg);
-    }
-  }
-
-  _setRatio(v, avg) {
-    if (Math.abs(v - this.pixelRatio) < 1e-6) return;
-    const dir = v > this.pixelRatio ? 'up' : 'down';
-    this.pixelRatio = v;
-    this.qualityStepCount++;
-    this._qCooldown = QUALITY.COOLDOWN;
-    this.renderer.setPixelRatio(v);
-    this.renderer.setSize(this.width, this.height, false);
-    this._qWarmup = 20;
-    console.info(`[engine] quality ${dir} -> dpr ${v.toFixed(2)} (avg ${avg.toFixed(1)} ms)`);
-  }
+  _adapt(frameMs, dt) { this.quality.tick(frameMs, dt); }
 
   /** Force a pixel ratio and stop adapting (settings screen "quality: fixed"). */
-  lockPixelRatio(v) {
-    this.pixelRatio = Math.max(QUALITY.MIN_RATIO, Math.min(v, this.maxRatio));
-    this._qCooldown = Infinity;
-    this.renderer.setPixelRatio(this.pixelRatio);
-    this.renderer.setSize(this.width, this.height, false);
-  }
+  lockPixelRatio(v) { this.quality.lock(v); }
+
+  /** Hand control back to the adaptive loop. */
+  unlockPixelRatio() { this.quality.unlock(); }
 
   // -- loop ----------------------------------------------------------------
 

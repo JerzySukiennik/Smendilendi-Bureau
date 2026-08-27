@@ -39,7 +39,46 @@ export const ROOM_KINDS = {
   technical: { label: 'plant room',    habitable: false, glaze: null, minCeiling: 2.20 },
   garage:    { label: 'garage',        habitable: false, glaze: null, minCeiling: 2.20 },
   unassigned:{ label: 'unnamed room',  habitable: false, glaze: null, minCeiling: 2.20 },
+
+  // Rooms the commission briefs actually ask for. Every one of the eight
+  // building types in src/commission/types.js writes its schedule in these
+  // words; if a word is missing here the client asks for a room the engine
+  // can never see, and the complaint can never be cleared.
+  meeting:   { label: 'meeting room',  habitable: true,  glaze: 8,  minCeiling: 2.50 },
+  // A focus booth is occupied for minutes, not hours: no daylight duty, but it
+  // is still a room somebody stands up in.
+  focus:     { label: 'focus room',    habitable: false, glaze: null, minCeiling: 2.50 },
+  breakout:  { label: 'tea point',     habitable: true,  glaze: 12, minCeiling: 2.50 },
+  reception: { label: 'reception',     habitable: true,  glaze: 8,  minCeiling: 2.70 },
+  waiting:   { label: 'waiting area',  habitable: true,  glaze: 8,  minCeiling: 2.70 },
+  staffroom: { label: 'staff room',    habitable: true,  glaze: 8,  minCeiling: 2.50 },
+  changing:  { label: 'staff changing', habitable: false, glaze: null, minCeiling: 2.20 },
+  cloakroom: { label: 'cloakroom',     habitable: false, glaze: null, minCeiling: 2.20 },
+  sickroom:  { label: 'sick room',     habitable: true,  glaze: 8,  minCeiling: 2.50 },
+  counter:   { label: 'counter',       habitable: true,  glaze: 8,  minCeiling: 2.70 },
+  archive:   { label: 'archive',       habitable: false, glaze: null, minCeiling: 2.20 },
+  comms:     { label: 'comms room',    habitable: false, glaze: null, minCeiling: 2.20 },
+  cleaner:   { label: "cleaner's store", habitable: false, glaze: null, minCeiling: 2.20 },
+  waste:     { label: 'waste store',   habitable: false, glaze: null, minCeiling: 2.20 },
+  delivery:  { label: 'goods entrance', habitable: false, glaze: null, minCeiling: 2.20 },
+  // A whole flat, not a room. Matched as a group of rooms, see UNIT_KINDS.
+  flat:      { label: 'flat',          habitable: true,  glaze: 8,  minCeiling: 2.50 },
 };
+
+/**
+ * Programme lines that ask for a self-contained DWELLING rather than a room.
+ * `rooms` is the number of habitable rooms the flat must contain: a studio is
+ * one, a two-room flat two. The programme matcher counts rooms in a group, it
+ * does not look for one big room called "flat".
+ */
+export const UNIT_KINDS = {
+  apt_studio: { label: 'studio flat',     rooms: 1 },
+  apt_two:    { label: 'two-room flat',   rooms: 2 },
+  apt_three:  { label: 'three-room flat', rooms: 3 },
+};
+
+/** Room kinds that are circulation shared by the whole building, not part of a flat. */
+export const COMMON_KINDS = new Set(['corridor', 'stair', 'hall']);
 
 const ALIASES = {
   livingroom: 'living', lounge: 'living', sittingroom: 'living', salon: 'living',
@@ -58,6 +97,30 @@ const ALIASES = {
   restaurant: 'cafe', canteen: 'cafe',
   library: 'reading', readingroom: 'reading',
   consulting: 'ward', treatment: 'ward', surgery: 'ward',
+
+  // the commission vocabulary
+  workspace: 'office', meetingroom: 'meeting', boardroom: 'meeting',
+  focusroom: 'focus', phonebooth: 'focus',
+  teapoint: 'breakout', kitchenette2: 'breakout',
+  receptiondesk: 'reception', issuedesk: 'reception', frontdesk: 'reception',
+  waitingarea: 'waiting', waitingroom: 'waiting',
+  staffroom: 'staffroom', staffchanging: 'changing', changingroom: 'changing',
+  staffworkroom: 'study',
+  grouproom: 'classroom', playgroup: 'classroom', childrenslibrary: 'reading',
+  children: 'reading', lending: 'reading', openshelving: 'reading',
+  studyroom: 'study',
+  sickroom: 'sickroom', firstaid: 'sickroom',
+  checkout: 'counter', till: 'counter', pass: 'counter',
+  records: 'office', backoffice: 'office',
+  stock: 'store', stockroom: 'store', bikestore: 'store', bikepram: 'store',
+  pramstore: 'store', binstore: 'waste', kitchenstore: 'store',
+  coldstore: 'store', drystore: 'store',
+  wastehold: 'waste', clinicalwaste: 'waste', refuse: 'waste',
+  goodsentrance: 'delivery', deliveries: 'delivery', servicebay: 'delivery',
+  comms: 'comms', serverroom: 'comms',
+  cleanutility: 'utility', dirtyutility: 'utility',
+  entrancelobby: 'hall', staircore: 'stair',
+  issuingkitchen: 'kitchen',
 };
 
 export function canonicalKey(key) {
@@ -70,6 +133,22 @@ export function canonicalKey(key) {
   return null;
 }
 
+/**
+ * A programme line from the brief asks either for a ROOM or for a whole
+ * DWELLING UNIT. Resolve which, so the programme matcher never silently
+ * fails to recognise a word the client used.
+ *   -> { kind: 'room', key } | { kind: 'unit', key, rooms } | { kind: 'unknown' }
+ */
+export function resolveProgramKey(key) {
+  const raw = String(key ?? '').toLowerCase().replace(/[^a-z]/g, '');
+  for (const uk in UNIT_KINDS) {
+    if (raw === uk.replace(/[^a-z]/g, '')) return { kind: 'unit', key: uk, ...UNIT_KINDS[uk] };
+  }
+  const room = canonicalKey(key);
+  if (room) return { kind: 'room', key: room };
+  return { kind: 'unknown', key: String(key ?? '') };
+}
+
 // Furniture tags that give a room away, strongest signal first.
 const TAG_RULES = [
   { key: 'bathroom', any: ['bath', 'shower'] },
@@ -80,10 +159,14 @@ const TAG_RULES = [
   { key: 'ward', any: ['exam-couch', 'clinic'] },
   { key: 'retail', any: ['till', 'retail', 'shopfront'] },
   { key: 'cafe', any: ['cafe', 'bar'] },
-  { key: 'office', any: ['workstation', 'meeting'] },
+  { key: 'meeting', any: ['meeting'] },
+  { key: 'waiting', any: ['waiting'] },
+  { key: 'reception', any: ['reception'] },
+  { key: 'cloakroom', any: ['cloakroom'] },
+  { key: 'stair', any: ['stair'] },
+  { key: 'office', any: ['workstation'] },
   { key: 'dining', all: ['table'], min: 4, tag: 'seat' },
   { key: 'living', any: ['lounge'] },
-  { key: 'hall', any: ['reception'] },
   { key: 'store', any: ['shelving'] },
 ];
 
@@ -127,6 +210,7 @@ export function classifyRooms(model, topo, brief = {}) {
       source = 'geometry';
     }
 
+    const renamed = !!(names[room.key] ?? names[room.id]);
     const kind = ROOM_KINDS[key] ?? ROOM_KINDS.unassigned;
     const n = (counters.get(key) ?? 0) + 1;
     counters.set(key, n);
@@ -139,11 +223,15 @@ export function classifyRooms(model, topo, brief = {}) {
 
     out.set(room.id, {
       key,
-      label: room.name && source === 'named' ? room.name : kind.label,
+      // A rename by the player is the only name worth repeating back to him.
+      // rooms.js auto-labels every face "Room 549"; a client writing an e-mail
+      // says "the living room", never "the Room 549".
+      label: renamed ? room.name : kind.label,
       habitable: kind.habitable,
       glaze: kind.glaze,
       minCeiling: kind.minCeiling,
       source,
+      renamed,
       index: n,
       tags,
       furniture,
@@ -154,7 +242,7 @@ export function classifyRooms(model, topo, brief = {}) {
   const totals = new Map();
   for (const c of out.values()) totals.set(c.key, (totals.get(c.key) ?? 0) + 1);
   for (const c of out.values()) {
-    if (c.source !== 'named' && totals.get(c.key) > 1) {
+    if (!c.renamed && totals.get(c.key) > 1) {
       c.label = `${ORDINALS[c.index - 1] ?? `${c.index}th`} ${ROOM_KINDS[c.key].label}`;
     }
   }

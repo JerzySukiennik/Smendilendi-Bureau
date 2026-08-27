@@ -264,7 +264,12 @@ export class Assets {
         + `mesh ${worst.measured.toFixed(3)} m (${(worst.pct * 100).toFixed(1)} %)`
         + (placeholder ? ' [placeholder]' : '');
       this.warnings.push({ id, ...worst, placeholder });
-      if (!placeholder) console.warn(msg);
+      // A drifting PLACEHOLDER is not a lesser problem, it is the same problem
+      // one step earlier: the procedural description and the catalogue's declared
+      // metric size disagree, and the architect will measure the placeholder.
+      // Silencing it meant preload() could report "0 over 2 % drift" while 46 of
+      // 122 entries were wrong, which is exactly what it did.
+      console.warn(msg);
     }
     return worst.pct;
   }
@@ -284,11 +289,22 @@ export class Assets {
     }
     const loaded = recs.filter((r) => r && !r.placeholder).length;
     const placeholders = recs.filter((r) => r && r.placeholder).length;
+    const inList = new Set(list);
+    const w = this.warnings.filter((x) => inList.has(x.id));
     const summary = {
       total: list.length, loaded, placeholders,
-      drifted: this.warnings.filter((w) => !w.placeholder).length,
+      drifted: w.length,                                     // every entry over tolerance
+      driftedModels: w.filter((x) => !x.placeholder).length,  // ... from a GLB
+      driftedPlaceholders: w.filter((x) => x.placeholder).length, // ... from proc-shapes
+      worstDrift: w.reduce((a, x) => Math.max(a, x.pct), 0),
+      driftIds: w.map((x) => x.id),
     };
-    console.info(`[assets] ${summary.loaded} models, ${summary.placeholders} placeholders, ${summary.drifted} over ${DRIFT_TOLERANCE * 100} % drift`);
+    console.info(`[assets] ${summary.loaded} models, ${summary.placeholders} placeholders, `
+      + `${summary.drifted} over ${DRIFT_TOLERANCE * 100} % drift `
+      + `(${summary.driftedModels} GLB, ${summary.driftedPlaceholders} procedural, worst ${(summary.worstDrift * 100).toFixed(1)} %)`);
+    if (summary.drifted) {
+      console.warn(`[assets] catalogue sizes to reconcile: ${summary.driftIds.join(', ')}`);
+    }
     return summary;
   }
 

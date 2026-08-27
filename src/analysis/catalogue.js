@@ -8,13 +8,18 @@
 
 import {
   CATALOG, tryEntry, clearanceBox,
+  verticalExtent, clearanceExtent, bandsOverlap, blocksFloor,
+  DEFAULT_CEILING, STEP_OVER_HEIGHT, HEADROOM_CLEAR,
   MATERIAL_PRICES, materialPrice, STRUCTURE_PRICES, wallStructurePrice,
 } from '../model/catalog.js';
 
-export { CATALOG, MATERIAL_PRICES, STRUCTURE_PRICES, wallStructurePrice };
+export {
+  CATALOG, MATERIAL_PRICES, STRUCTURE_PRICES, wallStructurePrice,
+  bandsOverlap, DEFAULT_CEILING, STEP_OVER_HEIGHT, HEADROOM_CLEAR,
+};
 
-const NO_CLEARANCE = { front: 0, back: 0, left: 0, right: 0 };
-const DEFAULT_CLEARANCE = { front: 0.60, back: 0, left: 0, right: 0 };
+const NO_CLEARANCE = { front: 0, back: 0, left: 0, right: 0, zMin: null, zMax: null };
+const DEFAULT_CLEARANCE = { front: 0.60, back: 0, left: 0, right: 0, zMin: null, zMax: null };
 
 const GUESS = [
   [/wardrobe|closet/, ['storage', 'wardrobe'], [1.00, 2.10, 0.60], { front: 0.60 }, 3200],
@@ -36,17 +41,35 @@ const GUESS = [
   [/rug|carpet|mat/, ['soft', 'walkable'], [2.00, 0.02, 1.40], {}, 900],
 ];
 
+// Unknown ids that name themselves as mounted. Without this a guessed
+// "kitchen-wall-900" would be dropped on the floor and would block a corridor
+// that is in fact clear.
+const GUESS_MOUNT = [
+  [/wall-unit|wall-cabinet|kitchen-wall/, 'wall', 1.45],
+  [/pendant|chandelier/, 'ceiling', 1.20],
+  [/downlight|ceiling-|luminaire|track-light/, 'ceiling', 0],
+  [/sconce|wall-light/, 'wall', 1.80],
+  [/wall-hung|wall-mounted|urinal/, 'wall', 0.40],
+  [/whiteboard|noticeboard|tv-|screen-wall/, 'wall', 1.00],
+];
+
+function guessMount(id) {
+  for (const [re, anchor, mount] of GUESS_MOUNT) if (re.test(id)) return { anchor, mount };
+  return { anchor: 'floor', mount: 0 };
+}
+
 export function pretty(id) {
   return String(id ?? 'item').replace(/[-_]+/g, ' ').trim() || 'item';
 }
 
 function guess(catalogId) {
   const id = String(catalogId ?? '').toLowerCase();
+  const mounted = guessMount(id);
   for (const [re, tags, size, clr, price] of GUESS) {
     if (re.test(id)) {
       return {
         id: catalogId, name: pretty(catalogId), category: 'misc', file: null,
-        size, price, anchor: 'floor', mount: 0,
+        size, price, ...mounted,
         clearance: { ...NO_CLEARANCE, ...clr },
         tags, colorable: true, _guessed: true,
       };
@@ -54,7 +77,7 @@ function guess(catalogId) {
   }
   return {
     id: catalogId, name: pretty(catalogId), category: 'misc', file: null,
-    size: [0.60, 0.80, 0.60], price: 400, anchor: 'floor', mount: 0,
+    size: [0.60, 0.80, 0.60], price: 400, ...mounted,
     clearance: { ...DEFAULT_CLEARANCE }, tags: [], colorable: true, _guessed: true,
   };
 }
@@ -71,6 +94,7 @@ export function entryOf(catalogId) {
     size: Array.isArray(raw.size) && raw.size.length === 3 ? raw.size : g.size,
     price: Number.isFinite(raw.price) ? raw.price : g.price,
     anchor: raw.anchor ?? 'floor',
+    mount: Number.isFinite(raw.mount) ? raw.mount : g.mount,
     clearance: { ...NO_CLEARANCE, ...(raw.clearance ?? {}) },
     tags: Array.isArray(raw.tags) ? raw.tags : [],
   };
@@ -111,6 +135,7 @@ export function footprintOf(f, entry = entryOf(f.catalogId)) {
  * disagree about what the requirement is.
  */
 export function clearanceOf(f, entry = entryOf(f.catalogId)) {
+  const band = clearanceBandOf(f, entry);
   try {
     const box = clearanceBox(entry, f);
     if (box && box.local) {
@@ -120,10 +145,45 @@ export function clearanceOf(f, entry = entryOf(f.catalogId)) {
         right: Math.max(0, box.local.maxX - fp.w / 2),
         back: Math.max(0, -box.local.minZ - fp.d / 2),
         front: Math.max(0, box.local.maxZ - fp.d / 2),
+        ...band,
       };
     }
   } catch { /* fall through to the entry's own block */ }
-  return { ...NO_CLEARANCE, ...entry.clearance };
+  return { ...NO_CLEARANCE, ...entry.clearance, ...band };
+}
+
+/**
+ * The height band a placed piece OCCUPIES, metres above its level's floor.
+ * `ceilingHeight` matters only for ceiling-hung items.
+ */
+export function verticalExtentOf(f, entry = entryOf(f.catalogId), ceilingHeight = DEFAULT_CEILING) {
+  try {
+    return verticalExtent(entry, f, ceilingHeight);
+  } catch {
+    return { zMin: 0, zMax: Math.max(0.01, footprintOf(f, entry).h) };
+  }
+}
+
+/** The height band a placed piece needs KEPT CLEAR to be usable. */
+export function clearanceBandOf(f, entry = entryOf(f.catalogId), ceilingHeight = DEFAULT_CEILING) {
+  try {
+    return clearanceExtent(entry, f, ceilingHeight);
+  } catch {
+    return { zMin: 0, zMax: Math.max(0.01, footprintOf(f, entry).h) };
+  }
+}
+
+/**
+ * Is this placed piece an obstacle to someone walking across the floor?
+ * A wall cabinet, a pendant and a recessed downlight all answer differently,
+ * and none of them answers "yes, exactly like a wardrobe".
+ */
+export function blocksFloorOf(f, entry = entryOf(f.catalogId), ceilingHeight = DEFAULT_CEILING) {
+  try {
+    return blocksFloor(entry, f, ceilingHeight);
+  } catch {
+    return true;
+  }
 }
 
 // --------------------------------------------------------------------------
@@ -159,4 +219,93 @@ export function foundationRate() {
 
 export function materialName(matId) {
   return pretty(matId);
+}
+
+// --------------------------------------------------------------------------
+// brief vocabulary -> catalogue vocabulary
+//
+// The commission briefs (src/commission/types.js) write their schedules in
+// plain words: a consulting room "requires" an exam_couch, a flat requires a
+// bed_double and a washbasin. The catalogue tags those same things
+// 'exam-couch', 'bed' and 'basin'. Without this table the client asks for
+// twenty-five things the engine can never find, and raises a complaint the
+// player has no way of clearing — which is worse than not checking at all.
+//
+// Three of them (bike_rack, pram_rack, server_rack) have no representative in
+// the catalogue whatsoever. An architect is not marked down for failing to
+// draw an object that is not in the palette: they are reported as
+// 'unstocked' and the ergonomics module records them without complaining.
+
+const TAG_SYNONYM = {
+  washbasin: 'basin',
+  desk: 'workstation',
+  cooker: 'hob',
+  checkout: 'till',
+  counter: 'till',
+  bookshelf: 'shelving',
+  locker: 'cloakroom',
+  reception_desk: 'reception',
+  waiting_bench: 'waiting',
+  exam_couch: 'exam-couch',
+  meeting_table: 'meeting',
+  worktop: 'worktop',
+};
+
+const ID_PATTERN = {
+  bed_double: /^bed-(double|king)/,
+  bed_single: /^(bed-single|bed-bunk|cot-child|nap-mat)/,
+  fridge: /fridge/,
+  sofa: /^sofa/,
+  coffee_machine: /espresso|coffee/,
+  washing_machine: /washing-machine/,
+  display_shelf: /^(shelving-gondola|display-)/,
+  play_mat: /^(play-rug|nap-mat)/,
+  child_chair: /^kids-chair/,
+  child_table: /^kids-table/,
+};
+
+/** Requirements a piece of 3D text satisfies, not a catalogue model. */
+const TEXT_TAGS = new Set(['sign']);
+
+/** Asked for by a brief, absent from the catalogue. Recorded, never complained about. */
+const UNSTOCKED = new Set(['bike_rack', 'pram_rack', 'server_rack']);
+
+let TAG_INDEX = null;
+function tagIndex() {
+  if (TAG_INDEX) return TAG_INDEX;
+  TAG_INDEX = new Set();
+  for (const id in (CATALOG ?? {})) {
+    for (const t of CATALOG[id]?.tags ?? []) TAG_INDEX.add(t);
+  }
+  return TAG_INDEX;
+}
+
+/**
+ * resolveTag(tag) -> how the engine can find this thing in the model.
+ *   { kind: 'tag',  tag }        a catalogue tag
+ *   { kind: 'id',   re }         a catalogue id pattern
+ *   { kind: 'text' }             a piece of placed 3D text
+ *   { kind: 'unstocked' }        nothing in the catalogue can satisfy it
+ *   { kind: 'unknown' }          the engine does not understand the word
+ */
+export function resolveTag(tag) {
+  const raw = String(tag ?? '').trim().toLowerCase();
+  if (!raw) return { kind: 'unknown', tag: raw, label: 'item' };
+  const label = pretty(raw);
+  if (TEXT_TAGS.has(raw)) return { kind: 'text', tag: raw, label };
+  if (UNSTOCKED.has(raw)) return { kind: 'unstocked', tag: raw, label };
+  if (ID_PATTERN[raw]) return { kind: 'id', tag: raw, re: ID_PATTERN[raw], label };
+  const syn = TAG_SYNONYM[raw] ?? raw;
+  if (tagIndex().has(syn)) return { kind: 'tag', tag: raw, catalogTag: syn, label };
+  const dashed = raw.replace(/_/g, '-');
+  if (tagIndex().has(dashed)) return { kind: 'tag', tag: raw, catalogTag: dashed, label };
+  return { kind: 'unknown', tag: raw, label };
+}
+
+/** Does this placed piece satisfy the brief's requirement? */
+export function satisfiesTag(resolved, catalogId) {
+  if (!resolved) return false;
+  if (resolved.kind === 'tag') return entryOf(catalogId).tags.includes(resolved.catalogTag);
+  if (resolved.kind === 'id') return resolved.re.test(String(catalogId ?? '').toLowerCase());
+  return false;
 }

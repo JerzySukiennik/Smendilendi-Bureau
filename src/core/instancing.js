@@ -35,10 +35,21 @@ class Entry {
     this.dirty = false;
   }
 
-  grow(needed, parent) {
+  /**
+   * Enlarge the backing InstancedMesh.
+   *
+   * `live` is how many instances in the OLD buffer are still valid. That is not
+   * `this.count`: this.count is last frame's flushed total, but a grow normally
+   * happens in the MIDDLE of a begin/place/flush pass, when `i` instances have
+   * already been written this pass and nothing has been flushed yet. Copying
+   * this.count there silently dropped everything placed before the growth — a
+   * fresh pool placing 1000 slabs lost 511 of them to identity matrices.
+   */
+  grow(needed, parent, live = this.count) {
     const cap = Math.min(nextPow2(needed), MAX_PER_MESH);
     if (cap <= this.capacity) return;
     const old = this.mesh;
+    const carry = Math.min(Math.max(this.count, live | 0), this.capacity);
     const mesh = new InstancedMesh(this.geometry, this.material, cap);
     mesh.name = `inst:${this.name}`;
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -56,11 +67,11 @@ class Entry {
       // copy live instances across
       const m = new Matrix4();
       const col = new Color();
-      for (let i = 0; i < this.count; i++) {
+      for (let i = 0; i < carry; i++) {
         old.getMatrixAt(i, m); mesh.setMatrixAt(i, m);
         old.getColorAt(i, col); mesh.setColorAt(i, col);
       }
-      mesh.count = this.count;
+      mesh.count = carry;
       parent.remove(old);
       old.dispose();
     }
@@ -119,7 +130,7 @@ export class InstancePool {
     }
     const i = this._pending.get(name) ?? 0;
     if (i >= MAX_PER_MESH) { this.overflow++; return -1; }
-    if (i >= e.capacity) e.grow(i + 1, this.parent);
+    if (i >= e.capacity) e.grow(i + 1, this.parent, i);
 
     let m;
     if (transform && transform.isMatrix4) {

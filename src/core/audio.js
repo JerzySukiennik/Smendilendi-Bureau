@@ -9,7 +9,81 @@
 // by a THREE.Object3D each frame (no THREE.Audio dependency — we want the bus
 // graph, not three's listener object model).
 
-const BUSES = ['music', 'sfx', 'ambient', 'ui'];
+/**
+ * assets/audio/manifest.json is the ONE source of truth for what sounds exist,
+ * where their files are and how they should be played. It is written by the audio
+ * sourcing pass, it lists 54 CC0 sounds, and every entry looks like:
+ *
+ *   "sfx.coffee-machine": { ogg, m4a, kind, loop, gain, positional }
+ *
+ * Round 1 shipped a hand-typed AUDIO_MANIFEST here instead, with 13 invented
+ * names ('keyboard' -> 'keyboard.ogg', 'startup' -> 'retro-startup.ogg'). None of
+ * those 13 paths existed: 10 of the names are not in the manifest at all, and the
+ * game would have run silent while logging 13 "unavailable" warnings. The file
+ * list is data — it is read, never retyped.
+ */
+export const MANIFEST_PATH = 'assets/audio/manifest.json';
+
+export const BUSES = ['music', 'radio', 'ambient', 'sfx', 'ui'];
+
+/**
+ * manifest `kind` -> mixer bus.
+ *   radio gets its own bus so the office radio can be turned down without
+ *   touching the score (DESIGN-DECISIONS.md: "a switchable office radio").
+ *   os (the computer's startup chime) is a diegetic object sound, so it rides
+ *   the sfx bus, not the UI bus.
+ */
+export const KIND_BUS = {
+  music: 'music',
+  radio: 'radio',
+  amb: 'ambient',
+  ambient: 'ambient',
+  sfx: 'sfx',
+  os: 'sfx',
+  ui: 'ui',
+};
+
+export function busForKind(kind) {
+  return KIND_BUS[kind] || 'sfx';
+}
+
+/**
+ * Which codec this browser should be asked for. Every manifest entry ships both
+ * an .ogg and an .m4a: Chrome/Firefox take the ogg, Safari — the browser on the
+ * target MacBook — needs the m4a. Guessing wrong is silence, not a fallback,
+ * because decodeAudioData rejects rather than negotiating.
+ */
+export function preferredCodec(audioEl = null) {
+  const el = audioEl || (typeof document !== 'undefined' ? document.createElement('audio') : null);
+  if (!el || !el.canPlayType) return 'ogg';
+  const ogg = el.canPlayType('audio/ogg; codecs="vorbis"');
+  if (ogg === 'probably' || ogg === 'maybe') return 'ogg';
+  const m4a = el.canPlayType('audio/mp4; codecs="mp4a.40.2"');
+  if (m4a === 'probably' || m4a === 'maybe') return 'm4a';
+  return 'ogg';
+}
+
+const CODECS = ['ogg', 'm4a', 'mp3', 'wav'];
+
+/**
+ * resolveSource(name, { manifest, prefer, basePath }) -> url | null
+ * The preferred codec if the entry has it, otherwise the first one it does have.
+ */
+export function resolveSource(name, { manifest, prefer = 'ogg', basePath = 'assets/audio/' } = {}) {
+  const e = manifest && manifest[name];
+  if (!e) return null;
+  if (typeof e === 'string') return basePath + e;              // legacy flat form
+  const order = [prefer, ...CODECS.filter((c) => c !== prefer)];
+  for (const c of order) if (e[c]) return basePath + e[c];
+  return null;
+}
+
+/** Entries whose `kind` this build cannot route. Should always be empty. */
+export function validateManifest(manifest) {
+  return Object.entries(manifest || {})
+    .filter(([, e]) => e && e.kind && !KIND_BUS[e.kind])
+    .map(([n, e]) => `${n} (kind "${e.kind}")`);
+}
 
 export class AudioBus {
   constructor(opts = {}) {
@@ -20,17 +94,60 @@ export class AudioBus {
     this.buffers = new Map();      // name -> AudioBuffer | null (null = known missing)
     this.loading = new Map();      // name -> Promise
     this.basePath = opts.basePath ?? 'assets/audio/';
-    this.volumes = { master: 0.9, music: 0.45, sfx: 0.8, ambient: 0.5, ui: 0.7, ...(opts.volumes || {}) };
+    // One default per bus in BUSES — a bus with no default sets gain.value to
+    // undefined, which is a NaN gain node and therefore silence on everything
+    // routed through it.
+    this.volumes = { master: 0.9, music: 0.45, radio: 0.55, ambient: 0.5, sfx: 0.8, ui: 0.7, ...(opts.volumes || {}) };
     this._playing = new Set();
     this._loops = new Map();       // name -> node handle
     this._missing = new Set();
     this._ready = false;
     this._listenerPos = { x: 0, y: 0, z: 0 };
-    this.manifest = opts.manifest || null;   // name -> file, consulted by play()
+    this.manifest = opts.manifest || null;   // name -> entry, from manifest.json
+    this.manifestPath = opts.manifestPath ?? MANIFEST_PATH;
+    this.codec = opts.codec || null;         // resolved lazily: 'ogg' | 'm4a'
   }
 
-  /** Load everything in this.manifest. Call once the audio files actually exist. */
-  preloadAll() { return this.manifest ? this.loadAll(this.manifest) : Promise.resolve(0); }
+  /** Fetch assets/audio/manifest.json. Never throws; a failure just means silence. */
+  async loadManifest(url = this.manifestPath) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this.manifest = await res.json();
+      const bad = validateManifest(this.manifest);
+      if (bad.length) console.warn(`[audio] unroutable manifest kinds: ${bad.join(', ')}`);
+      console.info(`[audio] manifest: ${Object.keys(this.manifest).length} sounds, codec ${this.preferred()}`);
+    } catch (err) {
+      console.warn(`[audio] manifest ${url} unavailable — running silent`, err);
+      this.manifest = this.manifest || {};
+    }
+    return this.manifest;
+  }
+
+  preferred() {
+    if (!this.codec) this.codec = preferredCodec();
+    return this.codec;
+  }
+
+  /** The url this build will actually fetch for a sound. */
+  urlFor(name) {
+    return resolveSource(name, { manifest: this.manifest, prefer: this.preferred(), basePath: this.basePath });
+  }
+
+  entry(name) { return this.manifest?.[name] || null; }
+
+  /**
+   * Load the manifest if it is not loaded, then load every sound in it.
+   * Ambience and music are big; pass a filter to stage the download.
+   */
+  async preloadAll(filter = null) {
+    if (!this.manifest) await this.loadManifest();
+    const names = Object.keys(this.manifest).filter((n) => !filter || filter(n, this.manifest[n]));
+    const out = await Promise.all(names.map((n) => this.load(n)));
+    const ok = out.filter(Boolean).length;
+    console.info(`[audio] ${ok}/${out.length} sounds decoded`);
+    return ok;
+  }
 
   /** Create the context. Safe to call before any gesture — it starts suspended. */
   init() {
@@ -77,7 +194,17 @@ export class AudioBus {
     if (this.buffers.has(name)) return this.buffers.get(name);
     if (this.loading.has(name)) return this.loading.get(name);
     this.init();
-    const url = this.basePath + (file || `${name}.ogg`);
+    // The path comes from the manifest, never from the name. A name with no
+    // manifest entry is a bug in the caller, not a filename to guess at.
+    const url = file ? this.basePath + file : this.urlFor(name);
+    if (!url) {
+      if (!this._missing.has(name)) {
+        this._missing.add(name);
+        console.warn(`[audio] "${name}" is not in ${this.manifestPath} — nothing to play`);
+      }
+      this.buffers.set(name, null);
+      return null;
+    }
     const p = (async () => {
       try {
         const res = await fetch(url);
@@ -101,9 +228,10 @@ export class AudioBus {
     return p;
   }
 
-  /** Load a manifest { name: file }. Resolves when all attempts have settled. */
-  async loadAll(manifest) {
-    const out = await Promise.all(Object.entries(manifest).map(([n, f]) => this.load(n, f)));
+  /** Load a subset by name. Resolves when all attempts have settled. */
+  async loadAll(names) {
+    const list = Array.isArray(names) ? names : Object.keys(names || {});
+    const out = await Promise.all(list.map((n) => this.load(n)));
     const ok = out.filter(Boolean).length;
     console.info(`[audio] ${ok}/${out.length} sounds loaded`);
     return ok;
@@ -121,22 +249,27 @@ export class AudioBus {
     if (buf === undefined) {
       // not loaded yet: kick off a load, play nothing this time (no queueing —
       // a sound that arrives 400 ms late is worse than no sound).
-      this.load(name, this.manifest?.[name] || null);
+      this.load(name);
       return null;
     }
     if (buf === null) return null;
     if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
 
+    // The manifest carries the sound's own intent: which bus it belongs on, its
+    // authored gain, whether it loops and whether it is a point in the room.
+    // opts still wins, so a caller can override any of it.
+    const meta = this.entry(name) || {};
+
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
-    src.loop = !!opts.loop;
+    src.loop = opts.loop ?? !!meta.loop;
     src.playbackRate.value = opts.rate ?? 1;
     if (opts.detune && src.detune) src.detune.value = opts.detune;
 
     const gain = this.ctx.createGain();
-    gain.gain.value = opts.volume ?? 1;
+    gain.gain.value = (opts.volume ?? 1) * (meta.gain ?? 1);
 
-    const busName = opts.bus || 'sfx';
+    const busName = opts.bus || busForKind(meta.kind);
     const bus = this.buses[busName] || this.buses.sfx;
 
     let panner = null;
@@ -247,20 +380,3 @@ function setPos(panner, p) {
     panner.setPosition(p.x, p.y, p.z);
   }
 }
-
-/** The minimum sound set named in DESIGN-DECISIONS.md "Audio". */
-export const AUDIO_MANIFEST = {
-  'ui.click':       'ui-click.ogg',
-  'ui.hover':       'ui-hover.ogg',
-  'ui.error':       'ui-error.ogg',
-  'keyboard':       'keyboard.ogg',
-  'mouse.click':    'mouse-click.ogg',
-  'startup':        'retro-startup.ogg',
-  'coffee':         'coffee-machine.ogg',
-  'mail':           'mail-notification.ogg',
-  'ambient.office': 'office-ambience.ogg',
-  'ambient.crowd':  'crowd.ogg',
-  'music.menu':     'music-menu.ogg',
-  'music.design':   'music-design.ogg',
-  'music.walk':     'music-walkthrough.ogg',
-};

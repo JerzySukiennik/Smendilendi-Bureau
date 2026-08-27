@@ -8,7 +8,7 @@
 
 import { Engine } from './core/engine.js';
 import { Input } from './core/input.js';
-import { AudioBus, AUDIO_MANIFEST } from './core/audio.js';
+import { AudioBus } from './core/audio.js';
 import { Assets } from './core/assets.js';
 import { PlaceholderMode } from './core/mode.js';
 import { createState } from './core/state.js';
@@ -58,10 +58,13 @@ class App {
     // Audio: the context starts suspended and resumes on the first gesture.
     // Every file is optional — nothing here can fail the boot.
     this.audio.init();
-    // Sounds load lazily on first play(): probing the whole manifest at boot would
-    // fire one 404 per missing file before a single asset exists. audio.preloadAll()
-    // is there for the audio agent to call once the files are in the repo.
-    this.audio.manifest = AUDIO_MANIFEST;
+    // assets/audio/manifest.json is the only list of sounds there is. Read it,
+    // then decode the short ones up front (clicks and footsteps have to be
+    // instant) and leave music, radio and room tone to load on first play —
+    // those are the multi-megabyte files.
+    this.audio.loadManifest().then(() => this.audio.preloadAll(
+      (name, e) => e.kind !== 'music' && e.kind !== 'radio' && e.kind !== 'amb',
+    )).catch(() => {});
 
     // Try the real modes; fall back to the placeholder.
     let first = null;

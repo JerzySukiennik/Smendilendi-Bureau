@@ -19,6 +19,9 @@ import {
   BufferGeometry, BufferAttribute, Mesh, PlaneGeometry, CanvasTexture,
   Vector3,
 } from 'three';
+// Prices are NOT ours. catalog.js is view-free (three math only), so importing it
+// here costs nothing and keeps a single source of truth for money.
+import { materialPrice } from '../model/catalog.js';
 
 // COMPASS CONVENTION — shared with src/commission/plot.js ("north is -z, south is
 // +z, east is +x, west is -x") and src/analysis/daylight.js sunVector()
@@ -104,33 +107,93 @@ export function tint(i) {
 // Each entry is a physically-plausible description. roughness/metalness are not
 // decorative: they are what makes plaster read as plaster next to tile.
 
+// The `use` tag says who is allowed to ask for this class, and it is checked by
+// the core cross-check script:
+//   'finish' — a surface the PLAYER PAINTS WITH. The id vocabulary here is not
+//              ours: it is exactly the key set of MATERIAL_PRICES in
+//              src/model/catalog.js (routed through MATERIAL_ALIAS in
+//              src/model/geometry.js). A finish that is priced but has no class
+//              here rendered as grey plaster, which is how nine of them —
+//              paint, timberFloor, tileFloor, vinyl, carpet, terrazzo,
+//              polishedConcrete, gravel, decking — used to look.
+//   'prop'   — object/prop materials referenced by SLOT_MATERIALS in
+//              src/core/assets.js and by the menu/office scenes. Never painted.
+//   'both'   — legitimately used as a finish AND as a prop material.
+//
+// There is deliberately NO price here. Money has exactly one home,
+// MATERIAL_PRICES in src/model/catalog.js (ARCHITECTURE.md rule 7). This file
+// used to carry a second `cost` per class that disagreed with it on 13 of the
+// 13 shared ids (plaster 45 vs 85, brick 120 vs 260, glass 380 vs 720).
 export const MATERIAL_CLASSES = {
+  // -- prop / structural base ------------------------------------------------
   // 'flat' is the base for ANYTHING that gets its colour per-instance or per-vertex.
   // An InstancedMesh instance colour MULTIPLIES the material colour, so a tinted
   // pool built on a coloured material double-darkens. Pools and furniture use this.
-  'flat':       { color: 0xffffff,          roughness: 0.72, metalness: 0.0,  cost: 0 },
-  'plaster':    { color: COLORS.plaster,    roughness: 0.94, metalness: 0.0,  cost: 45 },
-  'plaster-warm':{color: COLORS.plasterWarm,roughness: 0.94, metalness: 0.0,  cost: 45 },
-  'paper':      { color: COLORS.paper,      roughness: 0.97, metalness: 0.0,  cost: 30 },
-  'brick':      { color: COLORS.brick,      roughness: 0.88, metalness: 0.0,  cost: 120 },
-  'brick-pale': { color: COLORS.brickPale,  roughness: 0.88, metalness: 0.0,  cost: 125 },
-  'wood-light': { color: COLORS.woodLight,  roughness: 0.62, metalness: 0.0,  cost: 160 },
-  'wood-mid':   { color: COLORS.woodMid,    roughness: 0.58, metalness: 0.0,  cost: 180 },
-  'wood-dark':  { color: COLORS.woodDark,   roughness: 0.52, metalness: 0.0,  cost: 210 },
-  'concrete':   { color: COLORS.concrete,   roughness: 0.90, metalness: 0.0,  cost: 90 },
-  'concrete-dark':{color: COLORS.concreteDk,roughness: 0.90, metalness: 0.0,  cost: 90 },
-  'tile':       { color: COLORS.tile,       roughness: 0.22, metalness: 0.0,  cost: 140 },
-  'tile-dark':  { color: COLORS.tileDark,   roughness: 0.22, metalness: 0.0,  cost: 145 },
-  'glass':      { color: COLORS.glass,      roughness: 0.05, metalness: 0.0,  cost: 380, glass: true },
-  'metal':      { color: COLORS.metal,      roughness: 0.35, metalness: 0.85, cost: 260 },
-  'metal-warm': { color: COLORS.metalWarm,  roughness: 0.30, metalness: 0.90, cost: 320 },
-  'grass':      { color: COLORS.grass,      roughness: 1.0,  metalness: 0.0,  cost: 12 },
-  'paving':     { color: COLORS.paving,     roughness: 0.85, metalness: 0.0,  cost: 70 },
-  'asphalt':    { color: COLORS.asphalt,    roughness: 0.95, metalness: 0.0,  cost: 55 },
-  'soil':       { color: COLORS.soil,       roughness: 1.0,  metalness: 0.0,  cost: 6 },
-  'accent':     { color: COLORS.accent,     roughness: 0.55, metalness: 0.0,  cost: 100 },
-  'ink':        { color: COLORS.ink,        roughness: 0.7,  metalness: 0.0,  cost: 100 },
+  'flat':          { color: 0xffffff,           roughness: 0.72, metalness: 0.0,  use: 'prop' },
+
+  // -- wall / ceiling finishes ----------------------------------------------
+  'plaster':       { color: COLORS.plaster,     roughness: 0.94, metalness: 0.0,  use: 'both' },
+  'plaster-warm':  { color: COLORS.plasterWarm, roughness: 0.94, metalness: 0.0,  use: 'finish' }, // alias target of 'render'
+  'paint':         { color: COLORS.paper,       roughness: 0.96, metalness: 0.0,  use: 'finish' },
+  'paper':         { color: COLORS.paper,       roughness: 0.97, metalness: 0.0,  use: 'prop' },
+  'brick':         { color: COLORS.brick,       roughness: 0.88, metalness: 0.0,  use: 'both' },
+  'brick-pale':    { color: COLORS.brickPale,   roughness: 0.88, metalness: 0.0,  use: 'prop' },
+  'stone':         { color: COLORS.stone,       roughness: 0.80, metalness: 0.0,  use: 'finish' },
+  'concrete':      { color: COLORS.concrete,    roughness: 0.90, metalness: 0.0,  use: 'both' },
+  'concrete-dark': { color: COLORS.concreteDk,  roughness: 0.90, metalness: 0.0,  use: 'prop' },
+  'polishedConcrete': { color: 0xa9a49b,        roughness: 0.38, metalness: 0.0,  use: 'finish' },
+  'tile':          { color: COLORS.tile,        roughness: 0.22, metalness: 0.0,  use: 'both' },
+  'tile-dark':     { color: COLORS.tileDark,    roughness: 0.22, metalness: 0.0,  use: 'prop' },
+  'terrazzo':      { color: 0xded6c6,           roughness: 0.34, metalness: 0.0,  use: 'finish' },
+
+  // -- timber ----------------------------------------------------------------
+  'wood-light':    { color: COLORS.woodLight,   roughness: 0.62, metalness: 0.0,  use: 'prop' },
+  'wood-mid':      { color: COLORS.woodMid,     roughness: 0.58, metalness: 0.0,  use: 'both' },  // alias target of 'wood'/'timber'
+  'wood-dark':     { color: COLORS.woodDark,    roughness: 0.52, metalness: 0.0,  use: 'prop' },
+  'timberFloor':   { color: 0xc79a63,           roughness: 0.55, metalness: 0.0,  use: 'finish' },
+  'decking':       { color: 0xa87b4c,           roughness: 0.80, metalness: 0.0,  use: 'finish' },
+
+  // -- floor finishes --------------------------------------------------------
+  'tileFloor':     { color: 0xd9d5cd,           roughness: 0.28, metalness: 0.0,  use: 'finish' },
+  'vinyl':         { color: 0xcfc7ba,           roughness: 0.45, metalness: 0.0,  use: 'finish' },
+  'carpet':        { color: 0x8d8272,           roughness: 1.00, metalness: 0.0,  use: 'finish' },
+
+  // -- glass, metal ----------------------------------------------------------
+  'glass':         { color: COLORS.glass,       roughness: 0.05, metalness: 0.0,  use: 'both', glass: true },
+  'metal':         { color: COLORS.metal,       roughness: 0.35, metalness: 0.85, use: 'both' },
+  'metal-warm':    { color: COLORS.metalWarm,   roughness: 0.30, metalness: 0.90, use: 'prop' },
+
+  // -- external ground -------------------------------------------------------
+  'grass':         { color: COLORS.grass,       roughness: 1.0,  metalness: 0.0,  use: 'both' },
+  'paving':        { color: COLORS.paving,      roughness: 0.85, metalness: 0.0,  use: 'both' },
+  'gravel':        { color: 0xa39a8c,           roughness: 1.0,  metalness: 0.0,  use: 'finish' },
+  'asphalt':       { color: COLORS.asphalt,     roughness: 0.95, metalness: 0.0,  use: 'both' },
+  'soil':          { color: COLORS.soil,        roughness: 1.0,  metalness: 0.0,  use: 'prop' },
+
+  // -- studio accents --------------------------------------------------------
+  'accent':        { color: COLORS.accent,      roughness: 0.55, metalness: 0.0,  use: 'prop' },
+  'ink':           { color: COLORS.ink,         roughness: 0.7,  metalness: 0.0,  use: 'prop' },
 };
+
+/**
+ * Finishes that src/model/geometry.js currently redirects to a different class
+ * through its MATERIAL_ALIAS table, so the class named here is NOT what the
+ * player sees. That file belongs to the model agent; this list exists so the
+ * divergence is tracked instead of silently rendering the wrong surface, and so
+ * tools/verify-core.mjs fails the moment a NEW one appears.
+ *
+ *   stone  — a real stone class exists here (COLORS.stone, roughness 0.80) but
+ *            geometry.js aliases 'stone' -> 'concrete'. Stone cladding costs
+ *            480/m2 against fair-faced concrete's 130/m2 and reads completely
+ *            differently on a facade; the alias should be dropped now that the
+ *            class exists. HANDOFF to the model agent.
+ */
+export const ALIASED_AWAY = { stone: 'concrete' };
+
+/** Ids a player may paint a surface with (their names come from catalog.js). */
+export const FINISH_IDS = Object.keys(MATERIAL_CLASSES).filter((k) => MATERIAL_CLASSES[k].use !== 'prop');
+/** Ids only props, scenery and the UI may use. */
+export const PROP_IDS = Object.keys(MATERIAL_CLASSES).filter((k) => MATERIAL_CLASSES[k].use !== 'finish');
 
 export const MATERIAL_IDS = Object.keys(MATERIAL_CLASSES);
 
@@ -189,14 +252,39 @@ export function materialFor(id, opts = {}) {
   }
   m.name = `mat:${id}`;
   m.userData.materialId = id;
-  m.userData.costPerM2 = spec.cost;
+  m.userData.costPerM2 = materialCost(id);
   _cache.set(key, m);
   return m;
 }
 
-/** Unit cost per m2 for a material id — used by the cost module. */
+/**
+ * Unit cost per m2 for a finish id.
+ *
+ * Delegated, never duplicated: src/model/catalog.js owns every price in the game
+ * and src/analysis/cost.js bills from it. This function exists only so view code
+ * that already holds a palette id does not have to reach across two modules.
+ * `id` may be a palette class id or a catalog finish id — PALETTE_TO_FINISH
+ * translates the handful that differ.
+ */
+export const PALETTE_TO_FINISH = {
+  'plaster-warm': 'render',
+  'wood-light': 'wood',
+  'wood-mid': 'wood',
+  'wood-dark': 'wood',
+  'brick-pale': 'brick',
+  'concrete-dark': 'concrete',
+  'tile-dark': 'tile',
+  'metal-warm': 'metal',
+  'flat': 'paint',
+  'paper': 'paint',
+  'accent': 'paint',
+  'ink': 'paint',
+  'soil': 'grass',
+};
+
 export function materialCost(id) {
-  return MATERIAL_CLASSES[id]?.cost ?? 0;
+  const finish = PALETTE_TO_FINISH[id] || id;
+  return materialPrice(finish);
 }
 
 /**

@@ -44,7 +44,11 @@ export const CATEGORIES = [
   'education', 'clinic', 'misc',
 ];
 
-const NO_CLEARANCE = { front: 0, back: 0, left: 0, right: 0 };
+// A clearance is a VOLUME, not a footprint: four horizontal distances plus the
+// band of heights over which they apply. `zMin`/`zMax` are null by default and
+// then derived from the item (see clearanceExtent) — author them only when the
+// derived band is wrong.
+const NO_CLEARANCE = { front: 0, back: 0, left: 0, right: 0, zMin: null, zMax: null };
 
 /** Entry builder: fills defaults and freezes the result. */
 function E(o) {
@@ -53,7 +57,10 @@ function E(o) {
     name: o.name,
     category: o.category,
     file: o.file ?? null,
-    size: o.size,                                  // [w, h, d] metres
+    size: o.size,                                  // [w, h, d] metres — the ENVELOPE of
+                                                   //   the solid we build. Ergonomic
+                                                   //   heights live in seatHeight /
+                                                   //   workHeight / mount, never here.
     price: o.price,                                // integer, abstract units
     anchor: o.anchor ?? 'floor',                   // floor | wall | ceiling
     mount: o.mount ?? 0,                           // m: base height for wall items,
@@ -66,6 +73,7 @@ function E(o) {
     workHeight: o.workHeight ?? null,
     opening: o.opening ?? null,                    // doors/windows only
     capacity: o.capacity ?? null,                  // people served (program analysis)
+    rise: o.rise ?? null,                          // stairs/ramps: the height climbed
     note: o.note ?? '',
   };
   return entry;
@@ -1091,6 +1099,88 @@ export function wallStructurePrice(type) {
 // ---------------------------------------------------------------------------
 
 /**
+ * THE VERTICAL DIMENSION.
+ *
+ * A clearance without a height band is a lie: it turns a wall cabinet into a
+ * bollard. Every piece in this catalogue occupies a band of heights above the
+ * finished floor, and so does the space it needs to be usable. Two requirements
+ * only conflict when their bands overlap.
+ *
+ *   anchor 'floor'    base = mount + y   (mount is 0 for anything standing on
+ *                                         the floor, 0.90 for a hob dropped into
+ *                                         a worktop, 0.74 for a desk lamp)
+ *   anchor 'wall'     base = mount + y   (mount is the underside above the floor)
+ *   anchor 'ceiling'  base = ceilingHeight - mount + y
+ *                                        (mount is the drop of the item's own
+ *                                         base below the soffit; the suspension
+ *                                         above it is drawn, not bounded — see
+ *                                         suspensionLength)
+ */
+export const DEFAULT_CEILING = 2.70;      // m — storey height assumed when none is given
+export const STEP_OVER_HEIGHT = 0.25;     // m — below this you step over it, it is not an obstacle
+export const HEADROOM_CLEAR = 2.05;       // m — the door head; a building guarantees this much
+                                          //     clear over every route, so anything whose
+                                          //     underside is at or above it is out of the way
+
+/** Vertical band the SOLID occupies, metres above finished floor. */
+export function verticalExtent(entry, placement = {}, ceilingHeight = DEFAULT_CEILING) {
+  if (!entry) throw new Error('verticalExtent: entry required');
+  const h = Math.abs((entry.size?.[1] ?? 0) * (placement.sy ?? 1));
+  const y = Number.isFinite(placement.y) ? placement.y : 0;
+  const mount = Number.isFinite(entry.mount) ? entry.mount : 0;
+  const base = entry.anchor === 'ceiling' ? (ceilingHeight - mount + y) : (mount + y);
+  const zMin = Math.max(0, base);
+  return { zMin, zMax: zMin + h };
+}
+
+/**
+ * Vertical band that must be kept clear for the item to be usable.
+ *
+ * Floor-standing items get the band from the floor to their own top: a person
+ * stands, kneels or pulls a drawer out there, so anything on the floor in front
+ * of them counts. Wall- and ceiling-mounted items get only their own band — you
+ * reach into a wall cabinet at 1.45-2.17 m, and the worktop underneath it is
+ * exactly where a worktop belongs, not an obstruction.
+ */
+export function clearanceExtent(entry, placement = {}, ceilingHeight = DEFAULT_CEILING) {
+  const solid = verticalExtent(entry, placement, ceilingHeight);
+  const c = entry?.clearance ?? {};
+  const zMin = Number.isFinite(c.zMin) ? c.zMin : (entry?.anchor === 'floor' ? 0 : solid.zMin);
+  const zMax = Number.isFinite(c.zMax) ? c.zMax : solid.zMax;
+  return { zMin, zMax: Math.max(zMax, zMin + 0.01) };
+}
+
+/** Do two height bands overlap by more than eps? */
+export function bandsOverlap(a, b, eps = 0.005) {
+  if (!a || !b) return true;                     // unknown band = assume it matters
+  return a.zMin < b.zMax - eps && a.zMax > b.zMin + eps;
+}
+
+/**
+ * Does this item obstruct someone walking across the floor? True for anything
+ * tall enough not to be stepped over whose underside is below the guaranteed
+ * headroom. A wall cabinet at 1.45 does obstruct a corridor; a pendant hung
+ * over a table at 1.50 does too; a recessed downlight and a hob do not, and
+ * neither does a rug.
+ */
+export function blocksFloor(entry, placement = {}, ceilingHeight = DEFAULT_CEILING) {
+  if (!entry) return false;
+  if (Array.isArray(entry.tags) && entry.tags.includes('walkable')) return false;
+  const v = verticalExtent(entry, placement, ceilingHeight);
+  return v.zMax > STEP_OVER_HEIGHT && v.zMin < HEADROOM_CLEAR;
+}
+
+/**
+ * Length of cord/rod between the soffit and a ceiling-hung item, so the mesh
+ * builder can draw the suspension the declared envelope deliberately excludes.
+ */
+export function suspensionLength(entry, ceilingHeight = DEFAULT_CEILING) {
+  if (!entry || entry.anchor !== 'ceiling') return 0;
+  const v = verticalExtent(entry, {}, ceilingHeight);
+  return Math.max(0, ceilingHeight - v.zMax);
+}
+
+/**
  * World-space usable-space rectangle for a placed item.
  *
  * The rectangle is the item footprint grown by its clearance on each local
@@ -1140,7 +1230,11 @@ export function clearanceBox(entry, placement = {}) {
     if (z < minZ) minZ = z;
     if (z > maxZ) maxZ = z;
   }
-  return { min: { x: minX, z: minZ }, max: { x: maxX, z: maxZ }, corners, rot, local };
+  const band = clearanceExtent(entry, placement, placement.ceilingHeight ?? DEFAULT_CEILING);
+  return {
+    min: { x: minX, z: minZ }, max: { x: maxX, z: maxZ }, corners, rot, local,
+    zMin: band.zMin, zMax: band.zMax,
+  };
 }
 
 /** Footprint-only box (no clearance) — same conventions as clearanceBox. */
@@ -1148,10 +1242,15 @@ export function footprintBox(entry, placement = {}) {
   return clearanceBox({ ...entry, clearance: NO_CLEARANCE }, placement);
 }
 
-/** Do two axis-aligned boxes from clearanceBox overlap by more than `eps`? */
+/**
+ * Do two boxes from clearanceBox overlap by more than `eps`? Boxes carry their
+ * height band, so a wall cabinet and the worktop beneath it do not clash.
+ */
 export function boxesOverlap(a, b, eps = 0.001) {
-  return (a.min.x < b.max.x - eps && a.max.x > b.min.x + eps &&
-          a.min.z < b.max.z - eps && a.max.z > b.min.z + eps);
+  if (!(a.min.x < b.max.x - eps && a.max.x > b.min.x + eps &&
+        a.min.z < b.max.z - eps && a.max.z > b.min.z + eps)) return false;
+  if (!Number.isFinite(a.zMin) || !Number.isFinite(b.zMin)) return true;
+  return bandsOverlap(a, b);
 }
 
 /** Area of the clearance rectangle, m2. */
@@ -1179,6 +1278,19 @@ export function validateCatalog() {
     for (const k of ['front', 'back', 'left', 'right']) {
       const v = e.clearance[k];
       if (typeof v !== 'number' || !(v >= 0)) problems.push(`${e.id}: clearance.${k} = ${v}`);
+    }
+    const cz = e.clearance;
+    if (cz.zMin !== null && !Number.isFinite(cz.zMin)) problems.push(`${e.id}: clearance.zMin = ${cz.zMin}`);
+    if (cz.zMax !== null && !Number.isFinite(cz.zMax)) problems.push(`${e.id}: clearance.zMax = ${cz.zMax}`);
+    if (Number.isFinite(cz.zMin) && Number.isFinite(cz.zMax) && cz.zMax <= cz.zMin) {
+      problems.push(`${e.id}: clearance band ${cz.zMin}-${cz.zMax} is empty`);
+    }
+    if (!Number.isFinite(e.mount) || e.mount < 0) problems.push(`${e.id}: bad mount ${e.mount}`);
+    if (e.anchor === 'ceiling' && e.mount + e.size[1] > 2.60) {
+      problems.push(`${e.id}: hangs ${(e.mount + e.size[1]).toFixed(2)} m below the soffit`);
+    }
+    if (e.anchor === 'wall' && e.mount + e.size[1] > 3.00) {
+      problems.push(`${e.id}: wall-mounted top at ${(e.mount + e.size[1]).toFixed(2)} m`);
     }
     if (!Array.isArray(e.tags)) problems.push(`${e.id}: tags must be an array`);
     if (e.file !== null && !/^assets\/models\/.+\.glb$/.test(e.file)) problems.push(`${e.id}: bad file ${e.file}`);

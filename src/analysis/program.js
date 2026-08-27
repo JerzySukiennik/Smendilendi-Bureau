@@ -6,11 +6,19 @@
 // by casting rays out of the face of the piece until they hit a wall, another
 // piece, or a door swing — so the number in the complaint is the real distance
 // on the drawing, not a bounding-box overlap.
+//
+// Clearances are VOLUMES. Each piece needs a rectangle kept clear over a band
+// of heights, and only an obstacle whose own band overlaps that band counts.
+// Without this the engine measures a kitchen wall cabinet against the worktop
+// 0.55 m below it and calls a correctly drawn kitchen unusable.
 
 import { wallDir } from '../model/building.js';
-import { obbPolygon, frontVector, rotY, r2 } from './geom.js';
+import { obbPolygon, frontVector, rotY, r2, pointInPolygon } from './geom.js';
 import { bfs, doorSwingPolygon, inRoom } from './topology.js';
-import { entryOf, footprintOf, clearanceOf, shortName, pretty } from './catalogue.js';
+import {
+  entryOf, footprintOf, clearanceOf, shortName, pretty,
+  verticalExtentOf, clearanceBandOf, bandsOverlap,
+} from './catalogue.js';
 import { canonicalKey, ROOM_KINDS } from './classify.js';
 import { makeIssue } from './issues.js';
 
@@ -71,8 +79,24 @@ function wallRects(model, levelId) {
   return out;
 }
 
-/** Free distance out of one face of a placed piece, in metres. */
-function measureClearance(f, entry, side, obstacles, maxT) {
+/** Height band an opening's leaf sweeps through. A door is solid from the floor. */
+function openingBand(o) {
+  const sill = Number.isFinite(o.sill) ? o.sill : 0;
+  const h = Number.isFinite(o.height) ? o.height : 2.05;
+  return { zMin: sill, zMax: sill + h };
+}
+
+/**
+ * Free distance out of one face of a placed piece, in metres.
+ *
+ * Two things are NOT obstacles, and the engine used to think both were:
+ *   * anything whose height band misses the band that has to be clear — a wall
+ *     cabinet is not in the way of the worktop 0.55 m below it;
+ *   * whatever the piece is set into or standing on — a hob dropped into a
+ *     worktop starts its measurement inside the base unit's footprint, and the
+ *     far face of that base unit is the front of the run, not an obstruction.
+ */
+function measureClearance(f, entry, side, obstacles, maxT, band) {
   const fp = footprintOf(f, entry);
   const rot = f.rot ?? 0;
   const [fx, fz] = frontVector(rot);
@@ -97,6 +121,8 @@ function measureClearance(f, entry, side, obstacles, maxT) {
     let hit = maxT;
     for (const o of obstacles) {
       if (o.ownerId === f.id) continue;
+      if (band && o.band && !bandsOverlap(band, o.band)) continue;
+      if (pointInPolygon(px, pz, o.poly)) continue;     // we are set into it
       const h = rayPolygon(px, pz, dx, dz, o.poly, maxT);
       if (h < hit) hit = h;
     }
@@ -194,12 +220,18 @@ export function analyzeProgram(ctx) {
   for (const level of model.levels) {
     const walls = wallRects(model, level.id);
     const furniture = Object.values(model.furniture).filter(f => f.levelId === level.id);
+    const ceiling = level.height ?? 2.70;
+    const fullHeight = { zMin: 0, zMax: ceiling };
     const obstacles = [
-      ...walls.map(w => ({ poly: w.poly, ownerId: null })),
+      ...walls.map(w => ({ poly: w.poly, ownerId: null, band: fullHeight })),
       ...furniture.map(f => {
         const e = entryOf(f.catalogId);
         const fp = footprintOf(f, e);
-        return { poly: obbPolygon(f.x, f.z, fp.w, fp.d, f.rot ?? 0), ownerId: f.id };
+        return {
+          poly: obbPolygon(f.x, f.z, fp.w, fp.d, f.rot ?? 0),
+          ownerId: f.id,
+          band: verticalExtentOf(f, e, ceiling),
+        };
       }),
     ];
     for (const oid in model.openings) {
@@ -207,21 +239,23 @@ export function analyzeProgram(ctx) {
       const w = model.walls[o.wallId];
       if (!w || (w.levelId ?? model.levels[0].id) !== level.id) continue;
       const poly = doorSwingPolygon(model, o);
-      if (poly) obstacles.push({ poly, ownerId: null });
+      if (poly) obstacles.push({ poly, ownerId: null, band: openingBand(o) });
     }
 
     for (const f of furniture) {
       const entry = entryOf(f.catalogId);
       const clr = clearanceOf(f, entry);
+      const band = clearanceBandOf(f, entry, ceiling);
       const room = topo.rooms.find(r => r.levelId === level.id && inRoom(r, f.x, f.z));
       for (const side of ['front', 'back', 'left', 'right']) {
         const required = clr[side] ?? 0;
         if (required <= 0.01) continue;
         const maxT = required + CLEARANCE_PROBE_EXTRA;
-        const available = measureClearance(f, entry, side, obstacles, maxT);
+        const available = measureClearance(f, entry, side, obstacles, maxT, band);
         metrics.ergonomics.push({
           furnitureId: f.id, item: entry.name, side,
           available: r2(Math.min(available, maxT)), required: r2(required),
+          zMin: r2(band.zMin), zMax: r2(band.zMax),
         });
         if (available < required - CLEARANCE_TOLERANCE) {
           issues.push(makeIssue('ERGO_CLEARANCE_BLOCKED', {

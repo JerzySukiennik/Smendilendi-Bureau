@@ -1,0 +1,297 @@
+{
+  "project": "smendilendi-bureau",
+  "kind": "asset-review",
+  "at": "2026-08-27T13:35:03.865Z",
+  "summary": {
+    "total": 32,
+    "decided": 32,
+    "approve": 13,
+    "reject": 13,
+    "needswork": 6
+  },
+  "decisions": [
+    {
+      "id": "music.menu",
+      "batch": "audio-music",
+      "name": "Menu",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:11:10.785Z"
+    },
+    {
+      "id": "music.office-ambient-1",
+      "batch": "audio-music",
+      "name": "Office ambient 1",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:23:19.549Z",
+      "trim": 0.45,
+      "newGain": 0.315
+    },
+    {
+      "id": "music.office-ambient-2",
+      "batch": "audio-music",
+      "name": "Office ambient 2",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:23:30.409Z",
+      "trim": 0.45,
+      "newGain": 0.315
+    },
+    {
+      "id": "music.walkthrough",
+      "batch": "audio-music",
+      "name": "Walkthrough",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:23:55.610Z",
+      "trim": 0.25,
+      "newGain": 0.175
+    },
+    {
+      "id": "ui.click-soft",
+      "batch": "audio-ui",
+      "name": "Click soft",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:24:09.811Z",
+      "trim": 0.6,
+      "newGain": 0.51
+    },
+    {
+      "id": "ui.click",
+      "batch": "audio-ui",
+      "name": "Click",
+      "verdict": "reject",
+      "note": "Zbyt syntetyczne",
+      "at": "2026-08-27T13:24:24.756Z"
+    },
+    {
+      "id": "ui.error",
+      "batch": "audio-ui",
+      "name": "Error",
+      "verdict": "reject",
+      "note": "Chcę swoje dodać: /Users/jurek/Downloads/erro.mp3",
+      "at": "2026-08-27T13:26:06.830Z"
+    },
+    {
+      "id": "ui.mail-notify",
+      "batch": "audio-ui",
+      "name": "Mail notify",
+      "verdict": "reject",
+      "note": "Chcę to: /Users/jurek/Downloads/windows-10-notification.mp3",
+      "at": "2026-08-27T13:25:44.342Z"
+    },
+    {
+      "id": "ui.snap",
+      "batch": "audio-ui",
+      "name": "Snap",
+      "verdict": "reject",
+      "note": "Jest już w za dużej ilości moich gier.",
+      "at": "2026-08-27T13:26:30.881Z"
+    },
+    {
+      "id": "ui.submit",
+      "batch": "audio-ui",
+      "name": "Submit",
+      "verdict": "reject",
+      "note": "Jest już w za dużej ilości moich gier.",
+      "at": "2026-08-27T13:26:38.591Z"
+    },
+    {
+      "id": "ui.tool-select",
+      "batch": "audio-ui",
+      "name": "Tool select",
+      "verdict": "reject",
+      "note": "Jest już w za dużej ilości moich gier.",
+      "at": "2026-08-27T13:26:43.087Z"
+    },
+    {
+      "id": "ui.window-close",
+      "batch": "audio-ui",
+      "name": "Window close",
+      "verdict": "reject",
+      "note": "Zbyt syntetyczne",
+      "at": "2026-08-27T13:27:00.192Z"
+    },
+    {
+      "id": "ui.window-open",
+      "batch": "audio-ui",
+      "name": "Window open",
+      "verdict": "reject",
+      "note": "Zbyt syntetyczne",
+      "at": "2026-08-27T13:27:07.873Z"
+    },
+    {
+      "id": "os.boot-tier1",
+      "batch": "audio-ui",
+      "name": "Boot tier1",
+      "verdict": "reject",
+      "note": "Chcę to: /Users/jurek/Downloads/windows-xp-startup.mp3",
+      "at": "2026-08-27T13:27:37.978Z"
+    },
+    {
+      "id": "os.boot-tier2",
+      "batch": "audio-ui",
+      "name": "Boot tier2",
+      "verdict": "reject",
+      "note": "Chcę to: /Users/jurek/Downloads/windows-vista-startup.mp3",
+      "at": "2026-08-27T13:29:16.764Z"
+    },
+    {
+      "id": "os.boot-tier3",
+      "batch": "audio-ui",
+      "name": "Boot tier3",
+      "verdict": "reject",
+      "note": "Chcę to: /Users/jurek/Downloads/w.mp3",
+      "at": "2026-08-27T13:30:18.752Z"
+    },
+    {
+      "id": "os.boot-tier4",
+      "batch": "audio-ui",
+      "name": "Boot tier4",
+      "verdict": "reject",
+      "note": "Chcę to: /Users/jurek/Downloads/mac-os-big-sur-startup.mp3",
+      "at": "2026-08-27T13:30:21.771Z"
+    },
+    {
+      "id": "chair-task",
+      "batch": "models-1",
+      "name": "Task chair",
+      "verdict": "needswork",
+      "note": "Nogi są w dziwne strony, ręce nie są połączone, elementy nie są połączone",
+      "at": "2026-08-27T13:31:12.079Z"
+    },
+    {
+      "id": "sofa-3seat",
+      "batch": "models-1",
+      "name": "Sofa, 3 seats",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:31:20.959Z"
+    },
+    {
+      "id": "table-dining-4",
+      "batch": "models-1",
+      "name": "Dining table, 4",
+      "verdict": "needswork",
+      "note": "Za mały",
+      "at": "2026-08-27T13:31:37.379Z"
+    },
+    {
+      "id": "bed-double-1600",
+      "batch": "models-1",
+      "name": "Double bed 160 x 200",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:31:46.597Z"
+    },
+    {
+      "id": "wc-floor",
+      "batch": "models-1",
+      "name": "WC, close-coupled",
+      "verdict": "needswork",
+      "note": "Elementy nie są połączone",
+      "at": "2026-08-27T13:32:02.375Z"
+    },
+    {
+      "id": "basin-560",
+      "batch": "models-1",
+      "name": "Washbasin 560",
+      "verdict": "needswork",
+      "note": "NIe ma dziury na mycie i ogólnie nie wygląda jak zlew.",
+      "at": "2026-08-27T13:32:25.720Z"
+    },
+    {
+      "id": "kitchen-base-sink-800",
+      "batch": "models-1",
+      "name": "Kitchen sink unit 800",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:32:37.424Z"
+    },
+    {
+      "id": "fridge-freezer-tall",
+      "batch": "models-1",
+      "name": "Fridge-freezer, tall",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:32:56.693Z"
+    },
+    {
+      "id": "door-internal-900",
+      "batch": "models-1",
+      "name": "Internal door 900",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:32:49.714Z"
+    },
+    {
+      "id": "window-1200x1400",
+      "batch": "models-1",
+      "name": "Window 1200 x 1400",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:33:09.925Z"
+    },
+    {
+      "id": "pendant-lamp",
+      "batch": "models-1",
+      "name": "Pendant lamp",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:33:20.676Z"
+    },
+    {
+      "id": "plant-ficus-large",
+      "batch": "models-1",
+      "name": "Large ficus",
+      "verdict": "needswork",
+      "note": "Kwiaty/liście nie są ładne/detalowane",
+      "at": "2026-08-27T13:33:48.972Z"
+    },
+    {
+      "id": "desk-reception",
+      "batch": "models-1",
+      "name": "Reception desk",
+      "verdict": "needswork",
+      "note": "Za mało detalu/rzeczy",
+      "at": "2026-08-27T13:34:39.181Z"
+    },
+    {
+      "id": "espresso-machine",
+      "batch": "models-1",
+      "name": "Espresso machine",
+      "verdict": "reject",
+      "note": "To jest poprostu czarny kwadrat",
+      "at": "2026-08-27T13:34:57.828Z"
+    },
+    {
+      "id": "exam-couch",
+      "batch": "models-1",
+      "name": "Examination couch",
+      "verdict": "approve",
+      "note": "",
+      "at": "2026-08-27T13:35:03.864Z"
+    }
+  ],
+  "pending": [],
+  "levelChanges": [
+    {
+      "id": "music.office-ambient-1",
+      "newGain": 0.315
+    },
+    {
+      "id": "music.office-ambient-2",
+      "newGain": 0.315
+    },
+    {
+      "id": "music.walkthrough",
+      "newGain": 0.175
+    },
+    {
+      "id": "ui.click-soft",
+      "newGain": 0.51
+    }
+  ]
+}
