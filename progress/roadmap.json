@@ -1,0 +1,31 @@
+{
+ "phases": [
+  { "id": "p1", "name": "Core (view-free)", "pieces": [
+    { "key": "rooms",      "name": "Room detection",      "note": "planar subdivision of the wall graph, clear internal areas" },
+    { "key": "geometry",   "name": "Wall & slab meshing", "note": "openings as gaps, mitred junctions, vertex AO, merged draws" },
+    { "key": "catalog",    "name": "Catalogue (~80)",     "note": "real metric dimensions, clearances, prices" },
+    { "key": "analysis",   "name": "Analysis engine",     "note": "access, daylight, cost, program — deterministic, no AI" },
+    { "key": "commission", "name": "Commissions & plots", "note": "8 building types, seeded, real programs" },
+    { "key": "engine",     "name": "Engine & look",       "note": "renderer, modes, palette, instancing, adaptive quality" },
+    { "key": "net",        "name": "Session & sync",      "note": "local + Firebase RTDB behind one interface" }
+  ]},
+  { "id": "p2", "name": "Interactive surfaces", "pieces": [
+    { "key": "editor",  "name": "3D editor",     "note": "bar: SketchUp fluency, counted in clicks" },
+    { "key": "os",      "name": "Retro OS",      "note": "bar: Windows 95/98 & early Mac OS, pixel-exact" },
+    { "key": "office",  "name": "Office (FPP)",  "note": "bar: Architect Life finish, low-poly means" },
+    { "key": "menu",    "name": "Main menu",     "note": "the deliberately bad building, 3D lettering buttons" },
+    { "key": "walk",    "name": "30 years later","note": "NPCs living in the player's actual layout" }
+  ]},
+  { "id": "p3", "name": "Assets & audio", "pieces": [
+    { "key": "models", "name": "Blender catalogue", "note": "parametric families + hero pieces" },
+    { "key": "audio",  "name": "Audio (CC0)",       "note": "ambient, radio, UI, startup" },
+    { "key": "signoff","name": "Asset sign-off",    "note": "review page — the one stop for Jurek" }
+  ]},
+  { "id": "p4", "name": "Loop, economy, polish", "pieces": [
+    { "key": "loop",     "name": "Full game loop",  "note": "brief → design → submit → revision → 30 years" },
+    { "key": "economy",  "name": "Office economy",  "note": "bank, employees, computer tiers, upgrades" },
+    { "key": "perf",     "name": "Performance",     "note": "60 fps office / 40 fps walk, MBP 2019" },
+    { "key": "deploy",   "name": "Deploy",          "note": "smendilendi-bureau.gzowo.fun" }
+  ]}
+ ]
+}

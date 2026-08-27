@@ -2,63 +2,123 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Smendiłendi Bureau — build progress</title>
 <style>
   :root{
-    --paper:#f4f1ea; --ink:#1d1a16; --dim:#6f6659; --rule:#d9d2c5;
-    --pass:#2f7d4f; --fail:#b23b32; --wip:#b8860b; --accent:#1d1a16;
+    --paper:#f4f1ea; --card:#faf8f3; --ink:#1d1a16; --dim:#6f6659; --rule:#ddd6c9;
+    --pass:#2f7d4f; --fail:#b23b32; --wip:#b8860b; --idle:#c6bfb2;
   }
   @media (prefers-color-scheme:dark){
-    :root{ --paper:#16140f; --ink:#efe9dd; --dim:#9a9083; --rule:#312c24;
-           --pass:#6bbf8a; --fail:#e08078; --wip:#d8ac47; --accent:#efe9dd; }
+    :root{ --paper:#14120e; --card:#1c1913; --ink:#efe9dd; --dim:#968c7e; --rule:#2f2a22;
+           --pass:#6bbf8a; --fail:#e08078; --wip:#d8ac47; --idle:#3a352c; }
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--paper);color:var(--ink);
     font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
-    padding:32px 24px 80px;max-width:1000px;margin:0 auto}
-  h1{font-size:22px;letter-spacing:-.01em;font-weight:600}
-  .sub{color:var(--dim);font-size:13px;margin-top:4px}
-  .bar{display:flex;gap:2px;margin:22px 0 6px;height:10px}
-  .bar i{flex:1;background:var(--rule);border-radius:2px}
-  .bar i.pass{background:var(--pass)} .bar i.wip{background:var(--wip)} .bar i.fail{background:var(--fail)}
-  table{width:100%;border-collapse:collapse;margin-top:20px;font-size:13.5px}
-  th{text-align:left;font-weight:600;color:var(--dim);font-size:11px;letter-spacing:.06em;
+    padding:34px 24px 90px;max-width:1080px;margin:0 auto}
+  h1{font-size:23px;letter-spacing:-.015em;font-weight:600}
+  h2{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);
+     font-weight:600;margin:34px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--rule)}
+  .sub{color:var(--dim);font-size:13px;margin-top:5px}
+  a{color:inherit}
+  /* board */
+  .phase{margin-bottom:18px}
+  .phname{font-size:12.5px;font-weight:600;margin-bottom:7px;display:flex;gap:8px;align-items:baseline}
+  .phname span{color:var(--dim);font-weight:400;font-size:11.5px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:8px}
+  .cell{background:var(--card);border:1px solid var(--rule);border-radius:6px;padding:10px 11px;
+        border-left:3px solid var(--idle)}
+  .cell.pass{border-left-color:var(--pass)} .cell.fail{border-left-color:var(--fail)}
+  .cell.wip{border-left-color:var(--wip)}
+  .cell b{font-size:13px;font-weight:600;display:block}
+  .cell .note{color:var(--dim);font-size:11.5px;margin-top:3px;line-height:1.4}
+  .cell .tag{margin-top:7px;font:10.5px ui-monospace,Menlo,monospace;letter-spacing:.03em;
+             text-transform:uppercase;color:var(--dim)}
+  .cell.pass .tag{color:var(--pass)} .cell.fail .tag{color:var(--fail)} .cell.wip .tag{color:var(--wip)}
+  /* shots */
+  #shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  #shots figure{background:var(--card);border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+  #shots img{width:100%;display:block;background:#000}
+  #shots figcaption{padding:7px 9px;font-size:11.5px;color:var(--dim);line-height:1.4}
+  /* log */
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-weight:600;color:var(--dim);font-size:10.5px;letter-spacing:.07em;
      text-transform:uppercase;padding:0 10px 6px 0;border-bottom:1px solid var(--rule)}
   td{padding:9px 10px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top}
-  tr:hover td{background:color-mix(in srgb,var(--rule) 30%,transparent)}
-  .st{font-weight:600;white-space:nowrap}
+  .st{font-weight:600;white-space:nowrap;font-size:12px}
   .st.pass{color:var(--pass)} .st.fail{color:var(--fail)} .st.wip{color:var(--wip)}
   .piece{font-weight:600;white-space:nowrap}
-  .role{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .role{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:400}
   .gap{color:var(--fail);display:block;margin-top:3px;font-size:12.5px}
   .detail{color:var(--dim);display:block;margin-top:3px;font-size:12.5px}
   .m{font:11px ui-monospace,Menlo,monospace;color:var(--dim)}
   .foot{margin-top:26px;color:var(--dim);font-size:12px}
-  a{color:inherit}
-  .empty{color:var(--dim);padding:40px 0;text-align:center}
+  .empty{color:var(--dim);padding:36px 0;text-align:center}
 </style>
 </head>
 <body>
 <h1>Smendiłendi Bureau</h1>
-<div class="sub">Live build log — builder and critic rounds. Auto-refreshes every 15 s.
-  <a href="../index.html" target="_blank">open the game →</a></div>
-<div class="bar" id="bar"></div>
-<div class="sub" id="tally"></div>
+<div class="sub">Live build log — builders and independent critics, looping until our side wins.
+  Auto-refreshes every 10&nbsp;s. <a href="../index.html" target="_blank">open the game →</a></div>
+
+<h2>Board</h2>
+<div id="board"></div>
+
+<h2 id="shots-h" hidden>Shots</h2>
+<div id="shots"></div>
+
+<h2>Log <span id="tally" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
 <table><thead><tr><th>Time</th><th>Piece</th><th>R</th><th>Status</th><th>What happened</th></tr></thead>
 <tbody id="rows"></tbody></table>
 <div class="foot" id="foot"></div>
+
 <script>
 const fmt = s => new Date(s).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let roadmap = null;
+
 async function load(){
   let db; try { db = await (await fetch('progress.json?'+Date.now())).json(); } catch { return; }
-  const es = db.entries.slice().reverse();
-  document.getElementById('bar').innerHTML = db.entries.map(e=>`<i class="${esc(e.status)}"></i>`).join('') || '<i></i>';
-  const pieces = new Set(db.entries.map(e=>e.piece));
-  const passed = new Set(db.entries.filter(e=>e.status==='pass'&&e.role==='critic').map(e=>e.piece));
+  if (!roadmap) { try { roadmap = await (await fetch('roadmap.json?'+Date.now())).json(); } catch {} }
+  const es = db.entries.slice();
+
+  // ---- board: latest state per piece
+  const last = new Map();
+  for (const e of es) last.set(e.piece, e);
+  if (roadmap) {
+    document.getElementById('board').innerHTML = roadmap.phases.map(ph => {
+      const done = ph.pieces.filter(p => (last.get(p.key)||{}).status === 'pass' && (last.get(p.key)||{}).role === 'critic').length;
+      return `<div class="phase">
+        <div class="phname">${esc(ph.name)}<span>${done}/${ph.pieces.length} cleared</span></div>
+        <div class="grid">${ph.pieces.map(p => {
+          const e = last.get(p.key);
+          const cls = !e ? '' : (e.role === 'critic' && e.status === 'pass') ? 'pass'
+                    : e.status === 'fail' ? 'fail' : 'wip';
+          const tag = !e ? 'not started'
+                    : cls === 'pass' ? 'cleared by critic'
+                    : `${esc(e.role)} · round ${e.round ?? '–'} · ${esc(e.status)}`;
+          return `<div class="cell ${cls}"><b>${esc(p.name)}</b>
+            <div class="note">${esc(p.note)}</div>
+            <div class="tag">${tag}</div></div>`;
+        }).join('')}</div></div>`;
+    }).join('');
+  }
+
+  // ---- shots
+  const shots = es.filter(e => e.shot).reverse();
+  document.getElementById('shots-h').hidden = shots.length === 0;
+  document.getElementById('shots').innerHTML = shots.map(e =>
+    `<figure><a href="${esc(e.shot)}" target="_blank"><img src="${esc(e.shot)}" loading="lazy" alt=""></a>
+     <figcaption><b>${esc(e.piece)}</b> · ${fmt(e.at)}<br>${esc(e.headline)}</figcaption></figure>`).join('');
+
+  // ---- log
+  const pieces = new Set(es.map(e=>e.piece));
+  const passed = new Set(es.filter(e=>e.status==='pass'&&e.role==='critic').map(e=>e.piece));
   document.getElementById('tally').textContent =
-    `${db.entries.length} entries · ${pieces.size} pieces in play · ${passed.size} cleared by a critic`;
-  document.getElementById('rows').innerHTML = es.length ? es.map(e=>`<tr>
+    `— ${es.length} entries · ${pieces.size} pieces in play · ${passed.size} cleared`;
+  const rev = es.reverse();
+  document.getElementById('rows').innerHTML = rev.length ? rev.map(e=>`<tr>
     <td class="m">${fmt(e.at)}</td>
     <td class="piece">${esc(e.piece)}<br><span class="role">${esc(e.role)}</span></td>
     <td class="m">${e.round ?? ''}</td>
@@ -70,7 +130,7 @@ async function load(){
     </td></tr>`).join('') : '<tr><td colspan="5" class="empty">nothing logged yet</td></tr>';
   document.getElementById('foot').textContent = 'last update: ' + (db.updated ? new Date(db.updated).toLocaleString() : '—');
 }
-load(); setInterval(load, 15000);
+load(); setInterval(load, 10000);
 </script>
 </body>
 </html>
