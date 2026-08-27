@@ -158,8 +158,13 @@ function metaChips(item) {
   const bits = [];
   if (m.duration) bits.push(`<span class="chip">${esc(m.duration)}</span>`);
   if (item.loop) bits.push(`<span class="chip">loops</span>`);
+  if (m.origTitle || m.author) {
+    const credit = [m.origTitle, m.author].filter(Boolean).join(' — ');
+    bits.push(`<span class="chip">${esc(credit)}</span>`);
+  }
   const lic = m.licence || 'unrecorded';
-  bits.push(`<span class="chip${/unrecorded|unknown/i.test(lic) ? ' bad' : ''}">${esc(lic)}</span>`);
+  const licShort = /^CC0/i.test(lic) ? 'CC0' : lic;
+  bits.push(`<span class="chip${/unrecorded|unknown/i.test(lic) ? ' bad' : ''}" title="${esc(lic)}">${esc(licShort)}</span>`);
   if (m.source) bits.push(`<a href="${esc(m.source)}" target="_blank" rel="noopener">source ↗</a>`);
   else bits.push(`<span class="chip bad">no source link</span>`);
   if (item.missing) bits.push(`<span class="chip bad">file not delivered</span>`);

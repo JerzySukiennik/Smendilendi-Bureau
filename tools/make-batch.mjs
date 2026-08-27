@@ -208,21 +208,42 @@ function readAudioManifest() {
   return out.size ? out : null;
 }
 
-/** Pull licence + source URL per file base name out of CREDITS.md / REVIEW.md. */
+/** Pull licence, source URL, original title and author out of CREDITS.md / REVIEW.md.
+ *  Keyed by both the logical id (`music.menu`) and the file base name (`menu`). */
 function readAudioCredits() {
   const text = ['CREDITS.md', 'REVIEW.md', '../../CREDITS.md']
     .map(f => readText(join(AUDIO_DIR, f)))
     .filter(Boolean).join('\n');
   const byBase = new Map();
   if (!text) return byBase;
+
+  // Markdown table rows: | `assets/audio/x/y.{ogg,m4a}` | `id` | title | author | <url> | licence | fetched |
+  for (const line of text.split('\n')) {
+    if (!/^\s*\|/.test(line)) continue;
+    const cells = line.split('|').slice(1, -1).map(c => c.trim().replace(/^`|`$/g, ''));
+    if (cells.length < 6) continue;
+    const path = cells[0];
+    if (!/^assets\/audio\//.test(path)) continue;
+    const id = cells[1];
+    const origTitle = cells[2] || null;
+    const author = cells[3] || null;
+    const source = (cells[4].match(/https?:\/\/[^>\s)]+/) || [])[0] || null;
+    const licence = cells[5] || null;
+    const base = (path.split('/').pop() || '').replace(/\.\{[^}]*\}$/, '').replace(/\.(ogg|m4a|mp3|wav)$/i, '');
+    const rec = { licence, source, origTitle, author };
+    if (id) byBase.set(id.toLowerCase(), rec);
+    if (base) byBase.set(base.toLowerCase(), rec);
+  }
+
+  // Fallback: any other line that names a file and carries a licence or a URL.
   for (const line of text.split('\n')) {
     const url = (line.match(/https?:\/\/\S+?(?=[)\s,;]|$)/) || [])[0] || null;
     const lic = (line.match(/\bCC0(?:\s*1\.0)?\b|\bCC[- ]BY(?:[- ]SA)?(?:\s*[\d.]+)?\b|\bpublic domain\b/i) || [])[0] || null;
     if (!url && !lic) continue;
-    for (const m of line.matchAll(/([a-z0-9][a-z0-9_-]*)\.(?:ogg|m4a|mp3|wav)/gi)) {
+    for (const m of line.matchAll(/([a-z0-9][a-z0-9_-]*)\.(?:\{ogg,m4a\}|ogg|m4a|mp3|wav)/gi)) {
       const base = m[1].toLowerCase();
-      const prev = byBase.get(base) || {};
-      byBase.set(base, { licence: lic || prev.licence || null, source: url || prev.source || null });
+      if (byBase.has(base)) continue;
+      byBase.set(base, { licence: lic, source: url, origTitle: null, author: null });
     }
   }
   return byBase;
@@ -245,7 +266,7 @@ function buildAudioBatches() {
         const id = `${set.prefix || d}.${base}`;
         const m4a = exists(join(abs, `${base}.m4a`)) ? `../assets/audio/${d}/${base}.m4a` : null;
         const mf = manifest?.get(id) || manifest?.get(base) || null;
-        const cr = credits.get(base.toLowerCase()) || {};
+        const cr = credits.get(id.toLowerCase()) || credits.get(base.toLowerCase()) || {};
         const dur = mf?.duration ?? fmtDuration(oggDuration(join(abs, f)));
 
         items.push({
@@ -259,6 +280,8 @@ function buildAudioBatches() {
             duration: typeof dur === 'string' ? dur : fmtDuration(dur),
             licence: mf?.licence || cr.licence || 'unrecorded',
             source: mf?.source || cr.source || null,
+            ...(cr.author ? { author: cr.author } : {}),
+            ...(cr.origTitle ? { origTitle: cr.origTitle } : {}),
           },
         });
         real++;
