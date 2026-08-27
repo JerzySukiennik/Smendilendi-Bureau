@@ -1,0 +1,18 @@
+{
+ "started": "2026-08-27",
+ "entries": [
+  {
+   "piece": "scaffold",
+   "role": "orchestrator",
+   "round": 0,
+   "status": "pass",
+   "headline": "Repo skeleton, import map, architecture contract",
+   "files": [
+    "ARCHITECTURE.md",
+    "index.html"
+   ],
+   "at": "2026-08-27T09:51:37.590Z"
+  }
+ ],
+ "updated": "2026-08-27T09:51:37.590Z"
+}

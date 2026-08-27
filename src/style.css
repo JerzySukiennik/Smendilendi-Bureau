@@ -1,0 +1,8 @@
+:root { --bg:#1a1714; }
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body, #app { width:100%; height:100%; overflow:hidden; background:var(--bg); }
+#view { position:absolute; inset:0; width:100%; height:100%; display:block; }
+#ui { position:absolute; inset:0; pointer-events:none; }
+#ui > * { pointer-events:auto; }
+#debug { position:absolute; top:8px; left:8px; z-index:9999; font:11px/1.4 ui-monospace,Menlo,monospace;
+  color:#9f9; background:rgba(0,0,0,.55); padding:6px 8px; border-radius:4px; white-space:pre; }
