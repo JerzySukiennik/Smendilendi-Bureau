@@ -1,0 +1,22 @@
+{
+  "_": "Single source of truth for how loud every sound actually is in the game. The review page plays each asset through exactly this chain, so what Jurek hears is what ships: master x bus x the asset's own gain.",
+  "master": 0.9,
+  "buses": {
+    "music": 0.45,
+    "ambient": 0.5,
+    "sfx": 0.8,
+    "ui": 0.7
+  },
+  "kindToBus": {
+    "music": "music",
+    "radio": "ambient",
+    "amb": "ambient",
+    "os": "ui",
+    "ui": "ui",
+    "sfx": "sfx"
+  },
+  "notes": {
+    "radio": "Diegetic: rides the ambient bus and gets spatial falloff from the radio's position in the office. The review page plays it at the level you hear standing next to the radio.",
+    "positional": "Positional sounds are reviewed at their reference distance (the loudest they ever get). In the world they only get quieter."
+  }
+}

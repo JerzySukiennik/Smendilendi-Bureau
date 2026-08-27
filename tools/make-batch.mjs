@@ -183,6 +183,9 @@ function readAudioManifest() {
         title: v.name || v.title || undefined,
         why: v.why || v.reason || undefined,
         duration: v.duration ?? undefined,
+        gain: typeof v.gain === 'number' ? v.gain : undefined,
+        kind: v.kind || undefined,
+        positional: v.positional ?? undefined,
       };
     }
     return null;
@@ -205,6 +208,12 @@ function readAudioManifest() {
     }
   };
   walk(m.sounds || m.assets || m, '');
+  // second index: by file path, so a logical id that differs from the file name
+  // (os.boot.1 -> os/boot-tier1.ogg) still resolves.
+  for (const [, o] of [...out]) {
+    const f = String(o.file || '').replace(/^\.?\//, '');
+    if (f) { out.set('file:' + f, o); out.set('file:' + f.replace(/\.(ogg|m4a|mp3|wav)$/i, ''), o); }
+  }
   return out.size ? out : null;
 }
 
@@ -249,9 +258,32 @@ function readAudioCredits() {
   return byBase;
 }
 
+/** The real playback chain: master x bus x the asset's own gain. */
+function readMix() {
+  const m = readJSON(join(AUDIO_DIR, 'mix.json'));
+  if (m && m.buses) return m;
+  return { master: 0.9, buses: { music: 0.45, ambient: 0.5, sfx: 0.8, ui: 0.7 },
+           kindToBus: { music: 'music', radio: 'ambient', amb: 'ambient', os: 'ui', ui: 'ui', sfx: 'sfx' } };
+}
+
+function mixFor(mix, id, mf, dir) {
+  const kind = mf?.kind || (id.split('.')[0] || dir);
+  const bus = mix.kindToBus?.[kind] || (mix.buses[kind] ? kind : 'sfx');
+  const busGain = mix.buses[bus] ?? 0.8;
+  const master = mix.master ?? 0.9;
+  const asset = typeof mf?.gain === 'number' ? mf.gain : 1;
+  return {
+    kind, bus,
+    master, busGain, asset,
+    effective: +(master * busGain * asset).toFixed(4),
+    positional: !!mf?.positional,
+  };
+}
+
 function buildAudioBatches() {
   const manifest = readAudioManifest();
   const credits = readAudioCredits();
+  const mix = readMix();
   const batches = [];
   let real = 0, placeholder = 0;
 
@@ -265,7 +297,8 @@ function buildAudioBatches() {
         const base = basename(f, '.ogg');
         const id = `${set.prefix || d}.${base}`;
         const m4a = exists(join(abs, `${base}.m4a`)) ? `../assets/audio/${d}/${base}.m4a` : null;
-        const mf = manifest?.get(id) || manifest?.get(base) || null;
+        const mf = manifest?.get(id) || manifest?.get(base) ||
+                   manifest?.get(`file:${d}/${base}`) || manifest?.get(`file:${d}/${f}`) || null;
         const cr = credits.get(id.toLowerCase()) || credits.get(base.toLowerCase()) || {};
         const dur = mf?.duration ?? fmtDuration(oggDuration(join(abs, f)));
 
@@ -276,6 +309,7 @@ function buildAudioBatches() {
           whyAuto: !AUDIO_WHY[id] && !mf?.why,
           loop: mf?.loop ?? (set.defaultLoop || /room-tone|ambience|loop|radio/.test(base)),
           src: { ogg: `../assets/audio/${d}/${f}`, ...(m4a ? { m4a } : {}) },
+          mix: mixFor(mix, id, mf, d),
           meta: {
             duration: typeof dur === 'string' ? dur : fmtDuration(dur),
             licence: mf?.licence || cr.licence || 'unrecorded',

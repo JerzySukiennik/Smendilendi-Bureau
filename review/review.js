@@ -54,7 +54,22 @@ function setNote(id, note) {
   if (!d.verdict && !d.note) delete decisions[id]; else d.at = new Date().toISOString();
   saveDecisions(); refreshCounters(); refreshExport();
 }
+function setTrim(id, trim) {
+  const d = decisions[id] || (decisions[id] = {});
+  d.trim = trim === 1 ? undefined : +trim.toFixed(2);
+  if (d.trim === undefined) delete d.trim;
+  if (!d.verdict && !d.note && d.trim === undefined) delete decisions[id]; else d.at = new Date().toISOString();
+  saveDecisions(); refreshExport();
+}
 const verdictOf = id => decisions[id]?.verdict || null;
+const trimOf = id => decisions[id]?.trim ?? 1;
+
+// How loud a sound is when the game plays it: master x bus x the asset's own
+// gain, straight out of assets/audio/mix.json. `playRaw` compares against the
+// untouched file.
+let playRaw = false;
+const inGameGain = item => (item.mix?.effective ?? 0.9);
+const playbackGain = item => (playRaw ? 0.9 : inGameGain(item) * trimOf(item.id));
 
 // ---------------------------------------------------------------------------
 // page state
@@ -155,6 +170,7 @@ function decideBlock(item) {
 
 function metaChips(item) {
   const m = item.meta || {};
+  let m2;
   const bits = [];
   if (m.duration) bits.push(`<span class="chip">${esc(m.duration)}</span>`);
   if (item.loop) bits.push(`<span class="chip">loops</span>`);
@@ -167,6 +183,12 @@ function metaChips(item) {
   bits.push(`<span class="chip${/unrecorded|unknown/i.test(lic) ? ' bad' : ''}" title="${esc(lic)}">${esc(licShort)}</span>`);
   if (m.source) bits.push(`<a href="${esc(m.source)}" target="_blank" rel="noopener">source ↗</a>`);
   else bits.push(`<span class="chip bad">no source link</span>`);
+  if (m2 = item.mix) {
+    const pct = Math.round(inGameGain(item) * 100);
+    const chain = `master ${m2.master} x ${m2.bus} bus ${m2.busGain} x asset ${m2.asset} = ${m2.effective}`;
+    bits.push(`<span class="chip" title="${esc(chain)}">${esc(m2.bus)} bus · ${pct}% in game</span>`);
+    if (m2.positional) bits.push(`<span class="chip" title="Positional in the world — this is the level at the source, the loudest it ever gets.">3D</span>`);
+  }
   if (item.missing) bits.push(`<span class="chip bad">file not delivered</span>`);
   return bits.join('');
 }
@@ -195,6 +217,10 @@ function buildAudioRow(item, batch) {
   const state = document.createElement('div'); state.className = 'state'; state.textContent = 'waiting';
   const time = document.createElement('div'); time.className = 'time'; time.textContent = '';
   wave.append(canvas, state, time);
+
+  const waveCol = document.createElement('div');
+  waveCol.className = 'wavecol';
+  waveCol.appendChild(wave);
   if (item.loop) {
     const lb = document.createElement('button');
     lb.className = 'loopbtn'; lb.type = 'button'; lb.textContent = 'loop';
@@ -206,6 +232,38 @@ function buildAudioRow(item, batch) {
   const rec = { id: item.id, item, el, play, canvas, state, time, wave, peaks: null, buffer: null,
                 loop: !!item.loop, decoded: false, failed: false };
 
+  // Level trim. The slider does not change what you hear relative to the game —
+  // it changes what the game will do. Anything you move here ships as the new
+  // gain for that sound.
+  if (item.mix) {
+    const trim = document.createElement('div');
+    trim.className = 'trim';
+    const range = document.createElement('input');
+    range.type = 'range'; range.min = '0'; range.max = '2'; range.step = '0.05';
+    range.value = String(trimOf(item.id));
+    range.setAttribute('aria-label', 'level trim for ' + item.name);
+    const read = document.createElement('span');
+    read.className = 'trimread';
+    const paint = () => {
+      const t = +range.value;
+      read.textContent = t === 1 ? 'level ok' : `${t > 1 ? '+' : ''}${Math.round((t - 1) * 100)}%`;
+      read.dataset.changed = String(t !== 1);
+      trim.title = `Plays at ${Math.round(inGameGain(item) * t * 100)}% — the level this sound will have in the game.`;
+    };
+    paint();
+    range.addEventListener('input', () => {
+      paint();
+      if (playing && playing.id === item.id && !playRaw) {
+        playing.gain.gain.setTargetAtTime(playbackGain(item), ctx().currentTime, 0.02);
+      }
+    });
+    range.addEventListener('change', () => { setTrim(item.id, +range.value); paint(); });
+    range.addEventListener('dblclick', () => { range.value = '1'; setTrim(item.id, 1); paint(); });
+    trim.append(range, read);
+    rec.trimEl = trim; rec.trimRange = range; rec.trimPaint = paint;
+    waveCol.appendChild(trim);
+  }
+
   play.addEventListener('click', () => togglePlay(item.id));
   canvas.addEventListener('click', e => {
     const r = canvas.getBoundingClientRect();
@@ -213,7 +271,7 @@ function buildAudioRow(item, batch) {
   });
   el.addEventListener('mousedown', () => setFocus(rec.index, false));
 
-  el.append(play, what, wave, decideBlock(item));
+  el.append(play, what, waveCol, decideBlock(item));
   return rec;
 }
 
@@ -468,7 +526,7 @@ function togglePlay(id, offsetFrac = null) {
   src.buffer = rec.buffer;
   src.loop = rec.loop;
   const gain = c.createGain();
-  gain.gain.value = 0.9;
+  gain.gain.value = playbackGain(rec.item);
   src.connect(gain).connect(c.destination);
   const offset = (offsetFrac ?? rec.seekFrac ?? 0) * rec.buffer.duration;
   src.start(0, offset);
@@ -867,10 +925,12 @@ function buildExport() {
     const d = decisions[rec.id];
     if (d?.verdict) {
       counts[d.verdict]++;
-      list.push({ id: rec.id, batch: rec.batch.id, name: rec.item.name, verdict: d.verdict, note: d.note || '', at: d.at });
+      list.push({ id: rec.id, batch: rec.batch.id, name: rec.item.name, verdict: d.verdict, note: d.note || '', at: d.at,
+                  ...(d.trim ? { trim: d.trim, newGain: +((rec.item.mix?.asset ?? 1) * d.trim).toFixed(3) } : {}) });
     } else {
       pending.push(rec.id);
-      if (d?.note) list.push({ id: rec.id, batch: rec.batch.id, name: rec.item.name, verdict: null, note: d.note, at: d.at });
+      if (d?.note || d?.trim) list.push({ id: rec.id, batch: rec.batch.id, name: rec.item.name, verdict: null, note: d.note || '', at: d.at,
+                  ...(d.trim ? { trim: d.trim, newGain: +((rec.item.mix?.asset ?? 1) * d.trim).toFixed(3) } : {}) });
     }
   }
   return {
@@ -880,6 +940,7 @@ function buildExport() {
     summary: { total: items.length, decided: items.length - pending.length, ...counts },
     decisions: list,
     pending,
+    levelChanges: list.filter(d => d.trim).map(d => ({ id: d.id, newGain: d.newGain })),
   };
 }
 
@@ -923,6 +984,7 @@ $('#resetBtn').addEventListener('click', () => {
   saveDecisions();
   for (const rec of items) {
     const n = rec.el.querySelector('[data-note]'); if (n) n.value = '';
+    if (rec.trimRange) { rec.trimRange.value = '1'; rec.trimPaint?.(); }
     refreshItem(rec.id);
   }
   refreshCounters(); refreshExport();
@@ -948,6 +1010,16 @@ function wireGlobalKeys() {
       case 'j': case 'arrowdown': setFocus(focusIndex + 1); e.preventDefault(); break;
       case 'k': case 'arrowup': setFocus(focusIndex - 1); e.preventDefault(); break;
       case 'l': if (rec?.kind === 'audio') { toggleLoop(rec.id); e.preventDefault(); } break;
+      case 'g': {
+        playRaw = !playRaw;
+        document.body.dataset.raw = String(playRaw);
+        if (playing) {
+          const p = byId.get(playing.id);
+          if (p) playing.gain.gain.setTargetAtTime(playbackGain(p.item), ctx().currentTime, 0.02);
+        }
+        toast(playRaw ? 'playing the raw file' : 'playing at the in-game level');
+        e.preventDefault(); break;
+      }
       case 'enter': {
         const n = rec?.el.querySelector('[data-note]');
         if (n) { n.focus(); n.select(); e.preventDefault(); }

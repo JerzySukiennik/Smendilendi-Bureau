@@ -17,6 +17,15 @@
             "ogg": "../assets/audio/music/menu.ogg",
             "m4a": "../assets/audio/music/menu.m4a"
           },
+          "mix": {
+            "kind": "music",
+            "bus": "music",
+            "master": 0.9,
+            "busGain": 0.45,
+            "asset": 0.7,
+            "effective": 0.2835,
+            "positional": false
+          },
           "meta": {
             "duration": "0:58",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
@@ -34,6 +43,15 @@
           "src": {
             "ogg": "../assets/audio/music/office-ambient-1.ogg",
             "m4a": "../assets/audio/music/office-ambient-1.m4a"
+          },
+          "mix": {
+            "kind": "music",
+            "bus": "music",
+            "master": 0.9,
+            "busGain": 0.45,
+            "asset": 0.7,
+            "effective": 0.2835,
+            "positional": false
           },
           "meta": {
             "duration": "1:15",
@@ -53,6 +71,15 @@
             "ogg": "../assets/audio/music/office-ambient-2.ogg",
             "m4a": "../assets/audio/music/office-ambient-2.m4a"
           },
+          "mix": {
+            "kind": "music",
+            "bus": "music",
+            "master": 0.9,
+            "busGain": 0.45,
+            "asset": 0.7,
+            "effective": 0.2835,
+            "positional": false
+          },
           "meta": {
             "duration": "1:15",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
@@ -70,6 +97,15 @@
           "src": {
             "ogg": "../assets/audio/music/walkthrough.ogg",
             "m4a": "../assets/audio/music/walkthrough.m4a"
+          },
+          "mix": {
+            "kind": "music",
+            "bus": "music",
+            "master": 0.9,
+            "busGain": 0.45,
+            "asset": 0.7,
+            "effective": 0.2835,
+            "positional": false
           },
           "meta": {
             "duration": "1:30",
@@ -97,6 +133,15 @@
             "ogg": "../assets/audio/ui/click-soft.ogg",
             "m4a": "../assets/audio/ui/click-soft.m4a"
           },
+          "mix": {
+            "kind": "ui",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.85,
+            "effective": 0.5355,
+            "positional": false
+          },
           "meta": {
             "duration": "0:00",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
@@ -114,6 +159,15 @@
           "src": {
             "ogg": "../assets/audio/ui/click.ogg",
             "m4a": "../assets/audio/ui/click.m4a"
+          },
+          "mix": {
+            "kind": "ui",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.85,
+            "effective": 0.5355,
+            "positional": false
           },
           "meta": {
             "duration": "0:00",
@@ -133,6 +187,15 @@
             "ogg": "../assets/audio/ui/error.ogg",
             "m4a": "../assets/audio/ui/error.m4a"
           },
+          "mix": {
+            "kind": "ui",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.85,
+            "effective": 0.5355,
+            "positional": false
+          },
           "meta": {
             "duration": "0:01",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
@@ -150,6 +213,15 @@
           "src": {
             "ogg": "../assets/audio/ui/mail-notify.ogg",
             "m4a": "../assets/audio/ui/mail-notify.m4a"
+          },
+          "mix": {
+            "kind": "ui",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.85,
+            "effective": 0.5355,
+            "positional": false
           },
           "meta": {
             "duration": "0:00",
@@ -169,6 +241,15 @@
             "ogg": "../assets/audio/ui/snap.ogg",
             "m4a": "../assets/audio/ui/snap.m4a"
           },
+          "mix": {
+            "kind": "ui",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.85,
+            "effective": 0.5355,
+            "positional": false
+          },
           "meta": {
             "duration": "0:00",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
@@ -186,6 +267,15 @@
           "src": {
             "ogg": "../assets/audio/ui/submit.ogg",
             "m4a": "../assets/audio/ui/submit.m4a"
+          },
+          "mix": {
+            "kind": "ui",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.85,
+            "effective": 0.5355,
+            "positional": false
           },
           "meta": {
             "duration": "0:01",
@@ -205,6 +295,15 @@
             "ogg": "../assets/audio/ui/tool-select.ogg",
             "m4a": "../assets/audio/ui/tool-select.m4a"
           },
+          "mix": {
+            "kind": "ui",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.85,
+            "effective": 0.5355,
+            "positional": false
+          },
           "meta": {
             "duration": "0:00",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
@@ -222,6 +321,15 @@
           "src": {
             "ogg": "../assets/audio/ui/window-close.ogg",
             "m4a": "../assets/audio/ui/window-close.m4a"
+          },
+          "mix": {
+            "kind": "ui",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.85,
+            "effective": 0.5355,
+            "positional": false
           },
           "meta": {
             "duration": "0:00",
@@ -241,6 +349,15 @@
             "ogg": "../assets/audio/ui/window-open.ogg",
             "m4a": "../assets/audio/ui/window-open.m4a"
           },
+          "mix": {
+            "kind": "ui",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.85,
+            "effective": 0.5355,
+            "positional": false
+          },
           "meta": {
             "duration": "0:00",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
@@ -258,6 +375,15 @@
           "src": {
             "ogg": "../assets/audio/os/boot-tier1.ogg",
             "m4a": "../assets/audio/os/boot-tier1.m4a"
+          },
+          "mix": {
+            "kind": "os",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.9,
+            "effective": 0.567,
+            "positional": true
           },
           "meta": {
             "duration": "0:01",
@@ -277,6 +403,15 @@
             "ogg": "../assets/audio/os/boot-tier2.ogg",
             "m4a": "../assets/audio/os/boot-tier2.m4a"
           },
+          "mix": {
+            "kind": "os",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.9,
+            "effective": 0.567,
+            "positional": true
+          },
           "meta": {
             "duration": "0:02",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
@@ -295,6 +430,15 @@
             "ogg": "../assets/audio/os/boot-tier3.ogg",
             "m4a": "../assets/audio/os/boot-tier3.m4a"
           },
+          "mix": {
+            "kind": "os",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.9,
+            "effective": 0.567,
+            "positional": true
+          },
           "meta": {
             "duration": "0:02",
             "licence": "CC0 1.0 Universal (Public Domain Dedication)",
@@ -312,6 +456,15 @@
           "src": {
             "ogg": "../assets/audio/os/boot-tier4.ogg",
             "m4a": "../assets/audio/os/boot-tier4.m4a"
+          },
+          "mix": {
+            "kind": "os",
+            "bus": "ui",
+            "master": 0.9,
+            "busGain": 0.7,
+            "asset": 0.9,
+            "effective": 0.567,
+            "positional": true
           },
           "meta": {
             "duration": "0:02",
