@@ -201,6 +201,11 @@ export class AudioBus {
     // moves. A bus with no value would set gain.value to undefined — a NaN gain
     // node, i.e. silence on everything routed through it — so it is always seeded
     // from the mix, never left blank.
+    // A player's own slider moves, and NOTHING else. mix.json is the only source
+    // of the DEFAULT level for every bus; this map holds only the buses the
+    // player has actually dragged, so a change to mix.json reaches the game
+    // instead of being overwritten by a stale copy in somebody's localStorage.
+    this.userVolumes = {};
     this.volumes = this._volumesFromMix();
     if (opts.volumes) Object.assign(this.volumes, opts.volumes);
     this._playing = new Set();
@@ -208,6 +213,7 @@ export class AudioBus {
     this._missing = new Set();
     this._volumeWarned = new Set();
     this._contextWarned = new Set();
+    this._busWarned = new Set();
     this._manifestPromise = null;  // in-flight loadManifest(), so load() can wait
     this._musicGen = 0;            // bumped by every music()/musicPlaylist() call
     this._playlist = null;
@@ -219,9 +225,53 @@ export class AudioBus {
   }
 
   _volumesFromMix() {
+    const v = this.mixVolumes();
+    Object.assign(v, this.userVolumes || {});     // the player's own moves survive a reload
+    return v;
+  }
+
+  /** The bus levels mix.json asks for, untouched by any player setting. */
+  mixVolumes() {
     const v = { master: this.mix.master };
     for (const b of busNames(this.mix)) v[b] = this.mix.buses[b];
     return v;
+  }
+
+  /**
+   * A settings slider moved. Records the DEVIATION from mix.json, applies it, and
+   * returns the map worth persisting — which is empty until the player touches
+   * something.
+   *
+   * This exists because of round 4's blocker: src/menu/lobby.js carried a third
+   * hardcoded copy of the whole bus mix ({ master: 0.9, music: 0.45, ... }) and
+   * wrote all five numbers onto the bus every time the menu was entered — the
+   * first screen of the game. It agreed with mix.json by luck, nothing checked
+   * that it did, and changing mix.json changed the review page and not the game.
+   * A settings screen may now only say "the player moved THIS bus to THIS value";
+   * it can no longer state what the default is.
+   */
+  setUserVolume(bus, v) {
+    const val = Math.max(0, Math.min(1, Number(v)));
+    if (!Number.isFinite(val)) return { ...this.userVolumes };
+    this.userVolumes[bus] = val;
+    this.setVolume(bus, val);
+    return { ...this.userVolumes };
+  }
+
+  /**
+   * Restore stored deviations (from localStorage) on top of mix.json. Anything
+   * that is not a bus this mix defines, or not a finite 0..1, is dropped rather
+   * than trusted. Returns the resulting absolute levels, for a slider to display.
+   */
+  applyUserVolumes(dev = {}) {
+    this.userVolumes = {};
+    for (const [b, v] of Object.entries(dev || {})) {
+      const known = b === 'master' || this.mix.buses[b] !== undefined;
+      if (known && Number.isFinite(Number(v))) this.userVolumes[b] = Math.max(0, Math.min(1, Number(v)));
+    }
+    this.volumes = this._volumesFromMix();
+    this._applyVolumes();
+    return { ...this.volumes };
   }
 
   get busList() { return busNames(this.mix); }
@@ -485,7 +535,7 @@ export class AudioBus {
 
   /**
    * play(name, opts) -> handle | null
-   * opts: { bus, context, dynamic=1, rate=1, loop=false, detune=0,
+   * opts: { context, dynamic=1, rate=1, loop=false, detune=0,
    *         position:{x,y,z}, refDistance=2, maxDistance=25, delay=0 }
    *
    * The gain node carries the ASSET gain x the named context x any dynamic
@@ -494,8 +544,10 @@ export class AudioBus {
    * review page shows. A positional sound puts its panner between the asset gain
    * and the bus, so it starts there and only attenuates with distance.
    *
-   * There is deliberately NO `volume` option: see the header. Passing one warns
-   * and is ignored.
+   * There is deliberately NO `volume` option and NO `bus` option: both are levels,
+   * and every level this game can play is written down in manifest.json. Passing
+   * either warns and is ignored. The returned handle cannot change its gain
+   * either — see the comment on the handle below.
    */
   play(name, opts = {}) {
     if (!this.enabled) return null;
@@ -527,7 +579,19 @@ export class AudioBus {
     // level itself is never negotiable, only how long it takes to get there.
     gain.gain.value = opts.fadeIn ? 1e-4 : level;
 
-    const busName = opts.bus || busForKind(meta.kind, this.mix);
+    // The bus comes from the manifest's `kind` and NOWHERE else. It used to be
+    // overridable with `play(id, { bus: 'sfx' })`, which the scanner parsed and
+    // check 9f then ignored: round 4's critic moved ui.click off the ui bus (0.7)
+    // onto sfx (0.8) at menu.js:899 and the verifier still printed 53.55% / yes
+    // for a sound that came out at 61.20%. A bus IS a level, so it is declared,
+    // not passed.
+    if (opts.bus !== undefined && !this._busWarned.has(name)) {
+      this._busWarned.add(name);
+      console.warn(`[audio] play("${name}", { bus: "${opts.bus}" }) — ignored. `
+        + 'The bus is a level, and a level is declared in assets/audio/manifest.json '
+        + `("kind"), never at a call site. Playing on the "${busForKind(meta.kind, this.mix)}" bus.`);
+    }
+    const busName = busForKind(meta.kind, this.mix);
     const bus = this.buses[busName] || this.buses.sfx || this.master;
 
     let panner = null;
@@ -559,7 +623,13 @@ export class AudioBus {
         this._playing.delete(handle);
       },
       setPosition: (p) => { if (panner) setPos(panner, p); },
-      setVolume: (v, t = 0.05) => gain.gain.setTargetAtTime(v, this.ctx.currentTime, t),
+      // There is deliberately NO setVolume on this handle. Round 4's critic
+      // defeated the whole sign-off with ONE line inside the OS play wrapper —
+      // `const h = a.play(name, opts); h?.setVolume?.(0.15);` — which cut every
+      // sound the OS routes to 15% of its reviewed level while verify-signoff
+      // still printed 32.13% / yes. No scanner can reliably catch a gain write
+      // hidden in a wrapper, so the write itself is gone: the only way to change
+      // a level is the manifest, which the verifier reads.
       /** Fade back to the reviewed level for this id and context. */
       fadeIn: (t = 0.4) => gain.gain.setTargetAtTime(level, this.ctx.currentTime, t),
     };

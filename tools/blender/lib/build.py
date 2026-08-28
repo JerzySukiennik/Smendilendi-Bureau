@@ -212,6 +212,38 @@ class Shape:
         _xform(bm, pos, rot)
         return self._add(bm, slot, bevel, name or 'taper')
 
+    def wedge(self, size, pos, slot='tint', rot=(0, 0, 0), bevel=None, name=None,
+              low=0.0):
+        """A solid ramp or a closed stair string: FLAT ON THE FLOOR, its top face
+        rising from `low` at the +Z end to the full height at the -Z end.
+
+        A rotated slab cannot do this job. Tilt a box and its lower corner goes
+        below the floor plane, `place_origin` lifts the whole thing to get it
+        back, and the finished ramp starts with a step you have to climb -- which
+        is exactly the defect a critic photographed. A wedge has a genuinely flat
+        underside, so it fits its declared rise with nothing hanging below.
+
+        `pos` is the centre of the footprint, on the floor.
+        """
+        w, h, d = size
+        x0, x1 = -w / 2, w / 2
+        z0, z1 = -d / 2, d / 2
+        bm = bmesh.new()
+        v = {}
+        for xi, x in ((0, x0), (1, x1)):
+            for zi, z, y in ((0, z0, h), (1, z1, low)):
+                v[(xi, zi, 0)] = bm.verts.new((x, 0.0, z))
+                v[(xi, zi, 1)] = bm.verts.new((x, y, z))
+        bm.faces.new((v[(0, 0, 0)], v[(0, 1, 0)], v[(1, 1, 0)], v[(1, 0, 0)]))   # base
+        bm.faces.new((v[(0, 0, 1)], v[(0, 1, 1)], v[(1, 1, 1)], v[(1, 0, 1)]))   # top
+        bm.faces.new((v[(0, 0, 0)], v[(0, 0, 1)], v[(1, 0, 1)], v[(1, 0, 0)]))   # back
+        bm.faces.new((v[(0, 1, 0)], v[(0, 1, 1)], v[(1, 1, 1)], v[(1, 1, 0)]))   # front
+        for xi in (0, 1):
+            bm.faces.new((v[(xi, 0, 0)], v[(xi, 0, 1)], v[(xi, 1, 1)], v[(xi, 1, 0)]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        _xform(bm, pos, rot)
+        return self._add(bm, slot, bevel, name or 'wedge')
+
     def cyl(self, r_bottom, r_top, h, pos, slot='tint', seg=12, axis='y', rot=(0, 0, 0),
             bevel=None, name=None, cap=True):
         bm = bmesh.new()

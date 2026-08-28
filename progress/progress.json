@@ -463,7 +463,49 @@
    "status": "fail",
    "headline": "7/10 — every level in the tree is correct today; the verifier that is supposed to keep it that way has two proven bypasses and one false green. — verify-signoff.mjs bans the WORD `volume:`, not the CL",
    "at": "2026-08-27T22:10:02.410Z"
+  },
+  {
+   "piece": "models",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "3/10 — The \"generator-level fix\" only exists for 15 of the 122 catalogue entries. The other 107 items the architect opens next are built by a separate, unbevelled, never-audited path (src/model/proc-s",
+   "at": "2026-08-28T07:33:25.556Z"
+  },
+  {
+   "piece": "audio-levels",
+   "role": "critic",
+   "round": 2,
+   "status": "fail",
+   "headline": "All 4 approved gains land exactly (55 call sites, 0 divergences, measured on the live WebAudio graph) — but the verifier is defeatable twice over (handle.setVolume in a wrapper, and a bus: override) and ui.mail-notify + the 4 keyboard sounds never play at all",
+   "shot": "shots/crit-audio-levels-measured.png",
+   "at": "2026-08-28T07:48:23.741Z"
+  },
+  {
+   "piece": "audio-levels",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "6.5/10 — the four signed-off levels are genuinely correct end-to-end (verified independently, measured on the live gain nodes, 0 divergences over 55 call sites), but the verifier that is supposed to k",
+   "at": "2026-08-28T07:54:42.288Z"
+  },
+  {
+   "piece": "os",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "Pixel work is a clean 20/20 on the authenticity checklist (title 18px, caption 16x14, scrollbar 16px, menu 20px, taskbar 28px, Start 54x22, Platinum 22px with 6 pinstripe pairs, 12 colours in the T1 frame, alpha 255 everywhere) — but src/os never exports createOsSurface, so the game shows desks.js PlaceholderOs and no player ever sees it.",
+   "shot": "shots/osc-t1-pose.png",
+   "at": "2026-08-28T07:57:20.209Z"
+  },
+  {
+   "piece": "os",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "20/20 — The pixels are the best retro-OS reproduction I have measured — a clean 20/20 — but no player will ever see them. src/office/desks.js declares the contract `createOsSurface({width,height,tier,",
+   "at": "2026-08-28T07:59:52.848Z"
   }
  ],
- "updated": "2026-08-27T22:10:02.410Z"
+ "updated": "2026-08-28T07:59:52.848Z"
 }

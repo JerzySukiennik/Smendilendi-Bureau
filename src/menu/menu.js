@@ -1104,7 +1104,7 @@ function numberAtlas(labels) {
  */
 function makeFlag() {
   const group = new Group();
-  const pole = new Mesh(new CylinderGeometry(0.055, 0.075, 7.0, 8), menuMaterial('metal'), o);
+  const pole = new Mesh(new CylinderGeometry(0.055, 0.075, 7.0, 8), menuMaterial('metal'));
   pole.position.y = 3.5;
   pole.castShadow = true;
   group.add(pole);
