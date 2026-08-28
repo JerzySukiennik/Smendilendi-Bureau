@@ -19,6 +19,7 @@ import { Group, Raycaster, Vector2, Vector3, Box3, Plane } from 'three';
 import { applyOp } from '../model/building.js';
 import { buildMeshes, disposeBuilt } from '../model/geometry.js';
 import { getRooms } from '../model/rooms.js';
+import { classifyRooms } from '../analysis/classify.js';
 import { billOfQuantities } from '../analysis/cost.js';
 import { runAnalysis } from '../analysis/index.js';
 import { tryEntry } from '../model/catalog.js';
@@ -220,7 +221,7 @@ export class Editor {
       this._dirty.texts = false;
     }
     if (this._dirty.plan) {
-      if (this.cameras.mode === 'plan') this.plan.build(this.model, this.levelId);
+      if (this.cameras.mode === 'plan') this.plan.build(this.model, this.levelId, this.roomLabels());
       this._dirty.plan = false;
     }
     if (what.length) {
@@ -253,17 +254,27 @@ export class Editor {
     this.furniture.rebuild(this.model, this.levelId, { ceiling: this.storeyHeight });
     this.texts.rebuild(this.model, this.levelId);
     this.plan.version = -1;
-    if (this.cameras.mode === 'plan') this.plan.build(this.model, this.levelId);
+    if (this.cameras.mode === 'plan') this.plan.build(this.model, this.levelId, this.roomLabels());
     this.hud?.refreshSchedule();
     this.hud?.refreshCost();
   }
 
-  /** Everything the camera should be able to frame. */
+  /**
+   * Everything the camera should be able to frame. In the plan view that is not
+   * the building: it is the SHEET — the building plus its dimension chains, the
+   * north point and the scale bar. Framing the building alone pushes half the
+   * drawing off the edge of the screen or under a panel.
+   */
   contentBounds() {
     const b = new Box3();
     b.makeEmpty();
     b.setFromObject(this.buildingRoot);
     for (const gd of this.guides) { b.expandByPoint(gd.a); b.expandByPoint(gd.b); }
+    const sheet = this.cameras.mode === 'plan' ? this.plan.sheet : null;
+    if (sheet && !b.isEmpty()) {
+      b.expandByPoint(new Vector3(sheet.minX, 0, sheet.minZ));
+      b.expandByPoint(new Vector3(sheet.maxX, 0, sheet.maxZ));
+    }
     if (!b.isEmpty()) return b;
     if (this.siteBounds && !this.siteBounds.isEmpty()) return this.siteBounds.clone();
     b.setFromCenterAndSize(new Vector3(0, 1.35, 0), new Vector3(16, 3, 12));
@@ -273,6 +284,66 @@ export class Editor {
   // -- derived data ----------------------------------------------------------
 
   rooms() { return getRooms(this.model, this.levelId); }
+
+  /**
+   * What each room is CALLED, everywhere the player can read it.
+   *
+   * rooms.js gives every face a stable but meaningless number ("Room 432") so
+   * that adding a room somewhere else cannot renumber the drawing. That number
+   * is fine as an id and useless as a label: the moment a WC and a basin are in
+   * a room, src/analysis/classify.js knows it is the bathroom, and a drawing
+   * that still says "Room 432" is a drawing that knows less than the engine
+   * behind it. The order of preference is the honest one:
+   *
+   *   1. what the player typed into the room schedule    ("Ola's study")
+   *   2. what the analysis engine classified it as       ("bathroom")
+   *   3. a plain sequential number, biggest room first   ("Room 1")
+   *
+   * Never the hash. Cached per model version, because it runs on every plan
+   * rebuild and every schedule refresh.
+   */
+  roomLabels() {
+    const rooms = this.rooms();
+    if (this._labelCache?.version === this.model.version && this._labelCache.levelId === this.levelId) {
+      return this._labelCache.labels;
+    }
+    const named = this.model.siteMods?.roomNames ?? {};
+    const labels = new Map();
+    let classes = null;
+    try {
+      classes = classifyRooms(this.model, {
+        rooms: rooms.order.map(id => ({ ...rooms.rooms[id], key: id })),
+        exteriorDoors: [],
+      }, this.brief || {});
+    } catch (err) {
+      console.warn('[editor] room classification failed', err);
+    }
+    let n = 0;
+    for (const id of rooms.order) {
+      n++;
+      const custom = named[id];
+      if (custom) { labels.set(id, custom); continue; }
+      const c = classes?.get(id);
+      const label = c && c.key !== 'unassigned' ? c.label : null;
+      labels.set(id, label ? cap(label) : `Room ${n}`);
+    }
+    this._labelCache = { version: this.model.version, levelId: this.levelId, labels };
+    return labels;
+  }
+
+  roomLabel(id) { return this.roomLabels().get(id) || 'Room'; }
+
+  /** Rename a room from the schedule. '' clears the override again. */
+  renameRoom(id, name) {
+    const clean = String(name ?? '').trim().slice(0, 40);
+    const current = this.model.siteMods?.roomNames?.[id] ?? '';
+    if (clean === current) return false;
+    this.apply({ t: 'room.rename', key: id, name: clean || undefined });
+    this._labelCache = null;
+    this._dirty.plan = true;
+    this.hud?.refreshSchedule();
+    return true;
+  }
 
   cost() {
     if (this._costCache.version === this.model.version) return this._costCache;
@@ -377,6 +448,7 @@ export class Editor {
     this.tool?.deactivate?.();
     this.tool = next;
     this.lockAxis = null;
+    this.inference.clearPrimed();
     this.measurements.clear();
     this.measurements.setContext(next.valueLabel || 'Length', next.valueMode || 'length');
     next.activate?.(params, false);
@@ -475,6 +547,23 @@ export class Editor {
     if (!cands.length) return null;
     cands.sort((a, b) => a.distance - b.distance);
     return cands[0];
+  }
+
+  /**
+   * The surface under the cursor — the building, a slab, or the ground of the
+   * plot. This is what makes "On Face" a real inference rather than a silent
+   * fallback, so it is asked for LAZILY: the inference engine only calls it
+   * when nothing better was found, and a frame with a live Endpoint under the
+   * cursor costs no raycast at all.
+   */
+  pickFace(ndc) {
+    const hit = this.pickAny(ndc);
+    if (hit) return { point: hit.point.clone(), entityId: hit.entityId, wallId: this.model.walls[hit.entityId] ? hit.entityId : null };
+    if (this.siteFaces?.length) {
+      const hits = this._raycaster(ndc).intersectObjects(this.siteFaces, false);
+      if (hits.length) return { point: hits[0].point.clone(), entityId: null, wallId: null };
+    }
+    return null;
   }
 
   /** A world point for the camera to anchor a zoom on. */
@@ -577,6 +666,7 @@ export class Editor {
     const code = e.code;
     if (code === 'Escape') {
       e.preventDefault();
+      this.inference.clearPrimed();
       if (this.tool?.cancel?.()) return;
       if (this.lockAxis) { this.lockAxis = null; return; }
       this.clearSelection();
@@ -618,7 +708,7 @@ export class Editor {
   _viewChanged() {
     const plan = this.cameras.mode === 'plan';
     this.plan.visible = plan;
-    if (plan) this.plan.build(this.model, this.levelId);
+    if (plan) this.plan.build(this.model, this.levelId, this.roomLabels());
     for (const built of this.builtByLevel.values()) built.group.visible = !plan;
     this.gizmos.axesVisible = !plan;
     // A plan is a section at 1.20 m, so everything the section would remove is
@@ -644,6 +734,7 @@ export class Editor {
       height: c.height ?? (this.level?.elevation ?? 0),
       fine: !!this.ctx?.input?.ctrl,
       wallHit: c.wallHit ?? null,
+      faceHit: () => this.pickFace(this._ndc),
       ignoreIds: c.ignoreIds ?? null,
       guides: this.guides,
     });
@@ -890,3 +981,5 @@ function colorHex(css) {
 }
 
 const r3 = (v) => Math.round(v * 1000) / 1000;
+
+const cap = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);

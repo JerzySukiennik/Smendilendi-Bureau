@@ -379,11 +379,17 @@ export class WalkthroughMode extends Mode {
     const q = new URLSearchParams(location.search);
     const rosterKey = rosterKeyFor(q.get('roster') || this.commission?.type);
     const cap = Math.max(1, Math.min(30, Number(q.get('cap')) || 30));
+    // ?people=N asks for exactly N. `cap` only ever scales a roster DOWN, so
+    // the thirty-person load case DESIGN-DECISIONS asks for ("10-30 NPCs",
+    // 40 fps) could not be produced from a URL at all: the biggest roster on
+    // the demo parameters is twenty-five.
+    const want = Math.max(0, Math.min(30, Number(q.get('people')) || 0));
     this.population = buildPopulation({
       typeKey: rosterKey,
       params: this.commission?.params ?? {},
       seed: this.seed,
-      cap,
+      cap: want || cap,
+      want,
     });
     this.heat = new Heatmap(this.nav);
     this.stats = new Stats(this.nav, { typeKey: rosterKey, years: this.years });
@@ -476,7 +482,16 @@ export class WalkthroughMode extends Mode {
       }
 
       this.stats.journeyStarted(goal);
-      const field = goal === 'leave' ? this.nav.fieldToOutside() : this.crowd.fieldForGoal(goal);
+      // Through the AGENT, not the goal. `fieldForGoal` is multi-source and
+      // sends everybody to the nearest instance, so with two identical group
+      // rooms every child in the nursery filed into the one by the entrance —
+      // 426 person-hours against 13, from routing alone — and the report then
+      // printed that as a measurement of the architect's plan. `fieldFor` gives
+      // each person the room that is theirs, spread deterministically, exactly
+      // as the live crowd does.
+      const field = goal === 'leave'
+        ? this.nav.fieldToOutside()
+        : this.crowd.fieldFor(this.crowd.agents[i], goal);
       if (!field) {
         this.stats.journeyFailed(goal, 'no-room', person, { ...from, hour });
         continue;
@@ -493,12 +508,43 @@ export class WalkthroughMode extends Mode {
       this.heat.addPath(route.points, 1 / person.speed);
       const room = this.nav.roomAt(end.x, end.z, end.level ?? 0);
       if (room) {
+        const dwell = dwellFor(goal, this.rng);
         this.stats.visit(room);
-        this.stats.occupy(room, dwellFor(goal, this.rng) * 60);
-        // standing still wears the floor too, just far more slowly
-        this.heat.add(end.x, end.z, end.level ?? 0, dwellFor(goal, this.rng) * 3);
+        this.stats.occupy(room, dwell * 60);
+        // Standing still wears the floor too, just far more slowly — and it
+        // wears it WHERE PEOPLE STAND. A distance field bottoms out one cell
+        // inside the door, so depositing the whole dwell at the route's end put
+        // a hot blob in every doorway and left the room floors blank. People
+        // walk in; the wear goes in with them.
+        this._wearInRoom(room, end, dwell);
       }
       this._presimState[i] = end;
+    }
+  }
+
+  /**
+   * Lay one visit's standing wear into a room: a few spots chosen among its
+   * widest cells (nobody stands wedged against a wardrobe), with the last
+   * couple of metres from the door walked in as track rather than dropped as a
+   * blob. Weighted by clear width so the wear collects where the floor is open.
+   */
+  _wearInRoom(roomId, from, dwell) {
+    const cells = this.nav.roomCells(roomId);
+    if (!cells.length) { this.heat.add(from.x, from.z, from.level ?? 0, dwell * 3); return; }
+    const level = from.level ?? 0;
+    const picks = 3;
+    for (let n = 0; n < picks; n++) {
+      // best of four draws by clear width — cheap importance sampling
+      let best = -1, bw = -1;
+      for (let t = 0; t < 4; t++) {
+        const c = cells[Math.floor(this.rng() * cells.length)];
+        if (this.nav.width[c] > bw) { bw = this.nav.width[c]; best = c; }
+      }
+      if (best < 0) continue;
+      const p = this.nav.centreOf(best);
+      this.heat.addPath([{ x: from.x, z: from.z, level }, { x: p.x, z: p.z, level }],
+        1 / (2.4 * picks));
+      this.heat.add(p.x, p.z, level, (dwell * 3) / picks);
     }
   }
 

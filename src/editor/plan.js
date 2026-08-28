@@ -4,8 +4,9 @@
 // plan; it is a photograph taken from a ladder. This module draws the drawing:
 // a horizontal section with the walls POCHÉ'D solid, doors shown as a gap with
 // their leaf and swing arc, windows as a break with the glazing line, every room
-// labelled with its name and its clear area, a dimension string off each of two
-// sides built from the real wall nodes, and a north point.
+// labelled with the name the engine knows it by and its clear area, a running
+// dimension chain AND an overall dimension off all four sides built from the
+// real wall nodes, a graphic scale bar and a north point.
 //
 // It costs three draw calls: one filled mesh for the poché, one LineSegments for
 // everything drawn as a line, and the label planes (which are batched into a
@@ -67,8 +68,11 @@ export class PlanDrawing {
   set visible(v) { this.group.visible = v; }
   get visible() { return this.group.visible; }
 
-  /** Rebuild from the model. Cheap enough to call on every model version bump. */
-  build(model, levelId) {
+  /**
+   * Rebuild from the model. Cheap enough to call on every model version bump.
+   * `labels` is the editor's room naming (classification first, hash never).
+   */
+  build(model, levelId, roomNames = null) {
     if (this.version === model.version && this.levelId === levelId) return;
     this.version = model.version;
     this.levelId = levelId;
@@ -157,19 +161,52 @@ export class PlanDrawing {
     for (const id of rooms.order) {
       const r = rooms.rooms[id];
       const c = roomCentroid(r);
-      labels.push({ text: r.name, sub: `${r.area.toFixed(2)} m²`, x: c.x, z: c.z, size: 0.34 });
+      labels.push({
+        text: (roomNames && roomNames.get(id)) || r.name,
+        sub: `${r.area.toFixed(2)} m²`, x: c.x, z: c.z, size: 0.34,
+      });
     }
 
-    // dimension strings off the south (max z) and west (min x) sides
+    // Dimensions. A drawing an architect can build from carries the running
+    // chain AND the overall on every side — not two sides, and never without
+    // the overall, which is the figure a setting-out engineer measures first.
     if (Number.isFinite(minX)) {
       const pad = 1.4;
-      dimChain(segs, labels, [...xs].sort((p, q) => p - q), maxZ + pad, 'x', minZ, maxZ);
-      dimChain(segs, labels, [...zs].sort((p, q) => p - q), minX - pad, 'z', minX, maxX);
-      northPoint(segs, labels, maxX + 2.2, minZ - 1.2);
-      const w = Math.max(maxX - minX, 4) + 14;
-      const d = Math.max(maxZ - minZ, 4) + 14;
+      const outer = pad + 1.15;
+      const X = [...xs].sort((p, q) => p - q);
+      const Z = [...zs].sort((p, q) => p - q);
+      const ends = (a) => (a.length >= 2 ? [a[0], a[a.length - 1]] : a);
+
+      dimChain(segs, labels, X, maxZ + pad, 'x', maxZ, -0.30);        // south
+      dimChain(segs, labels, X, minZ - pad, 'x', minZ, +0.30);        // north
+      dimChain(segs, labels, Z, minX - pad, 'z', minX, -0.30);        // west
+      dimChain(segs, labels, Z, maxX + pad, 'z', maxX, +0.30);        // east
+      dimChain(segs, labels, ends(X), maxZ + outer, 'x', maxZ, -0.30);
+      dimChain(segs, labels, ends(X), minZ - outer, 'x', minZ, +0.30);
+      dimChain(segs, labels, ends(Z), minX - outer, 'z', minX, -0.30);
+      dimChain(segs, labels, ends(Z), maxX + outer, 'z', maxX, +0.30);
+
+      northPoint(segs, labels, maxX + outer + 2.3, minZ - outer - 0.9);
+      scaleBar(tris, segs, labels, minX, maxZ + outer + 2.2);
+
+      // What the sheet covers: the building plus its dimensioning, the north
+      // point and the scale bar. The camera frames THIS, so nothing a drawing
+      // needs ends up under a panel or off the edge.
+      this.sheet = {
+        minX: minX - outer - 1.2,
+        maxX: maxX + outer + 3.6,
+        minZ: minZ - outer - 2.4,
+        maxZ: maxZ + outer + 3.4,
+      };
+      const w = (this.sheet.maxX - this.sheet.minX) + 6;
+      const d = (this.sheet.maxZ - this.sheet.minZ) + 6;
       this.paper.scale.set(w, d, 1);
-      this.paper.position.set((minX + maxX) / 2, PLAN_Y, (minZ + maxZ) / 2);
+      this.paper.position.set(
+        (this.sheet.minX + this.sheet.maxX) / 2, PLAN_Y,
+        (this.sheet.minZ + this.sheet.maxZ) / 2,
+      );
+    } else {
+      this.sheet = null;
     }
 
     this._uploadTris(tris);
@@ -268,15 +305,17 @@ function arc(segs, cx, cz, r, a0, a1, color) {
  * A dimension string: witness lines down from every node coordinate, one running
  * dimension line, 45-degree architectural ticks and the figure over each bay.
  */
-function dimChain(segs, labels, coords, at, axis, from, to) {
+function dimChain(segs, labels, coords, at, axis, near, textOffset) {
   const pts = coords.filter((v, i, arr) => i === 0 || v - arr[i - 1] > 0.05);
   if (pts.length < 2) return;
   const tick = 0.16;
+  // The witness line starts just clear of the building and overshoots the
+  // dimension line a little, the way it is drawn by hand.
+  const dir = at >= near ? 1 : -1;
+  const w0 = near + dir * 0.10;
+  const w1 = at + dir * 0.22;
   for (const c of pts) {
-    const a = axis === 'x' ? [c, from] : [from, c];
-    const b = axis === 'x' ? [c, at] : [at, c];
-    segs.push({ a, b, color: DIM });
-    // 45-degree tick
+    segs.push({ a: axis === 'x' ? [c, w0] : [w0, c], b: axis === 'x' ? [c, w1] : [w1, c], color: DIM });
     const t0 = axis === 'x' ? [c - tick, at - tick] : [at - tick, c - tick];
     const t1 = axis === 'x' ? [c + tick, at + tick] : [at + tick, c + tick];
     segs.push({ a: t0, b: t1, color: DIM });
@@ -291,14 +330,36 @@ function dimChain(segs, labels, coords, at, axis, from, to) {
     labels.push({
       text: `${Math.round(span * 1000)}`,
       sub: '',
-      x: axis === 'x' ? mid : at,
-      z: axis === 'x' ? at - 0.30 : mid,
+      x: axis === 'x' ? mid : at + textOffset,
+      z: axis === 'x' ? at + textOffset : mid,
       size: 0.24,
       rot: axis === 'x' ? 0 : Math.PI / 2,
       color: '#6f6a63',
     });
   }
-  void to;
+}
+
+/**
+ * A graphic scale — 0, 1, 2, 5 m in alternating filled and open metres.
+ * A drawing without one is a picture: it cannot be measured off a screenshot,
+ * a print at the wrong percentage, or a photograph of a screen.
+ */
+function scaleBar(tris, segs, labels, x, z) {
+  const h = 0.22;
+  for (let i = 0; i < 5; i++) {
+    const x0 = x + i, x1 = x + i + 1;
+    if (i % 2 === 0) {
+      tris.push([x0, z], [x1, z], [x1, z + h], [x0, z], [x1, z + h], [x0, z + h]);
+    } else {
+      segs.push({ a: [x0, z], b: [x1, z], color: INK }, { a: [x0, z + h], b: [x1, z + h], color: INK });
+      segs.push({ a: [x0, z], b: [x0, z + h], color: INK }, { a: [x1, z], b: [x1, z + h], color: INK });
+    }
+  }
+  segs.push({ a: [x, z], b: [x, z + h], color: INK }, { a: [x + 5, z], b: [x + 5, z + h], color: INK });
+  for (const m of [0, 1, 2, 5]) {
+    labels.push({ text: `${m}`, sub: '', x: x + m, z: z + h + 0.34, size: 0.22, color: '#2b2825' });
+  }
+  labels.push({ text: 'metres', sub: '', x: x + 6.2, z: z + h / 2, size: 0.22, color: '#6f6a63' });
 }
 
 /** North is -Z. The arrow points up the sheet, because the plan camera puts -Z up. */

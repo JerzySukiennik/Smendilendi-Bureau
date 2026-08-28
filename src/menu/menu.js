@@ -30,16 +30,18 @@
 // not ours to edit.
 
 import {
-  Scene, Group, Color, Fog, Mesh, PerspectiveCamera, PlaneGeometry, BoxGeometry,
-  CylinderGeometry, SphereGeometry, ConeGeometry, MeshStandardMaterial,
-  MeshBasicMaterial, BufferAttribute, PointLight, MathUtils, Matrix4,
-  Vector2, Vector3, Raycaster, CanvasTexture, DoubleSide, RingGeometry, SRGBColorSpace,
+  Scene, Group, Color, Fog, Mesh, PerspectiveCamera, OrthographicCamera, PlaneGeometry,
+  BoxGeometry, CylinderGeometry, SphereGeometry, ConeGeometry, MeshStandardMaterial,
+  MeshBasicMaterial, BufferAttribute, PointLight, DirectionalLight, MathUtils, Matrix4,
+  Vector2, Vector3, Box3, Raycaster, CanvasTexture, DoubleSide, RingGeometry, SRGBColorSpace,
+  WebGLRenderTarget, HalfFloatType, LinearSRGBColorSpace, LinearFilter, AdditiveBlending,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Mode } from '../core/mode.js';
-import { materialFor, makeLightRig, skyFor, COLORS } from '../core/palette.js';
+import { makeLightRig, skyFor, COLORS } from '../core/palette.js';
+import { menuMaterial, gradeTint, bakeVertexAO } from './grade.js';
 import { InstancePool } from '../core/instancing.js';
-import { buildBadBuilding, B } from './bad-building.js';
+import { buildBadBuilding, B, COLONNADE } from './bad-building.js';
 import { loadLetteringFont, buildText, measureText, hitBox } from './lettering.js';
 import { Lobby } from './lobby.js';
 
@@ -53,8 +55,31 @@ export const MENU_ITEMS = [
 
 export const TITLE = 'SMENDIŁENDI BUREAU';
 
+/** The scene's four vegetation tints, already pulled to 26 % saturation. */
+const GREENS = [0x6f8f4a, 0x86a659, 0x7d9a52, 0x5f7f45].map((c) => gradeTint(c, 'green'));
+
 /** Mid-morning, sun in the south-east. Both visible elevations get light. */
 export const SUN = { azimuth: 129, elevation: 21 };
+
+/** Surveyor's-tag opacity: resting, awake (pointing at the building), hovered. */
+const TAG_DIM = 0.20;
+const TAG_AWAKE = 0.88;
+
+/**
+ * The menu's own resolution cap. See render().
+ *
+ * The round-1 profile is unambiguous: this scene is 100 % fill-rate bound and
+ * frame time is linear in shaded samples and nothing else (dpr 0.50 -> 20.4 ms,
+ * 1.00 -> 43.4 ms, 1.75 -> 127.3 ms, with draw calls fixed at 66 and triangles at
+ * 24 546 throughout). The engine's renderer is built with antialias:true and runs
+ * at up to dpr 1.75, which is 4.07 MP x 4 MSAA samples = 16.3 M shaded samples a
+ * frame for a 24k-triangle scene. antialias is a construction-time flag on a
+ * renderer this file does not own (ARCHITECTURE.md rule 8), so the menu caps its
+ * own sample budget instead, through the Mode contract's render() override: it
+ * draws into a 4x multisampled render target at an effective 1.35 dpr and blits.
+ * 2.42 MP x 4 = 9.7 M samples, MSAA kept, everything else identical.
+ */
+const MENU_DPR_CAP = 1.35;
 
 const CAM = {
   eye: new Vector3(17.5, 5.6, 21.5),
@@ -72,7 +97,12 @@ export class MenuMode extends Mode {
     this.lines = [];        // { id, mesh, hit, material, baseZ }
     this.ray = new Raycaster();
     this.pointer = new Vector2();
+    this.viewW = 1;
+    this.viewH = 1;
     this.blocked = false;   // a lobby panel is over the scene
+    this.tagAlpha = [];     // per-tag opacity, tweened
+    this.tagsHot = false;   // the report chip is hovered / the report is open
+    this._rt = null;        // see render(): the menu's own resolution cap
   }
 
   // -------------------------------------------------------------------------
@@ -99,12 +129,15 @@ export class MenuMode extends Mode {
     this.camera.position.copy(CAM.eye);
     this.camera.lookAt(CAM.look);
 
-    this._buildSky(scene, sky);
-    this._buildSite(scene);
-
+    // The building goes up FIRST: it owns the occupancy grid that the ground
+    // plane's AO bake reads, so the pavement darkens where it meets the plinth.
     const building = buildBadBuilding();
     scene.add(building.group);
     this.building = building;
+    this.buildingBox = new Box3().setFromObject(building.group);
+
+    this._buildSky(scene, sky);
+    this._buildSite(scene, building.occ);
 
     // Two pools, because the street does not move and the leaves do. Rebuilding
     // 250 static placements every frame just to add three birds re-uploads every
@@ -130,6 +163,7 @@ export class MenuMode extends Mode {
       crimes: building.crimes,
       onCrimeFocus: (i) => { this.pinnedTag = i; },
       onBlock: (v) => { this.blocked = v; },
+      onTagsHot: (v) => { this.tagsHot = v; },
     });
   }
 
@@ -155,25 +189,93 @@ export class MenuMode extends Mode {
     dome.renderOrder = -1;
     scene.add(dome);
     this._dome = dome;
+    this._buildClouds(scene, low);
   }
 
-  _buildSite(scene) {
+  /**
+   * Four low-poly cumulus, merged into one unlit draw call.
+   *
+   * Round 1 measured the sky as the largest single region in the frame — 22.97 %
+   * of it, flat to within 6/255 from top to bottom. A quarter of the picture was
+   * doing no work at all. These sit 120-170 m out along the view axis, which the
+   * camera's 40 deg vertical field puts across the top third of the shot, and
+   * they are vertex-shaded bright on top and sky-grey underneath so they read as
+   * volumes rather than as stickers.
+   */
+  _buildClouds(scene, skyLow) {
+    const parts = [];
+    const top = new Color(0xfdfaf4);
+    const bot = skyLow.clone().lerp(new Color(0xffffff), 0.35);
+    const puff = (cx, cy, cz, rx, ry, rz) => {
+      const g = new SphereGeometry(1, 7, 5);
+      g.scale(rx, ry, rz);
+      g.translate(cx, cy, cz);
+      const pos = g.getAttribute('position');
+      const col = new Float32Array(pos.count * 3);
+      const c = new Color();
+      for (let i = 0; i < pos.count; i++) {
+        const t = MathUtils.clamp((pos.getY(i) - (cy - ry)) / (2 * ry), 0, 1) ** 0.8;
+        c.copy(bot).lerp(top, t);
+        col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+      }
+      g.setAttribute('color', new BufferAttribute(col, 3));
+      parts.push(g);
+    };
+    // [centre x, y, z, radius, how many puffs, spread]
+    const banks = [
+      [-40, 44, -120, 11, 4, 1.0],
+      [-118, 38, -150, 14, 5, 1.15],
+      [24, 50, -140, 9, 3, 0.9],
+      [-78, 30, -96, 8, 3, 0.8],
+    ];
+    banks.forEach(([cx, cy, cz, r, n, k], b) => {
+      for (let i = 0; i < n; i++) {
+        const f = (i - (n - 1) / 2);
+        puff(cx + f * r * 1.15, cy + Math.sin(b * 2 + i) * r * 0.16, cz + Math.cos(b + i * 1.7) * r * 0.5,
+          r * k * (0.72 + 0.28 * Math.cos(i + b)), r * 0.44, r * 0.7);
+      }
+    });
+    const merged = mergeGeometries(parts, false);
+    for (const g of parts) g.dispose();
+    const clouds = new Mesh(merged, new MeshBasicMaterial({ vertexColors: true, fog: false, flatShading: true }));
+    clouds.name = 'clouds';
+    clouds.renderOrder = -1;
+    scene.add(clouds);
+    this._clouds = clouds;
+  }
+
+  _buildSite(scene, occ) {
     const bin = new Map();
     const add = (mat, g) => { (bin.get(mat) || bin.set(mat, []).get(mat)).push(g); };
-    const slab = (mat, x0, z0, x1, z1, y) => {
-      const g = new PlaneGeometry(Math.abs(x1 - x0), Math.abs(z1 - z0));
+    /**
+     * `cell` tessellates the slab. The ground within ~25 m of the building is
+     * subdivided so the AO bake below has vertices near the plinth to darken;
+     * everything beyond that is one quad, because there is nothing there to
+     * occlude it. A single 320 m quad has four corners, and four corners cannot
+     * hold a contact band — which is exactly why round 1 measured 0.1/255 of
+     * variation into the wall/ground junction.
+     */
+    const slab = (mat, x0, z0, x1, z1, y, cell = 0) => {
+      const w = Math.abs(x1 - x0), d = Math.abs(z1 - z0);
+      const sw = cell ? Math.max(1, Math.min(96, Math.round(w / cell))) : 1;
+      const sd = cell ? Math.max(1, Math.min(96, Math.round(d / cell))) : 1;
+      const g = new PlaneGeometry(w, d, sw, sd);
       g.rotateX(-Math.PI / 2);
       g.translate((x0 + x1) / 2, y, (z0 + z1) / 2);
       add(mat, g);
     };
 
-    slab('grass', -160, -160, 160, 160, 0);
-    slab('paving', -17.5, 4.8, 17.5, 9.3, 0.02);      // the forecourt
+    slab('grass', -26, -22, 30, 22, 0, 0.8);          // the near field, tessellated
+    slab('grass', -160, -160, 160, -22, 0);
+    slab('grass', -160, 22, 160, 160, 0);
+    slab('grass', -160, -22, -26, 22, 0);
+    slab('grass', 30, -22, 160, 22, 0);
+    slab('paving', -17.5, 4.8, 17.5, 9.3, 0.02, 0.8); // the forecourt
     slab('paving', -46, 9.3, 46, 11.4, 0.03);         // the public pavement
     slab('asphalt', -70, 11.4, 70, 18.4, 0.01);       // the street
     slab('asphalt', -70, -19.5, 70, -12.5, 0.015);    // the back road
     slab('gravel', -17.5, -8.0, -8.6, 4.8, 0.02);     // side yard
-    slab('asphalt', 9.6, -8.0, 20.5, 4.6, 0.02);      // the car park
+    slab('asphalt', 9.6, -8.0, 20.5, 4.6, 0.02, 0.9); // the car park
     for (let i = 0; i < 4; i++) {                     // parking bay markings
       add('paper', boxAt(11.0 + i * 2.4, 0.035, -1.7, 0.10, 0.01, 5.0));
     }
@@ -181,15 +283,18 @@ export class MenuMode extends Mode {
 
     const group = new Group();
     group.name = 'site';
+    let aoSum = 0, aoN = 0;
     for (const [mat, geoms] of bin) {
       const merged = geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
       if (!merged) continue;
-      const m = new Mesh(merged, materialFor(mat));
+      if (occ) { aoSum += bakeVertexAO(merged, occ, { strength: 0.80, floor: 0.45, reach: 1.9 }); aoN++; }
+      const m = new Mesh(merged, menuMaterial(mat, { vertexColors: !!occ }));
       m.receiveShadow = true;
       m.name = `site:${mat}`;
       group.add(m);
     }
     scene.add(group);
+    this.siteAO = aoN ? aoSum / aoN : 1;
 
     // Two neighbouring blocks and a run of terraces: the third depth layer, and
     // the reason the building reads as being in a street rather than in a void.
@@ -216,16 +321,39 @@ export class MenuMode extends Mode {
     for (const [mat, geoms] of nb) {
       const merged = geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
       if (!merged) continue;
-      const m = new Mesh(merged, materialFor(mat));
+      const m = new Mesh(merged, menuMaterial(mat));
       m.castShadow = false; m.receiveShadow = true;
       ngroup.add(m);
     }
     scene.add(ngroup);
+
+    // A town roofline 95-135 m out. It is far enough into the fog (70-220 m) to
+    // desaturate and shift toward the sky on its own, which is the aerial
+    // perspective the reference gets from a photographed hillside — and it stops
+    // the top-left quarter of the frame being nothing but flat sky.
+    const far = [];
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    for (let x = -170; x < 90; x += 7 + rnd() * 9) {
+      const h = 7 + rnd() * 13;
+      const w = 6 + rnd() * 12;
+      const z = -96 - rnd() * 38;
+      far.push(boxAt(x, h / 2, z, w, h, 9 + rnd() * 8));
+      if (rnd() > 0.55) far.push(boxAt(x + w * 0.2, h + 1.6, z, w * 0.4, 3.2, 6));   // a ridge or a tank
+    }
+    const skyline = new Mesh(mergeGeometries(far, false), menuMaterial('stone'));
+    for (const g of far) g.dispose();
+    skyline.name = 'skyline';
+    skyline.castShadow = false; skyline.receiveShadow = false;
+    scene.add(skyline);
   }
 
   _buildProps() {
-    this._registerKinds(this.poolStatic);
-    this._registerKinds(this.poolLive);
+    this._registerKinds(this.poolStatic, {});
+    // Leaves, birds and the passing car do not cast: the shadow map is baked
+    // ONCE per enter() (see enter()), so anything that moves must not be in it
+    // or its shadow freezes on the ground while the object walks away.
+    this._registerKinds(this.poolLive, { castShadow: false });
     this._layoutStatics();
     this.poolStatic.begin();
     for (const [name, tr, color] of this.statics) this.poolStatic.place(name, tr, color);
@@ -234,41 +362,49 @@ export class MenuMode extends Mode {
 
   /** Every repeated kind, registered in both pools. An unused kind costs nothing:
    *  the InstancedMesh is only allocated on the first place(). */
-  _registerKinds(pool) {
+  _registerKinds(pool, o = {}) {
     // Every repeated object in the scene goes through the pool. Sizes are the
     // real ones: a bollard is 1.00 m, a wheelie bin 1.10 m, a street lamp column
     // 5.00 m, a hedge 1.05 m, a traffic cone 0.75 m.
-    pool.register('trunk', new CylinderGeometry(0.16, 0.24, 4.2, 7), materialFor('wood-dark'));
-    pool.register('crown', new SphereGeometry(1.0, 7, 5), materialFor('flat', { flatShading: true }));
-    pool.register('bush', new SphereGeometry(0.55, 6, 4), materialFor('flat', { flatShading: true }));
-    pool.register('hedge', new BoxGeometry(1.8, 1.05, 0.75), materialFor('flat', { flatShading: true }));
-    pool.register('bollard', new CylinderGeometry(0.09, 0.11, 1.0, 8), materialFor('metal'));
-    pool.register('cone', new ConeGeometry(0.21, 0.75, 8), materialFor('flat'));
-    pool.register('lamppost', new CylinderGeometry(0.07, 0.10, 5.0, 8), materialFor('metal'));
-    pool.register('lamphead', new BoxGeometry(0.55, 0.14, 0.24), materialFor('metal'));
-    pool.register('bin', new BoxGeometry(0.58, 1.10, 0.72), materialFor('flat'));
-    pool.register('slabPaver', new BoxGeometry(0.58, 0.05, 0.58), materialFor('flat'));
-    pool.register('planter', new BoxGeometry(1.2, 0.5, 0.6), materialFor('concrete'));
-    pool.register('benchSeat', new BoxGeometry(1.8, 0.08, 0.45), materialFor('wood-mid'));
-    pool.register('benchLeg', new BoxGeometry(0.08, 0.42, 0.42), materialFor('metal'));
-    pool.register('bikeWheel', new CylinderGeometry(0.34, 0.34, 0.05, 12).rotateX(Math.PI / 2), materialFor('ink'));
-    pool.register('bikeFrame', new BoxGeometry(1.0, 0.06, 0.06), materialFor('flat'));
-    pool.register('signPost', new CylinderGeometry(0.04, 0.04, 2.2, 6), materialFor('metal'));
-    pool.register('signPlate', new BoxGeometry(0.62, 0.44, 0.04), materialFor('flat'));
-    pool.register('carBody', new BoxGeometry(4.3, 0.85, 1.78), materialFor('flat'));
-    pool.register('carCabin', new BoxGeometry(2.2, 0.62, 1.62), materialFor('flat'));
+    pool.register('trunk', new CylinderGeometry(0.16, 0.24, 4.2, 7), menuMaterial('wood-dark'), o);
+    pool.register('crown', new SphereGeometry(1.0, 7, 5), menuMaterial('flat', { flatShading: true }), o);
+    pool.register('bush', new SphereGeometry(0.55, 6, 4), menuMaterial('flat', { flatShading: true }), o);
+    pool.register('hedge', new BoxGeometry(1.8, 1.05, 0.75), menuMaterial('flat', { flatShading: true }), o);
+    pool.register('bollard', new CylinderGeometry(0.09, 0.11, 1.0, 8), menuMaterial('metal'), o);
+    pool.register('cone', new ConeGeometry(0.21, 0.75, 8), menuMaterial('flat'), o);
+    pool.register('lamppost', new CylinderGeometry(0.07, 0.10, 5.0, 8), menuMaterial('metal'), o);
+    pool.register('lamphead', new BoxGeometry(0.55, 0.14, 0.24), menuMaterial('metal'), o);
+    pool.register('bin', new BoxGeometry(0.58, 1.10, 0.72), menuMaterial('flat'), o);
+    pool.register('slabPaver', new BoxGeometry(0.58, 0.05, 0.58), menuMaterial('flat'), o);
+    pool.register('planter', new BoxGeometry(1.2, 0.5, 0.6), menuMaterial('concrete'), o);
+    pool.register('benchSeat', new BoxGeometry(1.8, 0.08, 0.45), menuMaterial('wood-mid'), o);
+    pool.register('benchLeg', new BoxGeometry(0.08, 0.42, 0.42), menuMaterial('metal'), o);
+    pool.register('bikeWheel', new CylinderGeometry(0.34, 0.34, 0.05, 12).rotateX(Math.PI / 2), menuMaterial('ink'), o);
+    pool.register('bikeFrame', new BoxGeometry(1.0, 0.06, 0.06), menuMaterial('flat'), o);
+    pool.register('signPost', new CylinderGeometry(0.04, 0.04, 2.2, 6), menuMaterial('metal'), o);
+    pool.register('signPlate', new BoxGeometry(0.62, 0.44, 0.04), menuMaterial('flat'), o);
+    pool.register('carBody', new BoxGeometry(4.3, 0.85, 1.78), menuMaterial('flat'), o);
+    pool.register('carCabin', new BoxGeometry(2.2, 0.62, 1.62), menuMaterial('flat'), o);
     // registered with its axis along +X, so rotationY = 0 is a car facing north
-    pool.register('wheel', new CylinderGeometry(0.32, 0.32, 0.20, 10).rotateZ(Math.PI / 2), materialFor('ink'));
-    pool.register('leaf', new BoxGeometry(0.14, 0.02, 0.09), materialFor('flat'));
-    pool.register('bird', new BoxGeometry(0.34, 0.04, 0.11), materialFor('ink'));
-    pool.register('skip', new BoxGeometry(3.4, 1.25, 1.75), materialFor('flat'));
-    pool.register('pallet', new BoxGeometry(1.2, 0.14, 0.8), materialFor('wood-mid'));
-    pool.register('board', new BoxGeometry(2.4, 1.4, 0.08), materialFor('paper'));
-    pool.register('boardLeg', new BoxGeometry(0.09, 2.0, 0.09), materialFor('wood-mid'));
+    pool.register('wheel', new CylinderGeometry(0.32, 0.32, 0.20, 10).rotateZ(Math.PI / 2), menuMaterial('ink'), o);
+    pool.register('leaf', new BoxGeometry(0.14, 0.02, 0.09), menuMaterial('flat'), o);
+    pool.register('bird', new BoxGeometry(0.34, 0.04, 0.11), menuMaterial('ink'), o);
+    pool.register('skip', new BoxGeometry(3.4, 1.25, 1.75), menuMaterial('flat'), o);
+    pool.register('pallet', new BoxGeometry(1.2, 0.14, 0.8), menuMaterial('wood-mid'), o);
+    pool.register('board', new BoxGeometry(2.4, 1.4, 0.08), menuMaterial('paper'), o);
+    pool.register('boardLeg', new BoxGeometry(0.09, 2.0, 0.09), menuMaterial('wood-mid'), o);
 
   }
 
-  /** The street, laid out once. */
+  /**
+   * The street, laid out once.
+   *
+   * Every colour here goes through gradeTint (src/menu/grade.js) except the four
+   * things that ARE the accent: the flag, the three cones, the hazard tape and one
+   * vehicle. Round 1 measured two competing saturated hue masses — 31 % of the
+   * frame warm and 19 % green — either of which read as "the accent"; the bar is
+   * one accent repeated two to four times against a field at 25 % saturation.
+   */
   _layoutStatics() {
     this.statics = [];
     const S = (name, tr, color) => this.statics.push([name, tr, color ?? null]);
@@ -282,7 +418,7 @@ export class MenuMode extends Mode {
     ];
     treeSpots.forEach(([x, z, s], i) => {
       S('trunk', { position: { x, y: 2.1 * s, z }, scale: { x: s, y: s, z: s }, rotationY: i });
-      const greens = [0x6f8f4a, 0x86a659, 0x7d9a52, 0x5f7f45];
+      const greens = GREENS;
       for (let k = 0; k < 3; k++) {
         S('crown', {
           position: { x: x + Math.sin(i + k) * 0.75 * s, y: (4.4 + k * 0.85) * s, z: z + Math.cos(i * 2 + k) * 0.7 * s },
@@ -295,10 +431,10 @@ export class MenuMode extends Mode {
     for (let i = 0; i < 20; i++) {
       const x = -17 + i * 1.8;
       if (x > -3.4 && x < 5.2) continue;         // the gap the entrance path goes through
-      S('hedge', { position: { x, y: 0.53, z: 9.2 }, rotationY: 0.02 * Math.sin(i) }, i % 2 ? 0x5f7f45 : 0x6f8f4a);
+      S('hedge', { position: { x, y: 0.53, z: 9.2 }, rotationY: 0.02 * Math.sin(i) }, i % 2 ? GREENS[3] : GREENS[0]);
     }
     for (let i = 0; i < 9; i++) {
-      S('bush', { position: { x: -16 + i * 1.3, y: 0.5, z: 5.6 }, scale: 0.8 + (i % 3) * 0.2 }, i % 2 ? 0x7f9a52 : 0x6f8f4a);
+      S('bush', { position: { x: -16 + i * 1.3, y: 0.5, z: 5.6 }, scale: 0.8 + (i % 3) * 0.2 }, i % 2 ? GREENS[2] : GREENS[0]);
     }
 
     // bollards guarding the forecourt, on 1.5 m centres
@@ -316,25 +452,25 @@ export class MenuMode extends Mode {
     S('cone', { position: { x: 0.2, y: 0.98, z: 6.6 }, rotationY: 1.1 }, COLORS.accentDeep);
 
     // bins, bench, bikes, a planter, a for-sale board
-    S('bin', { position: { x: -5.6, y: 0.55, z: 6.1 } }, 0x476b4a);
-    S('bin', { position: { x: -4.9, y: 0.55, z: 6.1 } }, 0x35566e);
-    S('bin', { position: { x: -4.2, y: 0.55, z: 6.1 }, rotationY: 0.1 }, 0x8d7f6c);
+    S('bin', { position: { x: -5.6, y: 0.55, z: 6.1 } }, gradeTint(0x476b4a, 'prop'));
+    S('bin', { position: { x: -4.9, y: 0.55, z: 6.1 } }, gradeTint(0x35566e, 'prop'));
+    S('bin', { position: { x: -4.2, y: 0.55, z: 6.1 }, rotationY: 0.1 }, gradeTint(0x8d7f6c, 'prop'));
     S('benchSeat', { position: { x: -7.6, y: 0.44, z: 8.0 } });
     S('benchLeg', { position: { x: -8.35, y: 0.21, z: 8.0 } });
     S('benchLeg', { position: { x: -6.85, y: 0.21, z: 8.0 } });
     S('planter', { position: { x: 5.6, y: 0.25, z: 8.4 } });
     S('planter', { position: { x: -11.5, y: 0.25, z: 8.4 } });
-    S('bush', { position: { x: 5.6, y: 0.72, z: 8.4 }, scale: 0.9 }, 0x86a659);
-    S('bush', { position: { x: -11.5, y: 0.72, z: 8.4 }, scale: 0.9 }, 0x7f9a52);
+    S('bush', { position: { x: 5.6, y: 0.72, z: 8.4 }, scale: 0.9 }, GREENS[1]);
+    S('bush', { position: { x: -11.5, y: 0.72, z: 8.4 }, scale: 0.9 }, GREENS[2]);
     for (let i = 0; i < 3; i++) {
       const x = 15.0 + i * 0.75;
       S('bikeWheel', { position: { x: x - 0.45, y: 0.34, z: 5.6 } });
       S('bikeWheel', { position: { x: x + 0.45, y: 0.34, z: 5.6 } });
-      S('bikeFrame', { position: { x, y: 0.62, z: 5.6 } }, [0xb2472e, 0x3f7a76, 0xc9a227][i]);
+      S('bikeFrame', { position: { x, y: 0.62, z: 5.6 } }, gradeTint([0xb2472e, 0x3f7a76, 0xc9a227][i], 'prop'));
     }
     // the side yard: a skip that has been there since the handover, a stack of
     // pallets, and the agent's board that says the top floor is still available
-    S('skip', { position: { x: -12.6, y: 0.63, z: 1.2 }, rotationY: 0.16 }, 0xc9a227);
+    S('skip', { position: { x: -12.6, y: 0.63, z: 1.2 }, rotationY: 0.16 }, gradeTint(0xc9a227, 'prop'));
     for (let i = 0; i < 5; i++) S('pallet', { position: { x: -15.0, y: 0.08 + i * 0.15, z: -1.6 }, rotationY: 0.05 * i });
     for (let i = 0; i < 3; i++) S('pallet', { position: { x: -13.6, y: 0.08 + i * 0.15, z: -2.4 }, rotationY: 1.5 + 0.06 * i });
     S('boardLeg', { position: { x: -11.2, y: 1.0, z: 8.9 } });
@@ -348,7 +484,9 @@ export class MenuMode extends Mode {
     }
 
     // parked cars in the side car park
-    const parked = [[11.2, -0.2, 0xb2472e, 1], [13.6, 0.4, 0x35566e, 1], [16.0, -0.6, 0xd7c9b0, 1]];
+    // one vehicle stays at full saturation as an accent repeat; the rest are graded
+    const parked = [[11.2, -0.2, COLORS.accentDeep, 1], [13.6, 0.4, gradeTint(0x35566e, 'vehicle'), 1],
+      [16.0, -0.6, gradeTint(0xd7c9b0, 'vehicle'), 1]];
     for (const [x, z, c] of parked) {
       S('carBody', { position: { x, y: 0.72, z }, rotationY: Math.PI / 2 }, c);
       S('carCabin', { position: { x, y: 1.42, z: z - 0.15 }, rotationY: Math.PI / 2 }, c);
@@ -357,7 +495,7 @@ export class MenuMode extends Mode {
       }
     }
     // two cars at the kerb, because the bottom-left of the frame was bare asphalt
-    for (const [x, c] of [[-13.6, 0x55504a], [-8.2, 0xbfae95]]) {
+    for (const [x, c] of [[-13.6, gradeTint(0x55504a, 'vehicle')], [-8.2, gradeTint(0xbfae95, 'vehicle')]]) {
       S('carBody', { position: { x, y: 0.72, z: 12.4 } }, c);
       S('carCabin', { position: { x: x - 0.25, y: 1.42, z: 12.4 } }, c);
       for (const [lng, lat] of [[-1.45, 0.82], [1.45, 0.82], [-1.45, -0.82], [1.45, -0.82]]) {
@@ -374,7 +512,7 @@ export class MenuMode extends Mode {
     this.flag.group.position.set(-12.6, 0, 7.0);
     scene.add(this.flag.group);
 
-    this.car = { x: -60, speed: 9.5, z: -16.0, color: 0x3f7a76 };
+    this.car = { x: -60, speed: 9.5, z: -16.0, color: gradeTint(0x3f7a76, 'vehicle') };
     this.birds = [
       { r: 22, a: 0.0, y: 17.5, s: 0.30, cx: -4, cz: -6 },
       { r: 26, a: 2.1, y: 19.5, s: 0.24, cx: -4, cz: -6 },
@@ -385,13 +523,17 @@ export class MenuMode extends Mode {
       this.leaves.push({
         x: -18 + Math.random() * 34, y: Math.random() * 9, z: 2 + Math.random() * 9,
         vy: 0.35 + Math.random() * 0.4, ph: Math.random() * 6.28, sp: 0.6 + Math.random() * 0.8,
-        c: [0xc9a227, 0xa2a45c, 0xb98450, 0x9d5f38][i % 4],
+        c: gradeTint([0xc9a227, 0xa2a45c, 0xb98450, 0x9d5f38][i % 4], 'prop'),
       });
     }
   }
 
   _buildLights(scene) {
-    this.rig = makeLightRig(scene, { timeOfDay: 'morning', radius: 30, shadowMapSize: 2048 });
+    // 1024, not 2048. The shadow map is baked once and never re-rendered (the sun
+    // does not move and nothing that moves casts), so its only remaining cost is
+    // the lookup; halving the map halves the one-off bake and the memory, and at
+    // a 60 m fitted shadow camera 1024 is still a 59 mm texel.
+    this.rig = makeLightRig(scene, { timeOfDay: 'morning', radius: 30, shadowMapSize: 1024 });
     // The morning preset is tuned for an interior. Outdoors, at 21 degrees, the
     // sun has to be the dominant source or the frame collapses into mid-grey and
     // fails checklist item 8 (p5 <= 70, p95 >= 140).
@@ -405,18 +547,91 @@ export class MenuMode extends Mode {
     this.rig.key.shadow.camera.far = 126;
     this.rig.key.shadow.camera.updateProjectionMatrix();
 
-    // 2700 K pool behind the ground-floor glazing, so the building reads as
+    // ONE 2700 K pool behind the ground-floor glazing, so the building reads as
     // occupied and the glass is not a black hole.
-    this.interior = new PointLight(0xffc98a, 90, 24, 2);
-    this.interior.position.set(4.6, 2.4, 1.0);
+    //
+    // Round 1 had three PointLights here. Profiled at dpr 1.75 they cost 19 ms of
+    // a 104 ms frame — a fifth of the budget — and two of the three were lighting
+    // surfaces you see through 28 %-opacity glass from 27 m away. Those two are
+    // now emissive materials ('lobby-glow' in grade.js): the same picture, zero
+    // per-fragment cost, and one fewer light in every shader in the scene.
+    this.interior = new PointLight(0xffc98a, 105, 26, 2);
+    this.interior.position.set(4.6, 2.6, 1.2);
     scene.add(this.interior);
-    const upper = new PointLight(0xffd2a0, 55, 20, 2);
-    upper.position.set(5.2, 5.7, 0.6);
-    scene.add(upper);
-    // the entrance downlight, under the 900 mm reveal
-    this.entranceLight = new PointLight(0xffdcae, 26, 6.5, 2);
-    this.entranceLight.position.set(0.3, 2.75, 3.75);
-    scene.add(this.entranceLight);
+
+    // The bounce. reference/architect-life checklist item 6 asks for light that
+    // has visibly come off something else; with no GI the only honest way to get
+    // it is a dim, wide, warm directional coming UP off the forecourt. It carries
+    // no shadow, so it costs one more light term and nothing else, and it is what
+    // puts a colour on the balcony soffit and the underside of the beam.
+    const bounce = new DirectionalLight(0xdcc6a6, 0.36);
+    bounce.position.set(7, -6, 16);
+    bounce.target.position.set(2, 5.5, 0);
+    bounce.castShadow = false;
+    scene.add(bounce);
+    scene.add(bounce.target);
+    this.bounce = bounce;
+
+    this._buildSunPatch(scene);
+  }
+
+  /**
+   * Checklist item 7: a hard patch of directional light thrown through an opening.
+   * The reference gets most of its interior credibility from exactly this, and
+   * round 1 had none — the floor behind the curtain wall measured a uniform
+   * 151,146,130 across the whole bay.
+   *
+   * The sun is at azimuth 129, elevation 21, so sunlight travels
+   *   d = (-sin129 cos21, -sin21, +cos129 cos21) = (-0.7255, -0.3584, -0.5875)
+   * Dropping from a head at height h to a floor at height f therefore shifts the
+   * patch (h-f)/0.3584 * 0.7255 west and the same * 0.5875 north. For the ground
+   * storey (head 3.90 under the slab band, floor 0.60) that is 6.68 m west and
+   * 5.41 m north — which is the parallelogram built below, one per glazing bay,
+   * mullion gaps and all.
+   */
+  _buildSunPatch(scene) {
+    const az = MathUtils.degToRad(SUN.azimuth), el = MathUtils.degToRad(SUN.elevation);
+    const dx = -Math.sin(az) * Math.cos(el);
+    const dy = -Math.sin(el);
+    const dz = Math.cos(az) * Math.cos(el);
+    const cw = B.curtain;
+    const glassZ = B.z1 - 0.08;
+    const inZ = B.z1 - B.wall - 0.06;          // the inside face of the glazing line
+    const parts = [];
+    const bay = (u0, u1, head, floor) => {
+      // the ray from the head of the opening, walked down to the floor
+      const tHead = (head - floor) / -dy;
+      const far = { x: dx * tHead, z: glassZ + dz * tHead };
+      // the ray from the sill lands at the glass; clip it back to the inside face
+      const tSill = (glassZ - inZ) / -dz;
+      const near = { x: dx * tSill, z: inZ };
+      const g = new PlaneGeometry(1, 1);
+      const pos = g.getAttribute('position');
+      // PlaneGeometry winds TL, TR, BL, BR — so: far@u0, far@u1, near@u0, near@u1
+      const corners = [
+        { x: u0 + far.x, z: far.z }, { x: u1 + far.x, z: far.z },
+        { x: u0 + near.x, z: near.z }, { x: u1 + near.x, z: near.z },
+      ];
+      for (let i = 0; i < 4; i++) pos.setXYZ(i, corners[i].x, floor + 0.008, corners[i].z);
+      g.computeVertexNormals();
+      parts.push(g);
+    };
+    for (let i = 0; i < 5; i++) {
+      const u0 = cw.u0 + (cw.u1 - cw.u0) * (i / 5) + 0.07;
+      const u1 = cw.u0 + (cw.u1 - cw.u0) * ((i + 1) / 5) - 0.07;
+      bay(u0, u1, B.lvl[1] - B.band, B.lvl[0]);        // ground storey, head 3.90
+      bay(u0, u1, B.lvl[2] - B.band, B.lvl[1]);        // first storey, head 6.90
+    }
+    const merged = mergeGeometries(parts, false);
+    for (const g of parts) g.dispose();
+    const m = new Mesh(merged, new MeshBasicMaterial({
+      color: new Color(0xffd9a8), transparent: true, opacity: 0.42,
+      blending: AdditiveBlending, depthWrite: false, fog: false, side: DoubleSide,
+    }));
+    m.name = 'sun-patch';
+    m.renderOrder = 2;
+    scene.add(m);
+    this.sunPatch = m;
   }
 
   // -- lettering ------------------------------------------------------------
@@ -461,8 +676,13 @@ export class MenuMode extends Mode {
     this.letters.add(title);
     this.title = title;
 
+    // the letters are new shadow casters and the map is not auto-updating
+    const r = this.ctx?.engine?.renderer;
+    if (r) r.shadowMap.needsUpdate = true;
+
     this.ctx?.engine?.debug?.report('menu',
       `${this.lines.length} sign lines, ${this.building.crimes.length} tags, `
+      + `AO ${this.building.aoMean.toFixed(2)}/${(this.siteAO ?? 1).toFixed(2)}, `
       + `${this.poolStatic.instanceCount}+${this.poolLive.instanceCount} instances`);
   }
 
@@ -495,7 +715,21 @@ export class MenuMode extends Mode {
       quads.push(g);
     });
     const merged = mergeGeometries(quads, false);
-    const mat = new MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.35, depthWrite: false, depthTest: false, fog: false, side: DoubleSide });
+    // Per-tag opacity, carried as vertex alpha so twelve independently fading
+    // tags still cost one draw call and one texture.
+    //
+    // Round 1 drew all twelve at full opacity, always, with depthTest off, and
+    // eight of them landed inside the centre 50 % of the frame — checklist item
+    // 14, failed outright. They now sit at 20 % until you point at the building
+    // or at the report chip, so the hero shot is clean and the joke arrives when
+    // the player goes looking for it.
+    const vcount = merged.getAttribute('position').count;
+    const cols = new Float32Array(vcount * 4);
+    for (let i = 0; i < vcount; i++) { cols[i * 4] = 1; cols[i * 4 + 1] = 1; cols[i * 4 + 2] = 1; cols[i * 4 + 3] = TAG_DIM; }
+    merged.setAttribute('color', new BufferAttribute(cols, 4));
+    this.tagAlpha = crimes.map(() => TAG_DIM);
+    this.tagVerts = vcount / crimes.length;
+    const mat = new MeshBasicMaterial({ map: tex, vertexColors: true, transparent: true, depthWrite: false, depthTest: false, fog: false, side: DoubleSide });
     const mesh = new Mesh(merged, mat);
     mesh.renderOrder = 4;
     mesh.name = 'surveyor-tags';
@@ -516,6 +750,16 @@ export class MenuMode extends Mode {
   enter(params = {}) {
     super.enter(params);
     this.lobby?.show();
+    // The sun does not move and nothing that moves casts, so the shadow map is
+    // rendered once instead of sixty times a second. Profiled at 12 ms of a
+    // 104 ms frame for the depth pass alone at 2048; the map is 1024 now and the
+    // pass runs on exactly one frame per enter().
+    const r = this.ctx?.engine?.renderer;
+    if (r) {
+      this._shadowAuto = r.shadowMap.autoUpdate;
+      r.shadowMap.autoUpdate = false;
+      r.shadowMap.needsUpdate = true;
+    }
     const audio = this.ctx?.audio;
     if (audio) {
       // music.menu is deliberately not preloaded (it is a megabyte), so load it
@@ -529,6 +773,11 @@ export class MenuMode extends Mode {
   exit() {
     super.exit();
     this.lobby?.hide();
+    const r = this.ctx?.engine?.renderer;
+    if (r && this._shadowAuto !== undefined) {
+      r.shadowMap.autoUpdate = this._shadowAuto;
+      r.shadowMap.needsUpdate = true;
+    }
     this.ctx?.audio?.stopLoop('amb.birds-outside', 0.6);
   }
 
@@ -556,6 +805,7 @@ export class MenuMode extends Mode {
     this._motion(dt, t);
     this._pick();
     this._tweenLines(dt);
+    this._tweenTags(dt);
 
     // only the things that actually move are rebuilt each frame
     const pool = this.poolLive;
@@ -602,11 +852,16 @@ export class MenuMode extends Mode {
     if (!input) return;
     if (this.blocked) {
       this._setHover(-1);
+      this.overBuilding = false;
       if (this.hoverTag !== -1) { this.hoverTag = -1; this.lobby?.hideTag(); }
       return;
     }
     this.pointer.set(input.ndc.x, input.ndc.y);
     this.ray.setFromCamera(this.pointer, this.camera);
+
+    // Pointing anywhere at the building brings the whole schedule up. One box
+    // test, no raycast against 24 000 triangles.
+    this.overBuilding = this.buildingBox ? this.ray.ray.intersectsBox(this.buildingBox) : false;
 
     // tags first: they are small and they sit in front of everything
     let tag = -1;
@@ -650,6 +905,26 @@ export class MenuMode extends Mode {
     }
   }
 
+  /** Twelve tags, three states: dim, awake, hovered. */
+  _tweenTags(dt) {
+    if (!this.tagMesh || !this.tagAlpha.length) return;
+    const k = 1 - Math.exp(-dt * 9);
+    const awake = this.tagsHot || this.overBuilding;
+    const attr = this.tagMesh.geometry.getAttribute('color');
+    let dirty = false;
+    for (let i = 0; i < this.tagAlpha.length; i++) {
+      const target = (i === this.hoverTag || i === this.pinnedTag) ? 1
+        : awake ? TAG_AWAKE : TAG_DIM;
+      const a = this.tagAlpha[i] + (target - this.tagAlpha[i]) * k;
+      if (Math.abs(a - this.tagAlpha[i]) < 0.0015) continue;
+      this.tagAlpha[i] = a;
+      for (let v = 0; v < this.tagVerts; v++) attr.setW(i * this.tagVerts + v, a);
+      dirty = true;
+    }
+    if (dirty) attr.needsUpdate = true;
+    if (this.tagRing) this.tagRing.material.opacity = 0.9 * (this.hoverTag >= 0 ? 1 : 0);
+  }
+
   _setHover(i) {
     if (i === this.hoverItem) return;
     this.hoverItem = i;
@@ -669,6 +944,44 @@ export class MenuMode extends Mode {
       l.mesh.position.z = l.baseZ + l.hover * 0.025;
       l.mesh.position.x = this.building.anchors.sign.u0 + l.hover * 0.03;
     }
+  }
+
+  /**
+   * Draw the scene into the menu's own multisampled target and blit it.
+   *
+   * The target is HalfFloat and linear: three.js applies tone mapping and the
+   * output colour-space conversion only when the destination is the canvas, so
+   * doing them on the blit — a MeshBasicMaterial sampling a linear texture,
+   * straight to the default framebuffer — reproduces the engine's pipeline
+   * exactly rather than approximating it. When the engine is already at or below
+   * the cap (any non-retina display, or after the adaptive controller has stepped
+   * down) the target is skipped entirely and this is a plain renderer.render().
+   */
+  render(renderer) {
+    if (!this.scene || !this.camera) return;
+    const dpr = renderer.getPixelRatio();
+    if (dpr <= MENU_DPR_CAP + 1e-3) { renderer.render(this.scene, this.camera); return; }
+    const w = Math.max(1, Math.round(this.viewW * MENU_DPR_CAP));
+    const h = Math.max(1, Math.round(this.viewH * MENU_DPR_CAP));
+    if (!this._rt) {
+      this._rt = new WebGLRenderTarget(w, h, {
+        type: HalfFloatType, samples: 4,
+        minFilter: LinearFilter, magFilter: LinearFilter, depthBuffer: true,
+      });
+      this._rt.texture.colorSpace = LinearSRGBColorSpace;
+      this._blitScene = new Scene();
+      this._blitCam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      this._blitMat = new MeshBasicMaterial({ map: this._rt.texture, depthTest: false, depthWrite: false });
+      const quad = new Mesh(new PlaneGeometry(2, 2), this._blitMat);
+      quad.frustumCulled = false;
+      this._blitScene.add(quad);
+    } else if (this._rt.width !== w || this._rt.height !== h) {
+      this._rt.setSize(w, h);
+    }
+    renderer.setRenderTarget(this._rt);
+    renderer.render(this.scene, this.camera);
+    renderer.setRenderTarget(null);
+    renderer.render(this._blitScene, this._blitCam);
   }
 
   _project(v) {
@@ -712,10 +1025,14 @@ export class MenuMode extends Mode {
 
   resize(w, h) {
     super.resize(w, h);
+    this.viewW = w;
+    this.viewH = h;
     this.lobby?.resize(w, h);
   }
 
   dispose() {
+    this._rt?.dispose();
+    this._blitMat?.dispose();
     this.lobby?.dispose();
     this.poolStatic?.dispose();
     this.poolLive?.dispose();
@@ -787,11 +1104,11 @@ function numberAtlas(labels) {
  */
 function makeFlag() {
   const group = new Group();
-  const pole = new Mesh(new CylinderGeometry(0.055, 0.075, 7.0, 8), materialFor('metal'));
+  const pole = new Mesh(new CylinderGeometry(0.055, 0.075, 7.0, 8), menuMaterial('metal'), o);
   pole.position.y = 3.5;
   pole.castShadow = true;
   group.add(pole);
-  const finial = new Mesh(new SphereGeometry(0.11, 8, 6), materialFor('metal-warm'));
+  const finial = new Mesh(new SphereGeometry(0.11, 8, 6), menuMaterial('metal-warm'));
   finial.position.y = 7.05;
   group.add(finial);
 

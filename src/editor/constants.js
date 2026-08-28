@@ -56,7 +56,7 @@ export const INFERENCE = {
   AXIS_Z:        { name: 'On Blue Axis',  color: COLOR.axisZ,        marker: 'dot',    rank: 50 },
   FROM_POINT:    { name: 'From Point',    color: COLOR.guide,        marker: 'dot',    rank: 45 },
   ON_FACE:       { name: 'On Face',       color: COLOR.onFace,       marker: 'dot',    rank: 20 },
-  GRID:          { name: 'On Face',       color: COLOR.onFace,       marker: 'dot',    rank: 10 },
+  GRID:          { name: 'On Grid',       color: COLOR.guide,        marker: 'dot',    rank: 10 },
 };
 
 /** Screen-space radius, in CSS pixels, inside which a candidate snaps. */

@@ -429,21 +429,83 @@ export class Navmesh {
    * a straight line until something is in the way. Corners are kept when the
    * straight line would clip a wall, a doorframe or a table.
    */
+  /**
+   * The centre of a search cell is not necessarily somewhere a person fits.
+   * A 0.20 m cell counts as passable when any ONE of its four 0.10 m quarters
+   * is walkable, so its centre can sit inside the wardrobe that blocks the
+   * other three — and a walker aiming at that centre never arrives. Every
+   * waypoint is therefore moved to the widest quarter of its own cell.
+   */
+  _snapPoint(cell, out) {
+    const L = this.levels[this.levelOf[cell]];
+    const f = L.fine;
+    const k = cell - L.base;
+    const ci = k % L.w, cj = (k - ci) / L.w;
+    let best = -1, bw = -1, bi = 0, bj = 0;
+    for (let sj = 0; sj < 2; sj++) {
+      for (let si = 0; si < 2; si++) {
+        const fi = ci * 2 + si, fj = cj * 2 + sj;
+        if (fi >= f.w || fj >= f.h) continue;
+        const fk = fj * f.w + fi;
+        if (!f.walk[fk]) continue;
+        if (f.width[fk] > bw) { bw = f.width[fk]; best = fk; bi = fi; bj = fj; }
+      }
+    }
+    if (best < 0) return out;
+    out.x = f.minX + (bi + 0.5) * FINE_CELL;
+    out.z = f.minZ + (bj + 0.5) * FINE_CELL;
+    return out;
+  }
+
   _smooth(cells) {
-    const pt = (c) => this.centreOf(c, { x: 0, y: 0, z: 0, level: 0 });
+    const pt = (c) => this._snapPoint(c, this.centreOf(c, { x: 0, y: 0, z: 0, level: 0 }));
     if (cells.length <= 2) return cells.map(pt);
     const pts = [pt(cells[0])];
     let anchor = 0;
     for (let i = 2; i < cells.length; i++) {
       const a = cells[anchor], b = cells[i];
       const sameLevel = this.levelOf[a] === this.levelOf[b];
-      if (!sameLevel || !this._lineOfSight(a, b)) {
+      if (!sameLevel || !this._walkableSight(a, b)) {
         anchor = i - 1;
         pts.push(pt(cells[anchor]));
       }
     }
     pts.push(pt(cells[cells.length - 1]));
     return pts;
+  }
+
+  /**
+   * Line of sight for a PERSON, on the 0.10 m grid, with a shoulder's margin.
+   *
+   * `pass[]` is the search lattice, and a 0.20 m search cell is marked passable
+   * when ANY ONE of its four 0.10 m quarters is walkable — the right rule for
+   * finding a route through a doorway, and far too generous for authoring the
+   * line somebody then has to walk down. Smoothing on `pass[]` produced
+   * polylines running 0.1-0.2 m inside a door jamb: the search said the route
+   * existed, the walker could not follow it, and they ground against the frame
+   * until the day ended. The straight leg is only kept when the fine grid is
+   * walkable AND its clear width is at least a shoulder the whole way.
+   */
+  _walkableSight(a, b) {
+    if (this.levelOf[a] !== this.levelOf[b]) return false;
+    const L = this.levels[this.levelOf[a]];
+    const f = L.fine;
+    const pa = this.centreOf(a, { x: 0, y: 0, z: 0, level: 0 });
+    const ax = pa.x, az = pa.z;
+    const pb = this.centreOf(b, { x: 0, y: 0, z: 0, level: 0 });
+    const dx = pb.x - ax, dz = pb.z - az;
+    const len = Math.hypot(dx, dz);
+    const steps = Math.max(1, Math.ceil(len / (FINE_CELL * 0.5)));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const x = ax + dx * t, z = az + dz * t;
+      const i = Math.floor((x - f.minX) / FINE_CELL);
+      const j = Math.floor((z - f.minZ) / FINE_CELL);
+      if (i < 0 || j < 0 || i >= f.w || j >= f.h) return false;
+      const k = j * f.w + i;
+      if (!f.walk[k] || f.width[k] < PERSON_WIDTH) return false;
+    }
+    return true;
   }
 
   /** Is the straight segment between two cells entirely passable? */

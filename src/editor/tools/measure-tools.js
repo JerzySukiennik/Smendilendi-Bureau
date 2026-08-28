@@ -28,12 +28,23 @@ export class TapeTool extends TwoPointTool {
   }
 
   onMove(p) {
-    super.onMove(p);
+    this.to = p.snap.point.clone();
     this.makeGuide = !!this.ed.ctx?.input?.ctrl;
-    if (this.from && this.to) {
+    if (this.from) {
       const d = new Vector3().subVectors(this.to, this.from);
-      this.setDisplay(`${fmt(d.length())}   Δx ${fmt(d.x)}  Δy ${fmt(d.z)}  Δz ${fmt(d.y)}`);
+      this.setDisplay(this._read(d));
+    } else if (this.measured) {
+      // A tape is a READ-OUT. The number stays in the box after the second
+      // click — until the tool changes or the next measurement starts — because
+      // that is the whole reason you picked the tape up.
+      this.setDisplay(this._read(new Vector3().subVectors(this.measured.b, this.measured.a)));
+    } else {
+      this.setDisplay('');
     }
+  }
+
+  _read(d) {
+    return `${fmt(d.length())}   Δx ${fmt(d.x)}  Δy ${fmt(d.z)}  Δz ${fmt(d.y)}`;
   }
 
   finish(a, b) {
@@ -41,8 +52,18 @@ export class TapeTool extends TwoPointTool {
     this.refDir = new Vector3().subVectors(b, a).normalize();
     if (this.makeGuide) this.ed.guides.push({ a: a.clone(), b: b.clone() });
     this.flash(`${fmt(this.measured.length)}${this.makeGuide ? ' · line left' : ''}`);
-    this.ed.measurements.setDisplay(fmt(this.measured.length));
     return null;
+  }
+
+  /**
+   * TwoPointTool clears the Measurements box when an operation commits, which
+   * is right for a wall and wrong for a tape: put the measurement back.
+   */
+  _commit(a, b) {
+    super._commit(a, b);
+    if (this.measured) {
+      this.ed.measurements.setDisplay(this._read(new Vector3().subVectors(this.measured.b, this.measured.a)));
+    }
   }
 
   onValue(v) {

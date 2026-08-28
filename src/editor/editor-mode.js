@@ -13,6 +13,7 @@
 import {
   Scene, Color, Fog, Mesh, PlaneGeometry, BoxGeometry, CylinderGeometry, Group,
   Vector3, Shape, ShapeGeometry, DoubleSide, MeshBasicMaterial, Vector2, Box3,
+  Matrix4,
 } from 'three';
 import { Mode } from '../core/mode.js';
 import { materialFor, makeLightRig, skyFor, tintedMaterial, COLORS } from '../core/palette.js';
@@ -78,6 +79,11 @@ export class EditorMode extends Mode {
     // A plan is a section at 1.20 m: everything the site owns above the cut
     // leaves the picture, so the drawing is not read through a tree canopy.
     this.editor.onViewChanged = (mode) => this._siteForView(mode);
+    // The ground of the plot is a surface you can point AT: with it in this
+    // list a cursor over the site reads "On Face" instead of saying nothing.
+    this.editor.siteFaces = this.siteFaces || [];
+    // And Zoom Extents will not park the camera inside a lime tree.
+    this.editor.cameras.obstacles = () => this.crowns || [];
     this.camera = this.editor.cameras.camera;
 
     this.hud = new EditorHUD(this.editor, document.getElementById('ui'));
@@ -91,6 +97,8 @@ export class EditorMode extends Mode {
     if (!plot) return;
     const g = this.site;
     this.aboveCut = [];        // site meshes that a plan cut would remove
+    this.siteFaces = [];       // ground the cursor can legitimately be ON
+    this.crowns = [];          // tree canopies: culled when they get in the way
 
     // ground beyond the plot
     const ground = new Mesh(new PlaneGeometry(400, 400), materialFor('grass'));
@@ -98,6 +106,7 @@ export class EditorMode extends Mode {
     ground.position.y = -0.02;
     ground.receiveShadow = true;
     g.add(ground);
+    this.siteFaces.push(ground);
 
     // the plot itself, a shade lighter so the boundary reads without a fence
     const plotMesh = new Mesh(polygonGeometry(plot.boundary), materialFor('grass'));
@@ -106,6 +115,7 @@ export class EditorMode extends Mode {
     plotMesh.position.y = 0;
     plotMesh.receiveShadow = true;
     g.add(plotMesh);
+    this.siteFaces.push(plotMesh);
 
     // buildable area (inside the setbacks) — the line the building must not cross
     if (plot.buildable?.length >= 3) {
@@ -171,19 +181,40 @@ export class EditorMode extends Mode {
       const clear = Math.min(2.6, h * 0.28);   // clear stem under the canopy
       pool.place('trunk', { position: { x: t.x, y: clear / 2, z: t.z }, scale: { x: 1, y: clear, z: 1 } });
       const crownH = h - clear;
-      pool.place('crown', {
+      const i0 = pool.place('crown', {
         position: { x: t.x, y: clear + crownH * 0.42, z: t.z },
         rotationY: (t.x * 0.7 + t.z * 0.3) % Math.PI,
         scale: { x: r * 2, y: crownH * 0.72, z: r * 2 },
       }, t.protected ? 0x6f8f4a : 0x87a55c);
-      pool.place('crown', {
+      const i1 = pool.place('crown', {
         position: { x: t.x, y: clear + crownH * 0.82, z: t.z },
         rotationY: (t.x * 1.3 + t.z) % Math.PI,
         scale: { x: r * 1.3, y: crownH * 0.5, z: r * 1.3 },
       }, t.protected ? 0x7d9c56 : 0x93b168);
+      // A canopy is two boxes, not a ball, so it is tested as an ELLIPSOID that
+      // contains them: r * 1.45 horizontally (the half-diagonal of a box r wide)
+      // and the full crown height vertically. A sphere on the same centre missed
+      // the corners, and a corner of an oak fills the viewport just as well as
+      // its middle does.
+      this.crowns.push({
+        x: t.x, y: clear + crownH * 0.55, z: t.z,
+        rx: r * 1.45, ry: Math.max(crownH * 0.62, 1),
+        r: Math.max(r * 1.45, crownH * 0.62),      // the sphere Zoom Extents avoids
+        idx: [i0, i1].filter(i => i >= 0),
+        keep: [], hidden: false,
+      });
     }
     pool.flush();
     this.treePool = pool;
+
+    // Remember each canopy's own matrix so culling it is reversible.
+    const crownMesh = pool.entries.get('crown')?.mesh;
+    if (crownMesh) {
+      for (const c of this.crowns) {
+        c.keep = c.idx.map((i) => { const m = new Matrix4(); crownMesh.getMatrixAt(i, m); return m; });
+      }
+    }
+    this._zeroMatrix = new Matrix4().makeScale(0, 0, 0);
 
     // a marker cube on the entrance side, so "the entrance must face the street"
     // is a thing you can see and not a sentence in an e-mail
@@ -197,6 +228,37 @@ export class EditorMode extends Mode {
       c.z + dir[1] * (bs.d / 2 + 1.2),
     );
     g.add(marker);
+  }
+
+  /**
+   * A tree standing between you and your model is a wall of opaque green with
+   * no explanation attached, and on a plot with four limes on it that is not a
+   * corner case: Zoom Extents landed inside a canopy at two of twelve azimuths.
+   * So a canopy that is on the line between the camera and what the camera is
+   * looking at — or that the camera is standing inside — takes itself out of
+   * the picture until you move. The trunk stays: the tree is still there, still
+   * protected, still in the way of the walls, and you can still see where.
+   */
+  _cullCanopies() {
+    const mesh = this.treePool?.entries.get('crown')?.mesh;
+    if (!mesh || !this.crowns?.length || !this.editor) return;
+    const cams = this.editor.cameras;
+    if (cams.mode === 'plan') return;              // canopies are already hidden
+    const eye = cams.camera.position;
+    const look = cams.mode === 'walk'
+      ? _lookAhead(cams, this._look || (this._look = new Vector3()))
+      : cams.target;
+    let dirty = false;
+    for (const c of this.crowns) {
+      const hide = _crownInTheWay(c, eye, look);
+      if (hide === c.hidden) continue;
+      c.hidden = hide;
+      for (let k = 0; k < c.idx.length; k++) {
+        mesh.setMatrixAt(c.idx[k], hide ? this._zeroMatrix : c.keep[k]);
+      }
+      dirty = true;
+    }
+    if (dirty) mesh.instanceMatrix.needsUpdate = true;
   }
 
   /** Show or hide the site content that stands above the plan cut. */
@@ -233,6 +295,7 @@ export class EditorMode extends Mode {
 
   update(dt) {
     this.editor?.update(dt);
+    this._cullCanopies();
     this.camera = this.editor?.cameras.camera || this.camera;
     this.rig?.focus(this.editor?.cameras.target.x || 0, this.editor?.cameras.target.z || 0);
     const dbg = this.ctx?.engine?.debug;
@@ -308,6 +371,34 @@ function boundsOfPolygon(poly) {
     b.expandByPoint(new Vector3(p[0], 3.0, p[1]));
   }
   return b;
+}
+
+/** Six metres ahead of a walking camera is what it is looking at. */
+function _lookAhead(cams, out) {
+  return out.set(
+    cams.walkPos.x - Math.sin(cams.walkYaw) * 6,
+    1.6,
+    cams.walkPos.z - Math.cos(cams.walkYaw) * 6,
+  );
+}
+
+/**
+ * Is this canopy on the line of sight, or is the camera standing in it?
+ * Everything is measured in the canopy's own ellipsoid units, so one test
+ * covers a squat wide lime and a tall narrow poplar.
+ */
+function _crownInTheWay(c, eye, look) {
+  const rx = c.rx + 0.6, ry = c.ry + 0.6;
+  const ex = (eye.x - c.x) / rx, ey = (eye.y - c.y) / ry, ez = (eye.z - c.z) / rx;
+  if (ex * ex + ey * ey + ez * ez < 1.6 * 1.6) return true;      // standing in it
+  const abx = (look.x - eye.x) / rx, aby = (look.y - eye.y) / ry, abz = (look.z - eye.z) / rx;
+  const len2 = abx * abx + aby * aby + abz * abz;
+  if (len2 < 1e-9) return false;
+  const px = -ex, py = -ey, pz = -ez;
+  let t = (px * abx + py * aby + pz * abz) / len2;
+  if (t < 0 || t > 1) return false;                 // behind the eye or past the model
+  const qx = px - abx * t, qy = py - aby * t, qz = pz - abz * t;
+  return qx * qx + qy * qy + qz * qz < 1;
 }
 
 function bounds(poly) {

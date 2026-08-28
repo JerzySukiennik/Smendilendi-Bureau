@@ -10,15 +10,25 @@
 // and so is the colour grammar: red/green/blue = X/Y/Z, magenta = parallel or
 // perpendicular to something, cyan = midpoint.
 //
-// Everything is decided in SCREEN SPACE, inside SNAP_PX pixels of the cursor,
+// A candidate is ACCEPTED in screen space — inside SNAP_PX pixels of the cursor,
 // so snapping feels identical whether you are zoomed into a door reveal or
-// looking at the whole site.
+// looking at the whole site — but every candidate is COMPUTED in world space.
+// The distinction is the whole ball game for the linear inferences: projecting
+// two ends of an axis and interpolating between them is only the same line
+// under an affine projection, so it is right in the orthographic plan and
+// badly wrong in the perspective orbit view, which is where the editor starts.
+// Point inferences (endpoints, midpoints) are unaffected either way; the axes,
+// Parallel, Perpendicular and the arrow-key lock are solved as a closest-point
+// problem between the cursor RAY and the line, and only then measured in pixels.
 
-import { Vector2, Vector3 } from 'three';
+import { Ray, Vector2, Vector3 } from 'three';
 import { AXIS, INFERENCE, SNAP_PX, GRID, FINE_GRID } from './constants.js';
 
 const _p = new Vector3();
 const _s = new Vector2();
+const _ray = new Ray();
+const _w0 = new Vector3();
+const _hit = new Vector3();
 
 /**
  * Inference — built once per editor, asked once per frame.
@@ -49,6 +59,7 @@ export class Inference {
     this.enabled = true;              // Line tool's Alt cycles this
     this.mode = 'all';                // 'all' | 'off' | 'parperp'
     this.primed = null;               // hover-to-prime point
+    this.fromPoint = null;            // the last primed point, for From Point
     this._dwell = { at: null, since: 0, pixel: new Vector2() };
     this.last = null;
   }
@@ -59,12 +70,34 @@ export class Inference {
     return this.mode;
   }
 
+  /** Forget the primed point — a new tool, an Escape, a finished operation. */
+  clearPrimed() {
+    this.primed = null;
+    this.fromPoint = null;
+    this._dwell.at = null;
+    this._dwell.since = 0;
+  }
+
   /** Hover-to-prime: resting the cursor on a point makes the engine prefer it. */
   tickDwell(pixel, dt, candidatePoint) {
+    // A primed point is a passing thought, not a setting. It goes stale after a
+    // few seconds so that a point you rested on a minute ago cannot quietly
+    // hijack the next click you make somewhere else entirely.
+    if (this.fromPoint) {
+      this._primedAge = (this._primedAge ?? 0) + dt;
+      if (this._primedAge > 6) this.fromPoint = null;
+    }
     if (!candidatePoint) { this._dwell.at = null; this._dwell.since = 0; this.primed = null; return; }
     if (this._dwell.at && this._dwell.pixel.distanceTo(pixel) < 6) {
       this._dwell.since += dt;
-      if (this._dwell.since > 0.35) this.primed = this._dwell.at.clone();
+      if (this._dwell.since > 0.35) {
+        this.primed = this._dwell.at.clone();
+        // A completed dwell also PRIMES the point for From Point, and that one
+        // outlives the hover: you rest on a jamb, move away, and the inference
+        // off it is still there. Replaced by the next completed dwell.
+        this.fromPoint = this._dwell.at.clone();
+        this._primedAge = 0;
+      }
     } else {
       this._dwell.at = candidatePoint.clone();
       this._dwell.pixel.copy(pixel);
@@ -91,11 +124,13 @@ export class Inference {
         this._points(ctx, push);
         this._onEdge(ctx, push);
         this._guides(ctx, push);
+        this._intersections(ctx, push);
       }
       if (ctx.from) {
         this._axes(ctx, push);
         this._parPerp(ctx, push);
       }
+      if (this.mode === 'all') this._fromPoint(ctx, push);
     }
 
     // pick the best: highest rank, then nearest in pixels
@@ -115,24 +150,38 @@ export class Inference {
       return best;
     }
 
-    // --- nothing inferred: the free point on the working plane --------------
-    const free = ctx.wallHit
-      ? ctx.wallHit.point.clone()
-      : (cameras.groundPoint(ctx.ndc, ctx.height ?? 0, new Vector3()) || new Vector3());
-    if (!ctx.wallHit) {
-      free.x = Math.round(free.x / grid) * grid;
-      free.z = Math.round(free.z / grid) * grid;
-      free.y = ctx.height ?? 0;
+    // --- nothing inferred ---------------------------------------------------
+    //
+    // Two different states live here and they are NOT the same thing. A cursor
+    // resting on a real surface — a wall, a slab, the ground of the plot — is
+    // On Face: it names itself and shows its blue marker, exactly as it does in
+    // SketchUp, because you are picking a point ON something. A cursor over
+    // nothing at all falls back to the working plane and the grid, and that one
+    // stays silent: labelling empty air would be a claim we cannot support.
+    // A tool that is working ON a wall face (the Door tool) has already
+    // raycast it and hands us the exact point on the face. Everything else
+    // draws on the working plane, on the grid, which is where a plan is drawn —
+    // the face under the cursor decides the NAME, not the position.
+    let point;
+    let face = ctx.wallHit || null;
+    if (face?.point) {
+      point = face.point.clone();
+    } else {
+      face = (typeof ctx.faceHit === 'function' ? ctx.faceHit() : ctx.faceHit) || null;
+      point = cameras.groundPoint(ctx.ndc, ctx.height ?? 0, new Vector3()) || new Vector3();
+      point.x = Math.round(point.x / grid) * grid;
+      point.z = Math.round(point.z / grid) * grid;
+      point.y = ctx.height ?? 0;
     }
-    const snap = {
-      point: free,
-      ...INFERENCE.ON_FACE,
-      kind: 'face',
-      guides: [],
-      locked: false,
-      free: true,
-      wallId: ctx.wallHit?.wallId ?? null,
-    };
+    const snap = face
+      ? {
+        point, ...INFERENCE.ON_FACE, kind: 'face', guides: [], locked: false,
+        free: false, wallId: face.wallId ?? null, entityId: face.entityId ?? null,
+      }
+      : {
+        point, ...INFERENCE.GRID, kind: 'grid', guides: [], locked: false,
+        free: true, wallId: null,
+      };
     this.last = snap;
     return snap;
   }
@@ -174,14 +223,14 @@ export class Inference {
   }
 
   _onEdge(ctx, push) {
-    const { model, levelId, cameras, pixel, ignoreIds } = ctx;
+    const { model, levelId, ignoreIds } = ctx;
     const y = ctx.height ?? 0;
     for (const id in model.walls) {
       const w = model.walls[id];
       if (w.levelId !== levelId || ignoreIds?.has(id)) continue;
       const a = model.nodes[w.a], b = model.nodes[w.b];
       if (!a || !b) continue;
-      const p = closestOnSegmentScreen(cameras, pixel, a, b, y);
+      const p = closestOnSegment(ctx, a, b, y);
       if (!p) continue;
       push({ point: p, ...INFERENCE.ON_EDGE, kind: 'onEdge', wallId: id, guides: [] });
     }
@@ -189,7 +238,6 @@ export class Inference {
 
   /** Setting-out lines drawn with the Line tool or left by the Tape Measure. */
   _guides(ctx, push) {
-    const { cameras, pixel } = ctx;
     for (const gd of ctx.guides || []) {
       push({ point: gd.a.clone(), ...INFERENCE.ENDPOINT, kind: 'endpoint', guides: [] });
       push({ point: gd.b.clone(), ...INFERENCE.ENDPOINT, kind: 'endpoint', guides: [] });
@@ -197,19 +245,88 @@ export class Inference {
         point: new Vector3().addVectors(gd.a, gd.b).multiplyScalar(0.5),
         ...INFERENCE.MIDPOINT, kind: 'midpoint', guides: [],
       });
-      const p = closestOnSegmentScreen(cameras, pixel,
+      const p = closestOnSegment(ctx,
         { x: gd.a.x, z: gd.a.z }, { x: gd.b.x, z: gd.b.z }, gd.a.y);
       if (p) push({ point: p, ...INFERENCE.ON_LINE, kind: 'onLine', guides: [] });
+    }
+  }
+
+  /**
+   * Intersection — where two lines in the drawing CROSS.
+   *
+   * The value here is not the T-junction of two built walls: the model already
+   * splits walls at those, so that point is an Endpoint. The value is the
+   * VIRTUAL crossing of two lines that do not meet yet — the setting-out line
+   * you laid across the plot and the face of a wall three metres away — which
+   * is exactly the point an architect wants to start the next wall from.
+   *
+   * Every line considered here lies on the working plane, so the crossing is a
+   * 2D problem. Lines further from the cursor than about eighty pixels are
+   * dropped before any pairing, which keeps this a handful of tests per frame
+   * instead of a quadratic sweep over the whole plan.
+   */
+  _intersections(ctx, push) {
+    const { model, levelId, cameras, ignoreIds } = ctx;
+    const y = ctx.height ?? 0;
+    const at = cameras.groundPoint(ctx.ndc, y, new Vector3());
+    if (!at) return;
+    const near = cameras.metresPerPixel(at) * 80;
+
+    const lines = [];
+    for (const id in model.walls) {
+      const w = model.walls[id];
+      if (w.levelId !== levelId || ignoreIds?.has(id)) continue;
+      const a = model.nodes[w.a], b = model.nodes[w.b];
+      if (!a || !b) continue;
+      addLine(lines, a.x, a.z, b.x, b.z, at, near);
+      if (lines.length > 24) break;
+    }
+    for (const gd of ctx.guides || []) {
+      addLine(lines, gd.a.x, gd.a.z, gd.b.x, gd.b.z, at, near);
+      if (lines.length > 32) break;
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      for (let j = i + 1; j < lines.length; j++) {
+        const p = intersect2D(lines[i], lines[j]);
+        if (!p) continue;
+        push({
+          point: new Vector3(p.x, y, p.z), ...INFERENCE.INTERSECTION,
+          kind: 'intersection', guides: [],
+        });
+      }
+    }
+  }
+
+  /**
+   * From Point — the linear inference off a point you PRIMED by resting on it.
+   * SketchUp's most quietly useful trick: hover a door jamb, move away, and the
+   * axes through that jamb keep inferring so you can line something up with it
+   * without drawing a guide first.
+   */
+  _fromPoint(ctx, push) {
+    const p0 = this.fromPoint;
+    if (!p0) return;
+    if (ctx.from && p0.distanceTo(ctx.from) < 1e-4) return;   // that is just the axes
+    for (const key of ['x', 'y', 'z']) {
+      const p = closestOnLine(ctx, p0, AXIS[key].dir);
+      if (!p) continue;
+      if (p.distanceTo(p0) < 1e-3) continue;                  // the primed point itself
+      if (p.y < (ctx.height ?? 0) - 1e-3) continue;           // never start a plan below the floor
+      push({
+        point: p, ...INFERENCE.FROM_POINT, kind: 'fromPoint', axis: key,
+        guides: [{ a: p0.clone(), b: p.clone(), color: AXIS[key].color, dotted: true }],
+      });
     }
   }
 
   // -- linear inferences -----------------------------------------------------
 
   _axes(ctx, push) {
-    const { from, cameras, pixel } = ctx;
+    const { from } = ctx;
     for (const key of ['x', 'y', 'z']) {
       const ax = AXIS[key];
-      const p = closestOnRayScreen(cameras, pixel, from, ax.dir);
+      const p = closestOnLine(ctx, from, ax.dir);
       if (!p) continue;
       const def = key === 'x' ? INFERENCE.AXIS_X : key === 'y' ? INFERENCE.AXIS_Y : INFERENCE.AXIS_Z;
       push({
@@ -219,19 +336,19 @@ export class Inference {
   }
 
   _parPerp(ctx, push) {
-    const { from, refDir, cameras, pixel } = ctx;
+    const { from, refDir } = ctx;
     if (!refDir) return;
     const par = new Vector3(refDir.x, 0, refDir.z).normalize();
     if (par.lengthSq() < 1e-9) return;
     const perp = new Vector3(-par.z, 0, par.x);
-    const pp = closestOnRayScreen(cameras, pixel, from, par);
+    const pp = closestOnLine(ctx, from, par);
     if (pp) {
       push({
         point: pp, ...INFERENCE.PARALLEL, kind: 'parallel',
         guides: [{ a: from.clone(), b: pp.clone(), color: INFERENCE.PARALLEL.color, dotted: true }],
       });
     }
-    const pq = closestOnRayScreen(cameras, pixel, from, perp);
+    const pq = closestOnLine(ctx, from, perp);
     if (pq) {
       push({
         point: pq, ...INFERENCE.PERPENDICULAR, kind: 'perpendicular',
@@ -241,7 +358,7 @@ export class Inference {
   }
 
   _axisLock(ctx) {
-    const { from, lockAxis, cameras, pixel } = ctx;
+    const { from, lockAxis } = ctx;
     let dir; let def; let color;
     if (lockAxis === 'ref' && ctx.refDir) {
       dir = new Vector3(ctx.refDir.x, 0, ctx.refDir.z).normalize();
@@ -253,8 +370,12 @@ export class Inference {
       def = lockAxis === 'x' ? INFERENCE.AXIS_X : lockAxis === 'y' ? INFERENCE.AXIS_Y : INFERENCE.AXIS_Z;
       color = ax.color;
     }
-    const p = closestOnRayScreen(cameras, pixel, from, dir, Infinity);
-    if (!p) return null;
+    // Looking straight down the locked axis (the blue axis in a plan view) the
+    // line has no image on screen and the cursor cannot mean anything by it.
+    // The lock still HOLDS — it collapses to the anchor rather than quietly
+    // handing the operation back to the free inference, which is how a lock
+    // becomes a trap.
+    const p = closestOnLine(ctx, from, dir, Infinity) || from.clone();
     const grid = ctx.fine ? FINE_GRID : GRID;
     // Round the DISTANCE along the locked axis, never the raw coordinate: an
     // axis-locked drag from a node at 3.47 m must land on 3.47 + n * grid.
@@ -269,37 +390,90 @@ export class Inference {
 }
 
 // ---------------------------------------------------------------------------
-// screen-space helpers
+// world-space helpers
+//
+// Both of these answer the same question — "which point of this line is the
+// player pointing at?" — by finding the closest approach between the CURSOR RAY
+// and the line, in metres, and then checking that the answer lands within
+// SNAP_PX of the cursor once it is projected back. Screen space decides whether
+// a candidate is close enough; world space decides where the candidate IS.
 
-/** Closest world point on segment a-b (at height y) to the cursor, in pixels. */
-function closestOnSegmentScreen(cameras, pixel, a, b, y) {
-  const A = cameras.toScreen(_p.set(a.x, y, a.z), new Vector2());
-  const B = cameras.toScreen(_p.set(b.x, y, b.z), new Vector2());
-  const abx = B.x - A.x, aby = B.y - A.y;
-  const len2 = abx * abx + aby * aby;
-  if (len2 < 1e-6) return null;
-  let t = ((pixel.x - A.x) * abx + (pixel.y - A.y) * aby) / len2;
-  if (t < 0 || t > 1) return null;
-  return new Vector3(a.x + (b.x - a.x) * t, y, a.z + (b.z - a.z) * t);
+const MAX_REACH = 400;      // metres: nothing on a plot is further away than this
+
+/**
+ * Parameter along the line `from + dir * t` closest to the cursor ray, or null
+ * when the line is within a couple of degrees of the view direction (its screen
+ * image is a point, so the cursor cannot mean anything by it).
+ */
+function lineParamAtCursor(ctx, from, dir) {
+  const cameras = ctx.cameras;
+  cameras.cursorRay(ctx.ndc, _ray);
+  const rd = _ray.direction;
+  const b = dir.dot(rd);
+  const denom = 1 - b * b;              // both directions are unit length
+  if (denom < 2e-4) return null;        // ~1.1 degrees: looking down the line
+  _w0.copy(from).sub(_ray.origin);
+  const d = dir.dot(_w0);
+  const e = rd.dot(_w0);
+  const t = (b * e - d) / denom;
+  if (!Number.isFinite(t)) return null;
+  return t;
+}
+
+/** Closest world point on segment a-b (at height y) to the cursor. */
+function closestOnSegment(ctx, a, b, y) {
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-6) return null;
+  _hit.set(dx / len, 0, dz / len);
+  const from = _p.set(a.x, y, a.z);
+  const t = lineParamAtCursor(ctx, from, _hit);
+  if (t === null || t < 0 || t > len) return null;
+  const out = new Vector3(a.x + (dx / len) * t, y, a.z + (dz / len) * t);
+  return ctx.cameras.isInFront?.(out) === false ? null : out;
 }
 
 /**
- * Closest world point on the infinite line through `from` along `dir` to the
- * cursor, measured in SCREEN pixels. Returns null when the line is degenerate
- * on screen (looking straight down a vertical axis, for instance).
+ * Closest world point on the infinite line through `from` along `dir`.
+ * `tol` is the screen-space acceptance radius in pixels; Infinity means the
+ * caller has already committed to this line (an arrow-key lock) and wants the
+ * point wherever it falls.
  */
-function closestOnRayScreen(cameras, pixel, from, dir, tol = SNAP_PX) {
-  const span = 60;   // metres of the line to consider on either side
-  const A = cameras.toScreen(_p.copy(from).addScaledVector(dir, -span), new Vector2());
-  const B = cameras.toScreen(_p.copy(from).addScaledVector(dir, span), new Vector2());
-  const abx = B.x - A.x, aby = B.y - A.y;
-  const len2 = abx * abx + aby * aby;
-  if (len2 < 4) return null;
-  const t = ((pixel.x - A.x) * abx + (pixel.y - A.y) * aby) / len2;
-  const px = A.x + abx * t, py = A.y + aby * t;
-  if (tol !== Infinity && Math.hypot(px - pixel.x, py - pixel.y) > tol) return null;
-  const d = -span + t * (2 * span);
-  return from.clone().addScaledVector(dir, d);
+function closestOnLine(ctx, from, dir, tol = SNAP_PX) {
+  const t = lineParamAtCursor(ctx, from, dir);
+  if (t === null || Math.abs(t) > MAX_REACH) return null;
+  const out = from.clone().addScaledVector(dir, t);
+  if (ctx.cameras.isInFront?.(out) === false) return null;
+  if (tol !== Infinity) {
+    ctx.cameras.toScreen(out, _s);
+    if (_s.distanceTo(ctx.pixel) > tol) return null;
+  }
+  return out;
+}
+
+/** Keep a plan line only if it passes near the cursor's point on the plane. */
+function addLine(out, ax, az, bx, bz, at, near) {
+  const dx = bx - ax, dz = bz - az;
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-6) return;
+  const ux = dx / len, uz = dz / len;
+  const perp = Math.abs((at.x - ax) * -uz + (at.z - az) * ux);
+  if (perp > near) return;
+  for (const l of out) {
+    // two collinear lines cross everywhere and nowhere; keep one of them
+    if (Math.abs(l.ux * uz - l.uz * ux) < 0.02
+      && Math.abs((ax - l.x) * -l.uz + (az - l.z) * l.ux) < 1e-3) return;
+  }
+  out.push({ x: ax, z: az, ux, uz });
+}
+
+/** Crossing of two infinite plan lines, or null when they are near-parallel. */
+function intersect2D(p, q) {
+  const cross = p.ux * q.uz - p.uz * q.ux;
+  if (Math.abs(cross) < 0.09) return null;          // under ~5 degrees: no honest point
+  const t = ((q.x - p.x) * q.uz - (q.z - p.z) * q.ux) / cross;
+  if (!Number.isFinite(t) || Math.abs(t) > MAX_REACH) return null;
+  return { x: p.x + p.ux * t, z: p.z + p.uz * t };
 }
 
 /** Round a plan point to the working grid. */

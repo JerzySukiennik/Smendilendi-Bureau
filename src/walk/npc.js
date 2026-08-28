@@ -32,6 +32,29 @@ export const PERSON_RADIUS = PERSON_WIDTH / 2;
 export const ANNOY_SECONDS = 7.5;
 /** How close a person has to be to a door before they push it open. */
 export const DOOR_TRIGGER = 1.6;
+/**
+ * How long somebody may make NO progress towards their next waypoint before
+ * they re-plan. Real seconds, so it is independent of the clock's speed.
+ *
+ * Nothing in a crowd simulation stays on its polyline: separation pushes people
+ * off it, and once off it the straight run to the next corner can graze a door
+ * jamb the smoothed line cleared. Without this, an agent in that position walks
+ * on the spot for the rest of the day and every statistic downstream — busiest
+ * room, occupancy, the heat map — measures the bug instead of the building.
+ */
+export const STUCK_SECONDS = 2.5;
+/** Consecutive stuck windows before we accept that there is no way through. */
+export const MAX_REPLANS = 3;
+/** How far ahead on the current segment a walker aims. Metres. */
+const LOOKAHEAD = 0.55;
+/**
+ * The shortest visit the walkthrough can portray. The clock runs at five
+ * simulated minutes per real second while people walk at their real speed, so a
+ * courier with a four-minute delivery would be sent home from the pavement
+ * before he reached the door. Everyone gets long enough to get in, do the one
+ * thing they came for and walk out.
+ */
+const MIN_VISIT_HOURS = 0.75;
 
 // Scratch objects. Nothing in the render loop allocates: at thirty people and
 // nine limbs each that would be three hundred throwaway objects every frame.
@@ -278,8 +301,15 @@ class Agent {
     this.vx = 0; this.vz = 0;
     this.bob = 0;
     this.lookAbout = 0;
-    this.settling = false;         // walking to a spot inside the room they reached
+    this.settling = 0;             // 0 none, 1 walking into the room, 2 walking to a spot
     this.home = new Map();         // goalKey -> the room that is THEIRS
+    this.goalRoom = null;          // the room the FIELD was built for, not where we stand
+    this.blockedRoom = null;       // the room they could not reach, for the marker
+    this.pendingBlock = null;      // give up on arrival, at the point the route ran out
+    this.stuckT = 0;               // real seconds without progress
+    this.bestD = Infinity;         // closest we have been to the current waypoint
+    this.replans = 0;
+    this.leaveAt = person.leaveAt;
   }
 
   get active() { return this.state !== STATE.OFFSTAGE && this.state !== STATE.GONE; }
@@ -313,6 +343,7 @@ export class Crowd {
     this._iconGeo = new Map();
     this._nearest = null;
     this._nearBuf = [];
+    this._approach = new Map();      // roomId -> the reachable cell nearest to it
     this.t = 0;
     this.visible = 0;
     this.blockedNow = 0;
@@ -358,29 +389,176 @@ export class Crowd {
     return this.nav.fieldToRoom(room);
   }
 
+  /** Is this person off the navmesh altogether — i.e. still out on the site? */
+  outside(a) {
+    return !this.nav.passable(this.nav.indexAt(a.x, a.z, a.level));
+  }
+
+  /**
+   * A route from where the person is ACTUALLY standing.
+   *
+   * Somebody who has just appeared on the pavement is seven metres from the
+   * building and nowhere near the navmesh, so `nav.path` — which only looks
+   * 1.5 m for a cell to start from — finds nothing and used to report the
+   * drawing as unroutable. It is not: they walk to the front door first, and
+   * the route proper starts there.
+   */
+  _route(a, field) {
+    const nav = this.nav;
+    let r = nav.path(a.x, a.z, a.level, field);
+    if (r) return r;
+    if (!this.outside(a)) return null;         // on the mesh: genuinely unreachable
+    const e = nav.mainEntrance;
+    if (!e || e.cellIn < 0) return null;
+    const c = nav.centreOf(e.cellIn);
+    r = nav.path(c.x, c.z, e.levelIdx, field);
+    if (!r) return null;
+    const L = nav.levels[e.levelIdx];
+    const approach = [
+      { x: a.x, z: a.z, y: a.y, level: a.level },
+      { x: e.x, z: e.z, y: L.elevation, level: e.levelIdx },
+    ];
+    let extra = Math.hypot(e.x - a.x, e.z - a.z)
+      + Math.hypot(r.points[0].x - e.x, r.points[0].z - e.z);
+    return { ...r, points: approach.concat(r.points), length: r.length + extra };
+  }
+
+  /** The room this goal was routed to: their own if assigned, else the nearest. */
+  _goalRoomFor(a, goalKey) {
+    const g = GOALS[goalKey];
+    if (g?.assigned && a.home.get(goalKey)) return a.home.get(goalKey);
+    const rooms = this.nav.roomsForGoal(goalKey);
+    if (!rooms.length) return null;
+    let best = null, bd = Infinity;
+    for (const id of rooms) {
+      const p = this.nav.roomPoint(id);
+      if (!p) continue;
+      const d = Math.hypot(p.x - a.x, p.z - a.z);
+      if (d < bd) { bd = d; best = id; }
+    }
+    return best ?? rooms[0];
+  }
+
+  /**
+   * The reachable cell closest to a room nobody can get into.
+   *
+   * DESIGN-DECISIONS: "an NPC with no route stops and visibly gets annoyed".
+   * Stopping wherever they happened to be standing — six metres away, outside
+   * a different room's door — tells the player nothing, and in a house with one
+   * sealed study it reads as the bathroom being sealed. So the person walks as
+   * far as the plan lets them and gives up AT THE OBSTRUCTION. One Dijkstra
+   * from the person finds their own island; the answer is cached per room,
+   * because everybody stuck on the same side of the same wall shares it.
+   */
+  _approachCell(a, roomId) {
+    const nav = this.nav;
+    const hit = this._approach.get(roomId);
+    if (hit !== undefined) return hit;
+    const target = nav.roomPoint(roomId);
+    if (!target) { this._approach.set(roomId, -1); return -1; }
+    const from = nav.passable(nav.indexAt(a.x, a.z, a.level))
+      ? nav.indexAt(a.x, a.z, a.level)
+      : (nav.mainEntrance ? nav.mainEntrance.cellIn : -1);
+    if (from < 0) { this._approach.set(roomId, -1); return -1; }
+    const mine = nav.field(`from:${from}`, [from]);
+    const cells = nav.roomCells(roomId);
+    const goalCells = new Set(cells);
+    // The point to get close to is the ROOM, not its centre: somebody who
+    // cannot reach a study stops against the wall that seals it, not two metres
+    // short of it because that happens to be nearer the middle of the room.
+    const marks = [];
+    const stride = Math.max(1, Math.floor(cells.length / 80));
+    const p = { x: 0, y: 0, z: 0, level: 0 };
+    for (let i = 0; i < cells.length; i += stride) {
+      nav.centreOf(cells[i], p);
+      marks.push(p.x, p.z);
+    }
+    if (!marks.length) marks.push(target.x, target.z);
+    let best = -1, bd = Infinity;
+    const c = { x: 0, y: 0, z: 0, level: 0 };
+    for (let k = 0; k < nav.pass.length; k++) {
+      if (!nav.pass[k] || goalCells.has(k)) continue;
+      if (!(mine.dist[k] < Infinity)) continue;
+      nav.centreOf(k, c);
+      let d = Infinity;
+      for (let t = 0; t < marks.length; t += 2) {
+        const dd = (c.x - marks[t]) * (c.x - marks[t]) + (c.z - marks[t + 1]) * (c.z - marks[t + 1]);
+        if (dd < d) d = dd;
+      }
+      if (d < bd) { bd = d; best = k; }
+    }
+    this._approach.set(roomId, best);
+    return best;
+  }
+
+  /** Walk as far towards an unreachable room as the plan allows, then give up. */
+  _giveUpNear(a, goalKey) {
+    const room = this._goalRoomFor(a, goalKey);
+    const near = room ? this._approachCell(a, room) : -1;
+    if (near >= 0) {
+      const r = this._route(a, this.nav.field(`cell:${near}`, [near]));
+      if (r && r.points.length > 1 && r.length > 0.4) {
+        a.route = r;
+        a.path = r.points;
+        a.pathIdx = 1;
+        a.state = STATE.WALKING;
+        a.goalRoom = room;
+        a.pendingBlock = { reason: 'no-route', roomId: room };
+        a.bestD = Infinity; a.stuckT = 0; a.replans = 0;
+        return true;
+      }
+    }
+    this.blockAgent(a, 'no-route', room);
+    return false;
+  }
+
   /** Send an agent after a goal. Returns true when a route was found. */
   dispatch(a, goalKey) {
     const stats = this.stats;
+    const nav = this.nav;
     a.goal = goalKey;
+    a.pendingBlock = null;
+    a.goalRoom = null;
+    a.blockedRoom = null;
+    a.settling = 0;
+    a.bestD = Infinity;
+    a.stuckT = 0;
+    a.replans = 0;
     stats.journeyStarted(goalKey);
 
     if (goalKey === 'leave') {
-      const f = this.nav.fieldToOutside();
-      const route = this.nav.path(a.x, a.z, a.level, f);
-      if (!route) { this.blockAgent(a, 'no-route'); return false; }
+      const e = nav.mainEntrance;
+      if (this.outside(a)) {
+        // Already out on the site — a short-stay visitor who never came in, or
+        // somebody who has just stepped through the door. Walking away is not a
+        // circulation failure and must not be written up as one.
+        const L = nav.levels[e ? e.levelIdx : 0];
+        a.route = { length: 0, minWidth: Infinity, doors: [], cells: [], points: [] };
+        a.path = [
+          { x: a.x, z: a.z, y: a.y, level: a.level },
+          e ? { x: e.outX, z: e.outZ, y: L.elevation, level: e.levelIdx }
+            : { x: a.x, z: a.z - 8, y: a.y, level: a.level },
+        ];
+        a.pathIdx = 1;
+        a.state = STATE.LEAVING;
+        return true;
+      }
+      const route = this._route(a, nav.fieldToOutside());
+      if (!route) { this.blockAgent(a, 'no-route', null); return false; }
       a.route = route;
       a.path = route.points.slice();
-      const e = this.nav.mainEntrance;
-      if (e) a.path.push({ x: e.outX, z: e.outZ, y: this.nav.levels[e.levelIdx].elevation, level: e.levelIdx });
+      if (e) a.path.push({ x: e.outX, z: e.outZ, y: nav.levels[e.levelIdx].elevation, level: e.levelIdx });
       a.pathIdx = 1;
       a.state = STATE.LEAVING;
       return true;
     }
 
     const f = this.fieldFor(a, goalKey);
-    if (!f) { this.blockAgent(a, 'no-room'); return false; }
-    const route = this.nav.path(a.x, a.z, a.level, f);
-    if (!route || !route.points.length) { this.blockAgent(a, 'no-route'); return false; }
+    if (!f) { this.blockAgent(a, 'no-room', null); return false; }
+    const route = this._route(a, f);
+    if (!route || !route.points.length) return this._giveUpNear(a, goalKey);
+    const end = route.points[route.points.length - 1];
+    a.goalRoom = nav.roomAt(end.x, end.z, end.level ?? a.level) ?? this._goalRoomFor(a, goalKey);
     if (route.points.length < 2 && route.length < 0.05) {
       // already standing in a room that satisfies the goal
       stats.journeyDone(goalKey, route);
@@ -395,43 +573,79 @@ export class Crowd {
   }
 
   /** The visible failure. This is the whole point of the walkthrough. */
-  blockAgent(a, reason) {
+  blockAgent(a, reason, roomId = null) {
     a.state = STATE.BLOCKED;
     a.annoy = ANNOY_SECONDS;
     a.annoyReason = reason;
+    a.blockedRoom = roomId ?? a.goalRoom ?? null;
     a.path = null;
     a.route = null;
     a.lookAbout = 0;
+    a.settling = 0;
+    a.pendingBlock = null;
+    // Somebody standing on the pavement outside a building that HAS a usable
+    // front door is not a defect in the drawing, and their trouble must never
+    // reach the architect's report. A building with no exterior door at all is
+    // a different matter, and `spawn` records that one itself.
+    if (this.outside(a) && this.nav.mainEntrance) return;
     this.stats.journeyFailed(a.goal, reason, a.p, { x: a.x, z: a.z, level: a.level, hour: this.hour });
   }
 
   arrive(a) {
+    const nav = this.nav;
     a.path = null;
-    a.settling = false;
+    a.settling = 0;
     a.dwellUntil = this.hour + dwellFor(a.goal, this.rng) / 60;
     a.lastGoal = a.goal;
-    const room = this.nav.roomAt(a.x, a.z, a.level);
+    // The room is the one the FIELD was built for. Reading it back off the
+    // agent's own position credits the whole dwell to whatever room crowd
+    // separation happened to nudge them into — which is how a child ends up
+    // recorded as napping in the corridor.
+    const room = a.goalRoom ?? nav.roomAt(a.x, a.z, a.level);
+    a.goalRoom = room;
     a.roomId = room;
     this.stats.visit(room);
     if (a.goal === 'wc') a.wcNeed = 0;
     if (a.goal === 'coffee' || a.goal === 'eat') a.coffeeNeed = 0;
 
-    // A distance field ends at the NEAREST cell of the goal room, which is the
-    // cell just inside the door. Left there, twenty children arrive one after
-    // another and stand in their own doorway in a heap. People walk INTO a
-    // room, so the last leg is a short straight walk to somewhere with space
-    // around it — line of sight only, no second search.
-    const spot = this._spotIn(a, room);
+    // Nudged back over the threshold by the people behind them? Walk the last
+    // metre or two in, properly, before settling.
+    if (room && nav.roomAt(a.x, a.z, a.level) !== room) {
+      const r = nav.path(a.x, a.z, a.level, nav.fieldToRoom(room));
+      if (r && r.points.length > 1) {
+        a.path = r.points;
+        a.pathIdx = 1;
+        a.settling = 1;
+        a.state = STATE.WALKING;
+        a.bestD = Infinity; a.stuckT = 0; a.replans = 0;
+        return;
+      }
+    }
+    this._settleStep(a);
+  }
+
+  /**
+   * A distance field ends at the NEAREST cell of the goal room, which is the
+   * cell just inside the door. Left there, twenty children arrive one after
+   * another and stand in their own doorway in a heap. People walk INTO a room,
+   * so the last leg is a short straight walk to somewhere with space around it
+   * — line of sight only, no second search.
+   */
+  _settleStep(a) {
+    const spot = this._spotIn(a, a.goalRoom ?? this.nav.roomAt(a.x, a.z, a.level));
     if (spot) {
       a.state = STATE.WALKING;
-      a.settling = true;
+      a.settling = 2;
       a.path = [
         { x: a.x, z: a.z, y: a.y, level: a.level },
         { x: spot.x, z: spot.z, y: a.y, level: a.level },
       ];
       a.pathIdx = 1;
+      a.bestD = Infinity; a.stuckT = 0; a.replans = 0;
       return;
     }
+    a.settling = 0;
+    a.path = null;
     a.state = STATE.IDLE;
   }
 
@@ -505,8 +719,13 @@ export class Crowd {
       a.coffeeNeed += dh * 0.28 * (p.needs.coffee || 0);
       if (a.squeezeCooldown > 0) a.squeezeCooldown -= dt;
 
-      // going home overrides everything
-      if (hour >= p.leaveAt && a.state !== STATE.LEAVING && a.state !== STATE.BLOCKED) {
+      // Going home overrides everything — except walking in. Sending somebody
+      // home while they are still on the approach path stranded every
+      // short-stay visitor (a courier's window is four minutes; the walk from
+      // the pavement to the door is twenty simulated ones) outside the door for
+      // the rest of the day.
+      if (hour >= a.leaveAt && a.state !== STATE.LEAVING && a.state !== STATE.BLOCKED
+          && a.state !== STATE.ENTERING) {
         this.dispatch(a, 'leave');
       }
 
@@ -557,6 +776,7 @@ export class Crowd {
   spawn(a) {
     const e = this.nav.mainEntrance;
     const L = this.nav.levels[e ? e.levelIdx : 0];
+    a.leaveAt = Math.max(a.p.leaveAt, this.hour + MIN_VISIT_HOURS);
     if (!e) {
       // No exterior door at all. They stand outside the building and never get
       // in; the analysis has already said so, and here it is, happening.
@@ -613,16 +833,68 @@ export class Crowd {
     if (this.nav.passable(this.nav.indexAt(nx, nz, a.level))) { a.x = nx; a.z = nz; }
   }
 
+  /** The end of a path: arrival, the way out, or the point the route ran out. */
+  _pathDone(a) {
+    if (a.state === STATE.LEAVING) {
+      a.state = STATE.GONE;
+      this.stats.journeyDone('leave', a.route);
+      return;
+    }
+    if (a.pendingBlock) {
+      const pb = a.pendingBlock;
+      a.pendingBlock = null;
+      this.blockAgent(a, pb.reason, pb.roomId);
+      return;
+    }
+    if (a.settling === 1) { this._settleStep(a); return; }
+    if (a.settling === 2) { a.settling = 0; a.path = null; a.state = STATE.IDLE; return; }
+    this.stats.journeyDone(a.goal, a.route);
+    this.arrive(a);
+  }
+
+  /**
+   * No progress for STUCK_SECONDS. Re-plan from where the person actually is;
+   * after MAX_REPLANS windows without progress, accept that this building will
+   * not let them through and make the failure visible.
+   */
+  _unstick(a) {
+    a.stuckT = 0;
+    a.bestD = Infinity;
+    a.replans++;
+    if (a.settling) { a.settling = 0; a.path = null; a.state = STATE.IDLE; return; }
+    if (a.pendingBlock) {
+      const pb = a.pendingBlock;
+      a.pendingBlock = null;
+      this.blockAgent(a, pb.reason, pb.roomId);
+      return;
+    }
+    if (a.replans > MAX_REPLANS) { this.blockAgent(a, 'no-route', a.goalRoom); return; }
+    // The cheapest cure first: give up on this waypoint and steer for the next
+    // one on the same polyline. A corner that cannot be stood exactly on is
+    // still a corner you can walk past.
+    if (a.path && a.pathIdx + 1 < a.path.length) { a.pathIdx++; return; }
+    const field = a.state === STATE.LEAVING
+      ? this.nav.fieldToOutside()
+      : this.fieldFor(a, a.goal);
+    const r = field && this._route(a, field);
+    if (r && r.points.length > 1) {
+      a.route = r;
+      a.path = r.points.slice();
+      if (a.state === STATE.LEAVING) {
+        const e = this.nav.mainEntrance;
+        if (e) a.path.push({ x: e.outX, z: e.outZ, y: this.nav.levels[e.levelIdx].elevation, level: e.levelIdx });
+      }
+      a.pathIdx = 1;
+      return;
+    }
+    if (a.state === STATE.ENTERING) { a.state = STATE.IDLE; a.path = null; return; }
+    this.blockAgent(a, 'no-route', a.goalRoom);
+  }
+
   walkStep(a, dt, dtSim) {
     const nav = this.nav;
     const path = a.path;
-    if (!path || a.pathIdx >= path.length) {
-      if (a.state === STATE.LEAVING) { a.state = STATE.GONE; this.stats.journeyDone('leave', a.route); return; }
-      if (a.settling) { a.settling = false; a.state = STATE.IDLE; a.path = null; return; }
-      this.stats.journeyDone(a.goal, a.route);
-      this.arrive(a);
-      return;
-    }
+    if (!path || a.pathIdx >= path.length) { this._pathDone(a); return; }
     const target = path[a.pathIdx];
 
     // a stair is a level change, taken as one step
@@ -631,10 +903,30 @@ export class Crowd {
       a.y = nav.levels[target.level].elevation;
     }
 
-    let dx = target.x - a.x, dz = target.z - a.z;
-    let d = Math.hypot(dx, dz);
-    if (d < 1e-6) { a.pathIdx++; return; }
-    dx /= d; dz /= d;
+    const d = Math.hypot(target.x - a.x, target.z - a.z);
+    if (d < 1e-6) { a.pathIdx++; a.bestD = Infinity; a.stuckT = 0; a.replans = 0; return; }
+
+    // -- aim: re-acquire the polyline, do not cut across from where we drifted
+    // Separation pushes people 0.2-0.4 m off the smoothed line. Steering
+    // straight at the next corner from out there sends the run through the door
+    // jamb the smoothed line cleared, and the walker grinds against the wall
+    // for the rest of the day. Aiming at a point ON the segment, a little way
+    // ahead, walks them back onto their own route first.
+    const prev = path[a.pathIdx - 1];
+    let ax = target.x, az = target.z;
+    if (prev && prev.level === a.level) {
+      const sxg = target.x - prev.x, szg = target.z - prev.z;
+      const seg = Math.hypot(sxg, szg);
+      if (seg > 1e-3) {
+        let t = ((a.x - prev.x) * sxg + (a.z - prev.z) * szg) / (seg * seg);
+        t = Math.min(1, Math.max(0, t) + LOOKAHEAD / seg);
+        ax = prev.x + sxg * t; az = prev.z + szg * t;
+      }
+    }
+    let dx = ax - a.x, dz = az - a.z;
+    const dl = Math.hypot(dx, dz);
+    if (dl < 1e-6) { dx = (target.x - a.x) / d; dz = (target.z - a.z) / d; }
+    else { dx /= dl; dz /= dl; }
 
     // -- crowd: separation, and the squeeze -------------------------------
     const width = nav.widthAt(a.x, a.z, a.level) || PASSING_WIDTH;
@@ -659,7 +951,18 @@ export class Crowd {
         if (a.squeezeCooldown <= 0) {
           a.squeezeCooldown = 2.5;
           const cell = nav.indexAt(a.x, a.z, a.level);
-          if (cell >= 0) this.stats.recordSqueeze(cell, a.x, a.z, a.level, width);
+          // The report prints this number in millimetres, so it has to be a
+          // SPAN measured across the direction of travel, not this cell's own
+          // distance to the nearest obstruction: standing against the skirting
+          // of a 1.20 m corridor the distance transform reads 0.62 m, and an
+          // architect handed that for a corridor he drew at 1200 stops
+          // believing the rest of the page.
+          if (cell >= 0) {
+            const di = Math.abs(dx) >= Math.abs(dz) ? Math.sign(dx) : 0;
+            const dj = di ? 0 : Math.sign(dz);
+            const span = nav.passageWidth(cell, di, dj);
+            if (span < PASSING_WIDTH) this.stats.recordSqueeze(cell, a.x, a.z, a.level, span);
+          }
         }
       } else {
         speed *= 0.78;
@@ -673,39 +976,68 @@ export class Crowd {
     mx /= ml; mz /= ml;
 
     const step = speed * dt;
-    let nx = a.x + mx * step, nz = a.z + mz * step;
     // Never let separation shove somebody through a wall — but only once they
     // are ON the mesh. Arriving and leaving happens OUTSIDE the building, where
     // there is no navmesh at all, and clamping to it there pinned everyone who
-    // had just appeared on the pavement to the spot: every candidate step was
-    // "not passable", so the fallback held them still and twenty-one people
-    // stood outside their own front door for the whole day.
-    const onMesh = nav.passable(nav.indexAt(a.x, a.z, a.level));
-    if (onMesh && !nav.passable(nav.indexAt(nx, nz, a.level))) {
-      nx = a.x + dx * step; nz = a.z + dz * step;
-      if (!nav.passable(nav.indexAt(nx, nz, a.level))) {
-        const near = nav.nearestPassable(nx, nz, a.level, 0.6);
-        if (near >= 0) { const c = nav.centreOf(near); nx = c.x; nz = c.z; }
-        else { nx = a.x; nz = a.z; }
+    // had just appeared on the pavement to the spot.
+    // The clamp also has to be off when the WAYPOINT is off the mesh: the last
+    // leg of going home ends seven metres out on the pavement, and a leaver
+    // standing on the threshold — which is on the mesh — had every step towards
+    // it rejected and stood in his own doorway until the day ended.
+    const onMesh = nav.passable(nav.indexAt(a.x, a.z, a.level))
+      && nav.passable(nav.indexAt(target.x, target.z, target.level ?? a.level));
+    const tryStep = (ux, uz) => {
+      const px = a.x + ux * step, pz = a.z + uz * step;
+      if (!onMesh || nav.passable(nav.indexAt(px, pz, a.level))) return [px, pz];
+      return null;
+    };
+    // biased step, then the pure path direction, then slide along the wall.
+    // Snapping back to the nearest passable cell centre, which is what this did
+    // before, is a FIXED POINT: it returns the same cell every frame and the
+    // walker never advances.
+    let moved = tryStep(mx, mz) || tryStep(dx, dz);
+    if (!moved) {
+      const cands = Math.abs(dx) >= Math.abs(dz)
+        ? [[Math.sign(dx), 0], [0, Math.sign(dz)]]
+        : [[0, Math.sign(dz)], [Math.sign(dx), 0]];
+      for (const [ux, uz] of cands) {
+        if (!ux && !uz) continue;
+        moved = tryStep(ux, uz);
+        if (moved) break;
       }
     }
+    const nx = moved ? moved[0] : a.x;
+    const nz = moved ? moved[1] : a.z;
     a.vx = (nx - a.x) / Math.max(dt, 1e-4);
     a.vz = (nz - a.z) / Math.max(dt, 1e-4);
     a.x = nx; a.z = nz;
 
     // face where you are going, but turn at a human rate
-    const wantYaw = Math.atan2(a.vx, a.vz);
-    let dyaw = wantYaw - a.yaw;
-    while (dyaw > Math.PI) dyaw -= Math.PI * 2;
-    while (dyaw < -Math.PI) dyaw += Math.PI * 2;
-    a.yaw += Math.max(-6 * dt, Math.min(6 * dt, dyaw));
+    if (Math.abs(a.vx) > 1e-4 || Math.abs(a.vz) > 1e-4) {
+      const wantYaw = Math.atan2(a.vx, a.vz);
+      let dyaw = wantYaw - a.yaw;
+      while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+      while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+      a.yaw += Math.max(-6 * dt, Math.min(6 * dt, dyaw));
+    }
 
     // the walk cycle: one stride is about 0.72 m for an adult
     const stride = 0.36 * (a.p.height / 1.72);
     a.phase += (step / stride) * Math.PI;
     a.bob = Math.abs(Math.sin(a.phase)) * 0.018;
 
-    if (d <= Math.max(0.16, step * 1.2)) a.pathIdx++;
+    // -- the watchdog ------------------------------------------------------
+    const now = Math.hypot(target.x - a.x, target.z - a.z);
+    if (now < a.bestD - 0.05) { a.bestD = now; a.stuckT = 0; }
+    else a.stuckT += dt;
+
+    if (now <= Math.max(0.16, step * 1.2)) {
+      a.pathIdx++;
+      a.bestD = Infinity; a.stuckT = 0; a.replans = 0;
+    } else if (a.stuckT >= STUCK_SECONDS) {
+      this._unstick(a);
+      return;
+    }
 
     // -- doors -------------------------------------------------------------
     const doorId = nav.doorAt(a.x + dx * 0.9, a.z + dz * 0.9, a.level)
@@ -880,9 +1212,10 @@ export class Crowd {
     const g = GOALS[best.goal];
     let doing;
     if (best.state === STATE.BLOCKED) {
+      const room = best.blockedRoom ? this.nav.labelOf(best.blockedRoom) : null;
       doing = best.annoyReason === 'no-room'
         ? `${g ? g.label : best.goal} — there is no such room in this building`
-        : `${g ? g.label : best.goal} — cannot get there from here`;
+        : `${g ? g.label : best.goal} — cannot reach the ${room ?? 'room they need'} from here`;
     } else if (best.state === STATE.IDLE) {
       doing = `${g ? g.label : 'settled in'}${best.roomId ? ` in the ${this.nav.labelOf(best.roomId)}` : ''}`;
     } else if (best.state === STATE.LEAVING) {

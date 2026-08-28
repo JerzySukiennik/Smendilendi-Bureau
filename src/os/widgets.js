@@ -243,7 +243,16 @@ export function triangle(g, cx, cy, dir, c = '#000000', size = 4) {
 export const FONT = SANS;
 export const FONT_BOLD = SANS_BOLD;
 
-/** Vertically centre a 9-row glyph box in `h` by integer division. */
+/**
+ * Top of the glyph box for a run vertically centred in `h`.
+ *
+ * The font's box is 11 rows (9 above the baseline + 2 descender) inside a 13 px
+ * cell, so centring the cell and adding its 2 rows of internal leading is the
+ * same arithmetic as (h - 9) / 2. Checked against three reference captures:
+ *   18 px title bar  -> +4  (win95-09: bar y4..21, "Control Panel" ink y8..16)
+ *   20 px menu band  -> +5  (win95-09: band y22..41, "File" ink y27..35)
+ *   32 px Start item -> +11 (win95-05: item y252..283, "Documents" ink y263..)
+ */
 export function textY(y, h) { return (y + ((h - 9) >> 1)) | 0; }
 
 export function text(g, s, x, y, c = '#000000', font = SANS) {
@@ -271,11 +280,13 @@ export function button(g, r, opts = {}) {
     label: lbl = '', pressed = false, disabled = false, focused = false,
     isDefault = false, pal = WIN, font = SANS, icon = null, flat = false,
   } = opts;
-  let { x, y, w, h } = r;
-  if (isDefault) {
-    frameRect(g, x, y, w, h, pal.dark);      // 1 px ring OUTSIDE the bevel
-    x += 1; y += 1; w -= 2; h -= 2;
-  }
+  const { x, y, w, h } = r;
+  // The default-button ring is drawn OUTSIDE the button, so the button itself
+  // stays 21 px and the pair measures 23 (ANALYSIS.md 1: "Push button 21 px
+  // tall, 23 px including the default-button ring"; win95-10 ring y415, button
+  // y416..436, ring y437). Shrinking the button to fit the ring inside made it
+  // 19 px, which is what round 1 shipped.
+  if (isDefault) frameRect(g, x - 1, y - 1, w + 2, h + 2, pal.dark);
   fill(g, x, y, w, h, pal.face);
   if (flat && !pressed) {
     // toolbar button at rest: no bevel at all until hovered
@@ -290,7 +301,10 @@ export function button(g, r, opts = {}) {
     tx = x + ((w - font.measure(plain) - iw) >> 1) + iw;
     icon.draw(g, x + ((w - font.measure(plain) - iw) >> 1) + dx, y + ((h - icon.h) >> 1) + dx);
   }
-  const ty = textY(y, h) + dx;
+  // Measured: win95-10's 21 px OK button has its cap top 5 px below the button
+  // top, not 6 — Windows centres the label on the button's lit interior, which
+  // is one row shorter than the button. textY on (h - 1) reproduces it exactly.
+  const ty = textY(y, h - 1) + dx;
   if (lbl) font.drawMnemonic(g, lbl, tx + dx, ty, pal.text, { disabled });
   if (focused) focusRect(g, x + 3, y + 3, w - 6, h - 6, pal.dark);
   return r;

@@ -156,6 +156,14 @@
 .sched td.n { text-align: right; font-family: var(--font-mono); }
 .sched tr:hover td { background: #302d29; cursor: pointer; }
 .sched tfoot td { border-top: 1px solid var(--ed-line); border-bottom: 0; color: var(--text); }
+/* a room name is edited in place, the way Entity Info edits one */
+.sched td.name { cursor: text; }
+.sched td.name:hover { text-decoration: underline dotted var(--text-dim); }
+.ed-rename {
+  width: 100%; box-sizing: border-box; background: #1f1e1c; color: var(--text);
+  border: 1px solid var(--accent); border-radius: 0; padding: 1px 3px;
+  font: inherit; font-size: 11px; outline: none;
+}
 
 /* validation */
 .issue { border-left: 3px solid var(--warn); padding: 5px 7px; margin-bottom: 4px; background: #262421; cursor: pointer; }

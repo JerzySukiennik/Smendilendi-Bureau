@@ -39,7 +39,9 @@ def main():
     entries = {e['id']: e for e in data['catalog']}
     entries.update({p['id']: p for p in data.get('props', [])})
 
-    ids = args.ids or [i for i in families.BUILDERS if i in entries]
+    order = [e['id'] for e in data['catalog']] + [p['id'] for p in data.get('props', [])]
+    ids = args.ids or [i for i in order
+                       if i in entries and families.builder_for(entries[i])]
     out_dir = Path(args.out)
     report = []
     failures = []
@@ -51,7 +53,11 @@ def main():
         t0 = time.time()
         clear_scene()
         try:
-            shape = families.BUILDERS[item_id](entry)
+            builder = families.builder_for(entry)
+            if builder is None:
+                raise BuildError(f'{item_id}: no family for proc '
+                                 f'{(entry.get("proc") or ["-"])[0]}')
+            shape = builder(entry)
             comps = len(shape.components())
             objs = finish(shape, palette, target_size=shape.declared,
                           fit_axes=families.FIT_AXES.get(item_id, 'xyz'),
@@ -82,7 +88,24 @@ def main():
             traceback.print_exc()
             failures.append(f'{item_id}: {err}')
 
-    out = {'built': report, 'failures': failures}
+    # THE HANDOFF. src/model/catalog.js belongs to another agent, so this
+    # pipeline reports and never edits: every id built here needs a `file:` line
+    # in the catalogue before the game will load it, and any bounding box that
+    # legitimately differs from the catalogue is named with the value the
+    # catalogue should carry. Left as a file so the change is one pass, not a
+    # reading exercise.
+    handoff = {
+        'note': 'add `file:` to these catalogue entries; sizes listed under '
+                'drift are the value catalog.js should carry',
+        'files': {r['id']: f'assets/models/{r["id"]}.glb' for r in report},
+        'drift': {r['id']: {'measured': r['bbox'], 'catalogue': r['catalog']}
+                  for r in report
+                  if any(abs(r['bbox'][k] - r['catalog'][k]) / max(1e-6, r['catalog'][k])
+                         > 0.02 for k in range(3))},
+    }
+    (HERE / '_tmp').mkdir(exist_ok=True)
+    (HERE / '_tmp' / 'catalog-handoff.json').write_text(json.dumps(handoff, indent=1))
+    out = {'built': report, 'failures': failures, 'handoff': handoff}
     (HERE / '_tmp').mkdir(exist_ok=True)
     (HERE / '_tmp' / 'build-report.json').write_text(json.dumps(out, indent=1))
     print(f'\n{len(report)} built, {len(failures)} failed')

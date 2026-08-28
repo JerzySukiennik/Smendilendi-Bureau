@@ -30,6 +30,9 @@ export class EditorHUD {
     uiRoot.appendChild(this.root);
     this._flashUntil = 0;
     this._build();
+    this.syncInsets();
+    this._onResize = () => this.syncInsets();
+    window.addEventListener('resize', this._onResize);
     editor.hud = this;
     this.refreshTool();
     this.refreshSchedule();
@@ -245,6 +248,7 @@ export class EditorHUD {
     if (!this.panes.get('schedule')?.classList.contains('on')) { this._scheduleStale = true; return; }
     this._scheduleStale = false;
     const rooms = this.ed.rooms();
+    const labels = this.ed.roomLabels();
     const t = document.createElement('table');
     t.className = 'sched';
     t.innerHTML = '<thead><tr><th>Room</th><th class="n">Area</th><th class="n">D</th><th class="n">W</th></tr></thead>';
@@ -254,8 +258,20 @@ export class EditorHUD {
       const r = rooms.rooms[id];
       total += r.area;
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${escapeHtml(r.name)}</td><td class="n">${r.area.toFixed(2)}</td>`
-        + `<td class="n">${r.doors.length}</td><td class="n">${r.windows.length}</td>`;
+      const name = document.createElement('td');
+      name.className = 'name';
+      name.textContent = labels.get(id) || r.name;
+      name.title = 'Click to rename';
+      // Entity Info edits a name in place; so does this. Click the cell, type,
+      // Enter. Escape puts it back, and an empty entry hands the room back to
+      // whatever the analysis engine calls it.
+      name.addEventListener('click', (e) => { e.stopPropagation(); this._editRoomName(name, id); });
+      tr.appendChild(name);
+      const rest = document.createElement('td');
+      rest.className = 'n';
+      rest.textContent = r.area.toFixed(2);
+      tr.appendChild(rest);
+      tr.insertAdjacentHTML('beforeend', `<td class="n">${r.doors.length}</td><td class="n">${r.windows.length}</td>`);
       tr.addEventListener('click', () => { this.ed.select([id]); this.ed.cameras.recentre(this.ed.centreOf(id)); });
       tb.appendChild(tr);
     }
@@ -265,8 +281,36 @@ export class EditorHUD {
     t.appendChild(tf);
     this.schedulePane.innerHTML = '';
     const h = div('ed-h');
-    h.textContent = 'Room schedule — clear internal areas';
+    h.textContent = 'Room schedule — clear internal areas · click a name to rename';
     this.schedulePane.append(h, t);
+  }
+
+  _editRoomName(cell, id) {
+    if (cell.querySelector('input')) return;
+    const was = cell.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'ed-rename';
+    input.value = this.ed.model.siteMods?.roomNames?.[id] ?? '';
+    input.placeholder = was;
+    cell.textContent = '';
+    cell.appendChild(input);
+    input.focus();
+    input.select();
+    let done = false;
+    const commit = (keep) => {
+      if (done) return;
+      done = true;
+      if (keep) this.ed.renameRoom(id, input.value);
+      this.refreshSchedule();
+    };
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); commit(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); commit(false); }
+    });
+    input.addEventListener('blur', () => commit(true));
+    input.addEventListener('click', (e) => e.stopPropagation());
   }
 
   refreshValidation() {
@@ -342,7 +386,9 @@ export class EditorHUD {
     this._flashUntil = performance.now() + 1600;
   }
 
-  tick() {
+  tick(dt = 0) {
+    this._insetAge = (this._insetAge ?? 1) + dt;
+    if (this._insetAge > 0.5) { this._insetAge = 0; this.syncInsets(); }
     if (this._flashUntil && performance.now() > this._flashUntil) {
       this.flashEl.classList.remove('on');
       this._flashUntil = 0;
@@ -356,7 +402,32 @@ export class EditorHUD {
     }
   }
 
+  /**
+   * Tell the cameras how much of the viewport the HUD is standing on, so Zoom
+   * Extents frames the model in the CLEAR rectangle instead of centring it on
+   * the canvas and letting the dock eat a third of the drawing. Measured off
+   * the real elements, never hard-coded: the dock can be resized by CSS.
+   */
+  syncInsets() {
+    const c = this.ed.canvas.getBoundingClientRect();
+    if (!(c.width > 0) || !(c.height > 0)) return;
+    const box = (sel) => this.root.querySelector(sel)?.getBoundingClientRect() || null;
+    // A panel wider than a third of the viewport is not a panel, it is a div
+    // that has not been styled yet — editor.css is appended as a <link> and the
+    // first measurement can land before it loads. Ignore those; tick() will ask
+    // again in half a second and get the real numbers.
+    const w = (r) => (r && r.width > 0 && r.width < c.width * 0.34 ? r.width : 0);
+    const h = (r) => (r && r.height > 0 && r.height < c.height * 0.25 ? r.height : 0);
+    this.ed.cameras.viewInsets = {
+      left: w(box('.ed-tools')) ? w(box('.ed-tools')) + 16 : 0,
+      right: w(box('.ed-dock')) ? w(box('.ed-dock')) + 16 : 0,
+      top: h(box('.ed-top')) ? h(box('.ed-top')) + 16 : 0,
+      bottom: h(box('.ed-measure')) ? h(box('.ed-measure')) + 16 : 0,
+    };
+  }
+
   dispose() {
+    window.removeEventListener('resize', this._onResize);
     this.ed.canvas.removeEventListener('dragover', this._onDragOver);
     this.ed.canvas.removeEventListener('drop', this._onDrop);
     this.root.remove();

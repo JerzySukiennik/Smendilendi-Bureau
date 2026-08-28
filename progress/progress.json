@@ -310,7 +310,160 @@
     "tris": "24.5k"
    },
    "at": "2026-08-27T20:52:48.537Z"
+  },
+  {
+   "piece": "os",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "17/20 on the authenticity checklist — geometry and bevels are pixel-exact (18 px caption, 16x14 buttons, 54x22 Start, 22 px Platinum bar with 6 pinstripe pairs, 13-colour palette), but the UI font is a 5x7 house font not MS Sans Serif (View 18x8 px vs the reference 23x11), so the blind A/B is trivially easy; scrollbar arrows 16x17 not square; Start menu mixes 32x32 and 16x16 icons; the client e-mail prints \"1 ? Accessible WC\" (no glyph for U+00D7); an open menu survives closeAll/setTier and floats orphaned; tiers 3 and 4 are the same OS at two resolutions.",
+   "shot": "shots/crit-os-tiers.png",
+   "at": "2026-08-27T21:20:51.821Z"
+  },
+  {
+   "piece": "os",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "17/20 — The UI typeface. Everything measurable about the geometry is right — 18 px caption, 16x14 caption buttons, 16 px scrollbars, 20 px menu items, 28 px taskbar, 54x22 Start button, the 22 px Plat",
+   "at": "2026-08-27T21:22:48.928Z"
+  },
+  {
+   "piece": "walkthrough",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "Navmesh is genuinely the player's geometry (missing door -> NO ROUTE, 0.80 m corridor measured 800 mm) but the crowd freezes: 9 of 10 people in the demo house stall mid-walk for over an hour, one for 11.6 h; the children's WC classifies as a reading room so 260 children report no WC; the report card claims narrowest route 0.90 m when 164 journeys pinched at 0.80 m.",
+   "shot": "shots/walk-r1-stranded-courier.png",
+   "at": "2026-08-27T21:27:57.426Z"
+  },
+  {
+   "piece": "walk",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "Navmesh truth: PASS. Simulation, statistics and roster coverage: FAIL. 3 blockers, 4 majors, 3 minors. — The pathfinding is honest but the people are not walking. In the project's own demo house, 9 of",
+   "at": "2026-08-27T21:30:24.345Z"
+  },
+  {
+   "piece": "menu",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "10/15 on the finish checklist. Menu is fill-rate bound: 4x MSAA at dpr 1.75 = 16.3M shaded samples/frame through a 6-light PBR shader (MeshBasic override drops 104ms -> 33.5ms). Two surveyor tags contradict the geometry they point at (175mm risers vs 300mm built; four columns named, two built).",
+   "shot": "shots/crit-menu-base.png",
+   "at": "2026-08-27T21:35:47.724Z"
+  },
+  {
+   "piece": "menu",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "10/15 — Two surveyor's tags state numbers the geometry does not have, and the target player is exactly the person who will check them. Tag 2 says the escape stair has \"175 mm risers\"; buildEscapeStair",
+   "at": "2026-08-27T21:40:17.599Z"
+  },
+  {
+   "piece": "audio-levels",
+   "role": "builder",
+   "round": 3,
+   "status": "pass",
+   "headline": "One id, one reviewed level: raw volume: deleted from all 29 call sites, folded into asset gain or declared as a named context; verifier now parses the call sites and fails on any level the manifest does not declare.",
+   "detail": "The four signed-off levels now leave the speakers exactly as approved, measured live off the WebAudio gain nodes: office-ambient-1 12.7575% (was 7.02%), office-ambient-2 12.7575% (had no call site at all), walkthrough 7.0875% (was 3.90%), click-soft 32.130% at all six call sites (was 11.25/16.07/19.28/32.13). Also: os.boot.1-4 renamed to os.boot-tier1-4 so the reviewed startup chimes actually resolve; audio config paths anchored on import.meta.url so sub-directory harnesses stop 404ing; make-batch no longer rounds the stored level, and no longer wipes the human decided blocks.",
+   "shot": "shots/audio-levels-signed-off-four.png",
+   "files": [
+    "src/core/audio.js",
+    "assets/audio/manifest.json",
+    "assets/audio/build/scan-callsites.mjs",
+    "assets/audio/build/verify-signoff.mjs",
+    "tools/make-batch.mjs",
+    "review/batches.json"
+   ],
+   "metrics": {
+    "callSitesRewritten": 29,
+    "playbackPathsVerified": 75,
+    "liveMeasuredPaths": 72,
+    "verifierChecks": 18,
+    "verifierFails": 0
+   },
+   "at": "2026-08-27T21:43:23.730Z"
+  },
+  {
+   "piece": "editor",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "6/6 click benchmarks met (wall 3, line 3, door 2, material 3, move 5, measure 3) but arrow-key axis lock is broken in the 3D view: locking X with the cursor 4 m from the start draws a 60.1 m wall and the Measurements box reads 60.100 m. Same root cause kills On Red/Green/Blue Axis, Parallel and Perpendicular inferences in perspective; they work only in the orthographic plan.",
+   "shot": "shots/critic-editor-11-axislock-bug.png",
+   "at": "2026-08-27T21:44:23.984Z"
+  },
+  {
+   "piece": "models",
+   "role": "critic",
+   "round": 2,
+   "status": "fail",
+   "headline": "Own turntables of all 15 GLBs + 10 procedural placeholders: exact BVH test finds 5 of 15 models with parts that never touch (verify.mjs AABB proxy reports 1 body for all). window-1200x1400 glass is buried inside a solid sash; basin/sink wastes float; 42 of 122 catalogue entries drift over 2 %.",
+   "shot": "shots/critic-models-defects.png",
+   "at": "2026-08-27T21:44:53.294Z"
+  },
+  {
+   "piece": "editor",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "6/6 click benchmarks met — but the round fails on correctness: arrow-key axis lock is broken in the default 3D view (60.1 m wall instead of 4 m), and three of the seven required inferences never fire ",
+   "at": "2026-08-27T21:47:34.355Z"
+  },
+  {
+   "piece": "models",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "3/10 — The \"generator-level fix\" only exists for 15 of the 122 catalogue entries. The other 107 items the architect opens next are built by a separate, unbevelled, never-audited path (src/model/proc-s",
+   "at": "2026-08-27T21:49:11.659Z"
+  },
+  {
+   "piece": "office",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "13/15 finish checklist (fail items 5, 8) but two blocking defects: the retro-OS screen quad sits at y=0.402 m under the desk (no hover at level gaze, camera flies to knee height) and every desk-lamp shade is detached from its arm. Lighting A/B: our default view reads as the flat one next to shot-09.",
+   "shot": "shots/office-critic-screen-under-desk.png",
+   "at": "2026-08-27T22:03:30.847Z"
+  },
+  {
+   "piece": "office",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "13/15 — The retro-OS screen — the single object the whole game is built around — is parented to the workstation group at local y = MONITOR_SCREEN.y = 0.4025 m while that group sits on the floor, so th",
+   "at": "2026-08-27T22:06:57.292Z"
+  },
+  {
+   "piece": "audio-level-chain",
+   "role": "critic",
+   "round": 3,
+   "status": "fail",
+   "headline": "All 68 call-site levels match the sign-off exactly and office-ambient-2 now plays, but verify-signoff.mjs only bans the word volume: a bus: or a constant dynamic: at a call site bends the level and still exits 0, and ui.mail-notify is scored played on the strength of a preload list.",
+   "gap": "verify-signoff 9a/9f bans only volume:; bus: and dynamic: are engine-honoured level knobs it does not model. Check 9d/9f treat any string occurrence in src/ as a call site, so ui.mail-notify prints via os/os.js:123 ... yes while nothing plays it.",
+   "shot": "shots/crit-audio-levels-round3.png",
+   "metrics": {
+    "callSiteRows": 68,
+    "divergent": 0,
+    "reviewedIdsBitExact": 17,
+    "defeatTestsCaught": 1,
+    "defeatTestsMissed": 2,
+    "deadIds": 9
+   },
+   "at": "2026-08-27T22:08:13.366Z"
+  },
+  {
+   "piece": "audio-levels",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "7/10 — every level in the tree is correct today; the verifier that is supposed to keep it that way has two proven bypasses and one false green. — verify-signoff.mjs bans the WORD `volume:`, not the CL",
+   "at": "2026-08-27T22:10:02.410Z"
   }
  ],
- "updated": "2026-08-27T20:52:48.537Z"
+ "updated": "2026-08-27T22:10:02.410Z"
 }

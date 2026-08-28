@@ -29,6 +29,13 @@ export const WIDTH_DWELLING = 0.90;
 
 const DWELLING = new Set(['house', 'apartment']);
 
+/** The item of `it` with the highest score, or null. */
+function rank(it, score) {
+  let best = null, bs = -Infinity;
+  for (const x of it) { const s = score(x); if (s > bs) { bs = s; best = x; } }
+  return best;
+}
+
 export class Stats {
   constructor(nav, { typeKey = 'office', years = 30 } = {}) {
     this.nav = nav;
@@ -175,36 +182,41 @@ export class Stats {
     return best ? { id: best, label: this.nav.labelOf(best), value: bv, area: this.nav.areaOf(best), seconds: this.roomSeconds.get(best) ?? 0 } : null;
   }
 
-  /**
-   * The pinch point that matters: the busiest place on any route whose clear
-   * width is under the standard. If nothing is under the standard, the busiest
-   * narrow place is still reported, because the number is the point.
-   */
-  worstPinch() {
-    let best = null, score = -1;
-    for (const p of this.pinch.values()) {
-      const deficit = Math.max(0, this.requiredWidth - p.width);
-      const s = p.uses * (1 + deficit * 8);
-      if (s > score) { score = s; best = p; }
-    }
-    if (!best) return null;
+  _describePinch(p) {
+    if (!p) return null;
     return {
-      ...best,
-      label: best.openingId
-        ? `doorway ${best.openingId}`
-        : (best.roomId ? this.nav.labelOf(best.roomId) : 'route'),
+      ...p,
+      label: p.openingId
+        ? `doorway ${p.openingId}`
+        : (p.roomId ? this.nav.labelOf(p.roomId) : 'route'),
       required: this.requiredWidth,
-      passes: best.width >= this.requiredWidth,
-      canPass: best.width >= PASSING_WIDTH,
+      passes: p.width >= this.requiredWidth,
+      canPass: p.width >= PASSING_WIDTH,
     };
   }
+
+  /**
+   * The BUSIEST narrow place: ranked by how many journeys go through it,
+   * weighted by how far under the standard it is. It answers "where is the
+   * circulation problem people actually meet", and it is emphatically not the
+   * narrowest point — reporting it as one told an architect his narrowest route
+   * passed at 900 mm while 164 journeys were going through an 800 mm door.
+   */
+  worstPinch() { return this._describePinch(rank(this.pinch.values(), (p) => p.uses * (1 + Math.max(0, this.requiredWidth - p.width) * 8))); }
+
+  /** The narrowest place anybody actually walked through. A minimum, not a rank. */
+  narrowestPinch() { return this._describePinch(rank(this.pinch.values(), (p) => -p.width)); }
 
   wcTravel() {
     const b = this.byGoal.get('wc');
     if (!b || !b.n) return null;
     const done = b.n - b.fail;
+    // Nobody got there. An average over zero journeys is 0.0 m, which reads on
+    // the sheet as the best possible result for the worst possible building —
+    // so it has to be the "nobody could find one" row instead.
+    if (done <= 0) return null;
     return {
-      average: done ? b.dist / done : 0,
+      average: b.dist / done,
       max: b.maxDist,
       journeys: b.n,
       failed: b.fail,
@@ -224,6 +236,7 @@ export class Stats {
   summary() {
     const wc = this.wcTravel();
     const pinch = this.worstPinch();
+    const narrow = this.narrowestPinch();
     const busy = this.busiestRoom();
     const dead = this.deadestRoom();
     return {
@@ -235,7 +248,7 @@ export class Stats {
       successRate: this.journeys ? this.completed / this.journeys : 1,
       averageDistance: this.completed ? this.distance / this.completed : 0,
       totalDistance: this.distance,
-      wc, pinch, busy, dead,
+      wc, pinch, narrow, busy, dead,
       door: this.busiestDoor(),
       squeezes: [...this.squeeze.values()].reduce((s, x) => s + x.n, 0),
       worstSqueeze: [...this.squeeze.values()].sort((a, b) => b.n - a.n)[0] ?? null,
@@ -337,9 +350,9 @@ export function renderReport(stats, { analysis = null, commission = null, heatCa
     s.failed === 0 ? 'good' : (s.failed / Math.max(1, s.journeys) > 0.05 ? 'bad' : 'warn')));
   cards.appendChild(card('Average journey', `${fmt(s.averageDistance)} m`,
     `${fmt(s.totalDistance / 1000, 2)} km walked in total`));
-  cards.appendChild(card('Narrowest route', `${fmt(s.pinch?.width ?? NaN, 2)} m`,
-    s.pinch ? `at the ${s.pinch.label}` : '',
-    s.pinch ? (s.pinch.passes ? 'good' : 'bad') : ''));
+  cards.appendChild(card('Narrowest route', `${fmt(s.narrow?.width ?? NaN, 2)} m`,
+    s.narrow ? `at the ${s.narrow.label}` : '',
+    s.narrow ? (s.narrow.passes ? 'good' : 'bad') : ''));
   root.appendChild(cards);
 
   // -- the measured table --------------------------------------------------
@@ -373,8 +386,14 @@ export function renderReport(stats, { analysis = null, commission = null, heatCa
     tb.appendChild(row('Average walk to a WC', 'nobody could find one', 'a WC on every occupied level', 'bad'));
   }
 
-  if (s.pinch) {
-    tb.appendChild(row(`Worst pinch point — ${s.pinch.label}`,
+  if (s.narrow) {
+    tb.appendChild(row(`Narrowest route walked — ${s.narrow.label}`,
+      `${(s.narrow.width * 1000).toFixed(0)} mm clear, used by ${s.narrow.uses} journeys`,
+      `${(s.narrow.required * 1000).toFixed(0)} mm`,
+      s.narrow.passes ? 'good' : 'bad'));
+  }
+  if (s.pinch && !(s.narrow && s.pinch.x === s.narrow.x && s.pinch.z === s.narrow.z)) {
+    tb.appendChild(row(`Busiest narrow point — ${s.pinch.label}`,
       `${(s.pinch.width * 1000).toFixed(0)} mm clear, used by ${s.pinch.uses} journeys`,
       `${(s.pinch.required * 1000).toFixed(0)} mm`,
       s.pinch.passes ? 'good' : 'bad'));

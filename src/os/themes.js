@@ -28,7 +28,7 @@ import {
   textY, textCentred, triangle, focusRect, inside, button, field, SCROLLBAR,
 } from './widgets.js';
 import { SANS, SANS_BOLD, splitMnemonic } from './font.js';
-import { I16, icon32 } from './icons.js';
+import { I16, icon32, setIconGreys } from './icons.js';
 
 export const CAPTION_BTN = { w: 16, h: 14 };
 
@@ -255,9 +255,18 @@ class WinTheme extends BaseTheme {
   // --- desktop and taskbar -------------------------------------------------
 
   paintDesktop(g, os) {
-    const pal = this.pal;
-    if (this.desktopDither) checker(g, 0, 0, this.w, this.h, this.desktopA, this.desktopB);
-    else fill(g, 0, 0, this.w, this.h, this.desktopA);
+    fill(g, 0, 0, this.w, this.h, this.desktopA);
+    // If a machine sets a desktop pattern it is a real one: the 8x8 tiled
+    // monochrome bitmap Win95 ships (ANALYSIS.md 6), a sparse dot every 4 px in
+    // both axes. Round 1 used a 50 % checkerboard, which halves the apparent
+    // brightness — sampled across win95-01's desktop there is no black at all,
+    // only #008282 and the white of the icon labels.
+    if (this.desktopPattern) {
+      g.fillStyle = this.desktopB;
+      for (let y = 0; y < this.h; y += 4) {
+        for (let x = (y % 8 === 0) ? 0 : 2; x < this.w; x += 4) g.fillRect(x, y, 1, 1);
+      }
+    }
   }
 
   paintShell(g, os) {
@@ -366,8 +375,11 @@ class WinTheme extends BaseTheme {
       const on = hot === it;
       if (on) fill(g, x, y, r.w - r.banner - 6, r.itemH, pal.hilite);
       if (it.icon) {
+        // 32 px rows take 32x32 art. If a name has none, draw a hollow box so
+        // the gap is loud in review instead of shipping as a half-height icon
+        // sitting next to a full-height one.
         if (!icon32(g, it.icon, x + 1, y, this.screenTint)) {
-          if (I16[it.icon]) I16[it.icon].draw(g, x + 8, y + ((r.itemH - 16) >> 1));
+          frameRect(g, x + 2, y + 1, 30, 30, pal.shadow);
         }
       }
       this.fontBold.drawMnemonic(g, it.label, x + 36, textY(y, r.itemH), on ? pal.hiliteText : pal.text);
@@ -530,6 +542,142 @@ class PlatinumTheme extends BaseTheme {
   trayRect() { return { x: this.w, y: 0, w: 0, h: 0 }; }
 }
 
+// ---------------------------------------------------------------------------
+// ATELIER 9 — tier 4.
+//
+// Round 1 gave tiers 3 and 4 the same class, the same 22 px pinstriped title
+// bar, the same icons and the same cursor, and only changed the resolution and
+// two greys. That is one OS at two sizes, and DESIGN-DECISIONS.md promises "a
+// new OS theme, cursor and startup sound each time". So ATELIER is its own
+// generation of the same house style:
+//
+//   * the pinstripes are gone — a flat #EEEEEE bar, the way every OS went
+//     after 1999
+//   * the title sits on a solid navy plate in white, left aligned
+//   * the close box moved to the RIGHT, with collapse and zoom beside it
+//   * the window strip along the bottom became a Control-Strip-style dock of
+//     square icon tiles
+//   * its own pointer (thin) and its own wait cursor (a quadrant disc)
+//
+// Everything else — 20 px menus, 16 px scrollbars, 1 px bevels, hard corners —
+// stays, because those are the parts the checklist measures.
+class AtelierTheme extends PlatinumTheme {
+  constructor(cfg) {
+    super({ ...cfg });
+    this.metrics = { ...this.metrics, shellH: 28 };
+  }
+
+  /** All three boxes on the right; close is the outermost. */
+  captionButtons(win, cap) {
+    const y = cap.y + 5;
+    const right = cap.x + cap.w - 4;
+    const out = [{ id: 'close', x: right - 12, y, w: 12, h: 12 }];
+    if (win.resizable !== false) {
+      out.push({ id: 'max', x: right - 12 - 15, y, w: 12, h: 12 });
+      out.push({ id: 'min', x: right - 12 - 30, y, w: 12, h: 12 });
+    }
+    return out;
+  }
+
+  paintWindow(g, win, focused, os) {
+    const pal = this.pal;
+    const L = this.layout(win);
+    const { x, y, w, h } = win;
+    const th = this.metrics.titleH;
+
+    fill(g, x, y, w, h, pal.face);
+    frameRect(g, x, y, w, h, pal.dark);
+    hline(g, x + 1, y + 1, w - 2, pal.hi);
+    vline(g, x + 1, y + 1, h - 2, pal.hi);
+    hline(g, x + 1, y + h - 2, w - 2, pal.shadow);
+    vline(g, x + w - 2, y + 1, h - 2, pal.shadow);
+
+    // flat title band — no stripes anywhere
+    const bar = { x: x + 1, y: y + 2, w: w - 2, h: th - 3 };
+    fill(g, bar.x, bar.y, bar.w, bar.h, focused ? pal.mid : pal.face);
+    hline(g, bar.x, y + th - 2, bar.w, pal.shadow);
+    hline(g, bar.x, y + th - 1, bar.w, pal.dark);
+
+    // the title plate: solid navy, white bold text, hard left
+    const title = this.fontBold.ellipsis(win.title, bar.w - 80);
+    const tw = this.fontBold.measure(title) + 12;
+    if (focused) {
+      fill(g, bar.x + 4, y + 4, tw, 14, WIN.titleActive);
+      this.fontBold.draw(g, title, bar.x + 10, y + 6, WIN.titleText);
+    } else {
+      this.fontBold.draw(g, title, bar.x + 10, y + 6, pal.titleInactiveText);
+    }
+
+    for (const b of L.buttons) {
+      if (!focused) continue;
+      const pressed = os && os.pressed && os.pressed.kind === 'caption'
+        && os.pressed.btn === b.id && os.pressed.hot;
+      this.platinumBox(g, b, pressed);
+      if (b.id === 'close') {                    // an X, so the outer box reads as close
+        g.fillStyle = pal.dark;
+        for (let i = 0; i < 6; i++) {
+          g.fillRect(b.x + 3 + i, b.y + 3 + i, 1, 1);
+          g.fillRect(b.x + 8 - i, b.y + 3 + i, 1, 1);
+        }
+      }
+    }
+
+    const c = L.client;
+    frameRect(g, c.x - 1, c.y - 1, c.w + 2, c.h + 2, pal.dark);
+    return c;
+  }
+
+  /** Flat desktop — no 50 % checkerboard under a 1152x870 screen. */
+  paintDesktop(g) {
+    fill(g, 0, 0, this.w, this.h, this.desktopA);
+  }
+
+  paintShell(g, os) {
+    const pal = this.pal;
+    // menu bar: white, 17 px #EEEEEE, #777777, black — one grey lighter than
+    // VELLUM's, and a darker rule
+    hline(g, 0, 0, this.w, pal.hi);
+    fill(g, 0, 1, this.w, 17, pal.mid);
+    hline(g, 0, 18, this.w, pal.stripe);
+    hline(g, 0, 19, this.w, pal.dark);
+
+    const menu = os.globalMenu();
+    let x = 8;
+    for (let i = 0; i < menu.length; i++) {
+      const m = menu[i];
+      const isApple = i === 0;
+      const label = splitMnemonic(m.label).text;
+      const w = isApple ? 22 : this.font.measure(label) + 14;
+      const open = os.menuOwner === 'global' && os.menuIndex === i;
+      if (open) fill(g, x, 1, w, 17, pal.dark);
+      if (isApple) I16.square.draw(g, x + 3, 1);
+      else this.font.drawMnemonic(g, m.label, x + 7, 4, open ? pal.hi : pal.text);
+      m._rect = { x, y: 0, w, h: 19 };
+      x += w;
+    }
+    const clock = os.clockText();
+    this.font.draw(g, clock, this.w - 10 - this.font.measure(clock), 4, pal.text);
+
+    // the dock: square 24 px tiles, one per window, centred on the screen
+    const sh = this.metrics.shellH;
+    const sy = this.h - sh;
+    fill(g, 0, sy, this.w, sh, pal.face);
+    hline(g, 0, sy, this.w, pal.dark);
+    hline(g, 0, sy + 1, this.w, pal.hi);
+    const list = os.wm.taskList();
+    const tile = 24;
+    let bx = ((this.w - list.length * (tile + 4)) >> 1);
+    for (const win of list) {
+      const active = os.wm.focused === win && !win.minimized;
+      fill(g, bx, sy + 2, tile, tile, pal.face);
+      bevel(g, bx, sy + 2, tile, tile, active ? 'pressed' : 'thin', pal);
+      if (win.icon && I16[win.icon]) I16[win.icon].draw(g, bx + 4, sy + 6);
+      win._taskRect = { x: bx, y: sy + 2, w: tile, h: tile };
+      bx += tile + 4;
+    }
+  }
+}
+
 /** Straight horizontal ramp between two hexes — the ONE gradient we allow. */
 export function rampColor(a, b, t) {
   const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
@@ -588,6 +736,42 @@ export const CURSORS = {
     '.....XOOX..',
     '......XX...',
   ]),
+  // VELLUM 8 draws a narrower, taller Platinum pointer — a different driver,
+  // not the same bitmap at a different size.
+  plat: cur(0, 0, [
+    'X.........',
+    'XX........',
+    'XOX.......',
+    'XOOX......',
+    'XOOOX.....',
+    'XOOOOX....',
+    'XOOOOOX...',
+    'XOOOOOOX..',
+    'XOOOOOOOX.',
+    'XOOOOXXXXX',
+    'XOOXOOX...',
+    'XOX.XOOX..',
+    'XX...XOOX.',
+    'X.....XOOX',
+    '.......XXX',
+  ]),
+  // ATELIER 9 is thinner again and hollow: a 1 px outline with white fill.
+  thin: cur(0, 0, [
+    'XX........',
+    'XOX.......',
+    'XOOX......',
+    'XOOOX.....',
+    'XOOOOX....',
+    'XOOOOOX...',
+    'XOOOOOOX..',
+    'XOOOOOOOX.',
+    'XOOOXXXXXX',
+    'XOOXOX....',
+    'XOXX.OX...',
+    'XX...XOX..',
+    'X.....XOX.',
+    '.......XX.',
+  ]),
   ibeam: cur(3, 8, [
     'XXXXX',
     '..X..',
@@ -634,6 +818,23 @@ export const CURSORS = {
     '.XOOOOOOX.',
     '..XXXXXX..',
   ]),
+  // ATELIER waits with a quadrant disc, not a watch and not sand.
+  quadrants: cur(8, 8, [
+    '....XXXXXX....',
+    '..XXOOOOOOXX..',
+    '.XOOOOXXOOOOX.',
+    '.XOOOOXXOOOOX.',
+    'XOOOOOXXOOOOOX',
+    'XOOOOOXXOOOOOX',
+    'XXXXXXXXXXXXXX',
+    'XXXXXXXXXXXXXX',
+    'XOOOOOXXOOOOOX',
+    'XOOOOOXXOOOOOX',
+    '.XOOOOXXOOOOX.',
+    '.XOOOOXXOOOOX.',
+    '..XXOOOOOOXX..',
+    '....XXXXXX....',
+  ]),
   hresize: cur(4, 4, [
     '..X...X..',
     '.XX...XX.',
@@ -677,7 +878,7 @@ export const TIERS = [
     gradientTitle: false,
     quickLaunch: false,
     startLabel: 'Start',
-    desktopA: '#008080', desktopB: '#000000', desktopDither: true,
+    desktopA: '#008080', desktopB: VGA.black, desktopPattern: true,
     screenTint: VGA.teal,
     cursorKind: 'chunky',
     crt: true,                 // scanlines and grain on the office monitor
@@ -701,7 +902,7 @@ export const TIERS = [
     gradientTitle: true,
     quickLaunch: true,
     startLabel: 'Start',
-    desktopA: '#008080', desktopB: '#008080', desktopDither: false,
+    desktopA: '#008080', desktopB: '#008080',
     screenTint: VGA.navy,
     cursorKind: 'arrow',
     crt: true,
@@ -723,8 +924,10 @@ export const TIERS = [
     w: 1024, h: 768,
     family: 'platinum',
     desktopA: '#CCCCCC', desktopB: '#999999',
-    screenTint: VGA.silver,
-    cursorKind: 'arrow',
+    screenTint: '#999999',       // Platinum glass — VGA silver here was the one
+                                 // Windows grey still leaking into a Mac desktop
+
+    cursorKind: 'plat',
     waitCursor: 'watch',
     crt: false,
     slow: false,
@@ -744,10 +947,11 @@ export const TIERS = [
     tagline: 'Atelier 9 Studio Edition',
     w: 1152, h: 870,
     family: 'platinum',
-    desktopA: '#DDDDDD', desktopB: '#CCCCCC',
+    desktopA: '#999999', desktopB: '#999999',
     screenTint: VGA.white,
-    cursorKind: 'arrow',
-    waitCursor: 'watch',
+    chrome: 'atelier',           // its own window chrome, not Platinum's
+    cursorKind: 'thin',
+    waitCursor: 'quadrants',
     crt: false,
     slow: false,
     sound: 'os.boot-tier4',
@@ -767,6 +971,11 @@ export function grantsFor(n) { return tierConfig(n).grants; }
 
 export function makeTheme(n) {
   const cfg = tierConfig(n);
+  // Icons follow the machine: Windows silver on tiers 1-2, the Platinum ramp
+  // on tiers 3-4. One active theme at a time, so a module-level switch is the
+  // whole mechanism.
+  setIconGreys(cfg.family);
+  if (cfg.chrome === 'atelier') return new AtelierTheme(cfg);
   return cfg.family === 'platinum' ? new PlatinumTheme(cfg) : new WinTheme(cfg);
 }
 

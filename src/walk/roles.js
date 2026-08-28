@@ -492,19 +492,24 @@ const pickOf = (rng, arr) => arr[Math.min(arr.length - 1, Math.floor(rng() * arr
  * MIN_POPULATION. Scaling is proportional, so the mix stays right: a clinic
  * that has to shed people sheds patients, not its only receptionist.
  */
-export function buildPopulation({ typeKey = DEFAULT_ROSTER, params = {}, seed = 'walk', cap = MAX_POPULATION } = {}) {
+export function buildPopulation({
+  typeKey = DEFAULT_ROSTER, params = {}, seed = 'walk',
+  cap = MAX_POPULATION, want = 0,
+} = {}) {
   const roster = ROSTERS[typeKey] || ROSTERS[DEFAULT_ROSTER];
   const rng = rngFrom(`${seed}|${typeKey}`);
 
   const wanted = roster.map((r) => ({ role: r, n: Math.max(0, Math.round(r.count(params) || 0)) }));
   let total = wanted.reduce((s, w) => s + w.n, 0);
 
-  // Top up towards the minimum with whichever role is already the most numerous
-  // — that is the building's dominant user group by construction.
-  if (total < MIN_POPULATION && wanted.length) {
+  // Top up towards the minimum — or towards an explicitly requested head count,
+  // which is how the load case is reached — with whichever role is already the
+  // most numerous: that is the building's dominant user group by construction.
+  const floor = Math.min(MAX_POPULATION, Math.max(MIN_POPULATION, want || 0));
+  if (total < floor && wanted.length) {
     const biggest = wanted.reduce((a, b) => (b.n > a.n ? b : a));
-    biggest.n += MIN_POPULATION - total;
-    total = MIN_POPULATION;
+    biggest.n += floor - total;
+    total = floor;
   }
   // Scale down proportionally, but never below one of any role that had one.
   if (total > cap) {

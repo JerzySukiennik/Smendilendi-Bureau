@@ -2,6 +2,7 @@
 //
 // CLICK COUNT for changing a face's material, against SketchUp's 3:
 //   B -> click a swatch in the Materials panel -> click the face  = 3 decisions
+// (B opens the Materials tab itself, which is what makes that count true)
 //   B -> Alt+click a face you like (sample) -> click the target   = 3 decisions
 //
 // SketchUp's modifier grammar, kept verbatim:
@@ -28,6 +29,16 @@ export class PaintTool extends Tool {
     super(ed);
     this.material = 'plaster';
     this.color = null;              // furniture tint, chosen in the panel
+  }
+
+  /**
+   * Arming the bucket brings the palette up. Without this the count above is a
+   * lie: B leaves the Catalogue tab showing, so the swatch you are told to
+   * click next is not on screen and the path costs a fourth decision to find
+   * it. A tool that needs a panel opens that panel.
+   */
+  activate() {
+    this.ed.hud?.showTab('materials');
   }
 
   setMaterial(id) { this.material = id; this.flash(`${id} — ${materialPrice(id)} / m²`); }

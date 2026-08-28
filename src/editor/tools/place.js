@@ -34,6 +34,7 @@ export class PlaceTool extends Tool {
 
   activate(params = {}) {
     if (params.catalogId) this.catalogId = params.catalogId;
+    this.ed.hud?.showTab('catalogue');
     if (!this.catalogId) this.flash('Pick a component in the catalogue');
   }
 

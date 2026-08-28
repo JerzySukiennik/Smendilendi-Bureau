@@ -323,7 +323,13 @@ export class SlabTool extends TwoPointTool {
 
 // ---------------------------------------------------------------------------
 
-const r = (v) => Math.round(v * 1000) / 1000;
+// Node coordinates are rounded to the MICROMETRE, not to the millimetre.
+// Rounding each coordinate to 1 mm costs up to 0.7 mm of length on a diagonal,
+// so a wall typed as exactly 4000 came out 3999.46 mm — a number an architect
+// reads as a bug, because it is one. A micrometre is finer than anything the
+// model, the analysis or the drawing can express, and still far coarser than
+// the 1 mm node-merge tolerance in building.js, so junctions still weld.
+const r = (v) => Math.round(v * 1e6) / 1e6;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 

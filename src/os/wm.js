@@ -71,6 +71,11 @@ export class WindowManager {
   close(win) {
     const i = this.windows.indexOf(win);
     if (i < 0) return;
+    // A popup belongs to the window whose menu bar opened it. Closing the
+    // window without closing the popup leaves it painted over the desktop,
+    // detached from any menu bar — which is what buying a computer upgrade
+    // with a menu open used to do.
+    if (this.menu && this.menu.win === win) this.closeMenu();
     this.windows.splice(i, 1);
     win.app?.unmount?.();
     win.onClose?.(win);
@@ -82,7 +87,10 @@ export class WindowManager {
     this.os.invalidate();
   }
 
-  closeAll() { for (const w of [...this.windows]) this.close(w); }
+  closeAll() {
+    this.closeMenu();                     // including a global (Apple/Start) popup
+    for (const w of [...this.windows]) this.close(w);
+  }
 
   find(appId) { return this.windows.find((w) => w.appId === appId) ?? null; }
 

@@ -33,39 +33,130 @@ from pathlib import Path
 import bmesh
 import bpy
 from mathutils import Euler, Matrix, Vector
+from mathutils.bvhtree import BVHTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mats import make_material                       # noqa: E402
 from units import CYL_UP, ITEM_TO_BLENDER            # noqa: E402
 
-TOUCH_TOL = 0.002        # 2 mm: parts closer than this count as touching
+TOUCH_TOL = 0.002        # 2 mm: AABB prefilter only, never a proof of contact
+SOLID_EPS = 0.0002       # 0.2 mm: how close two FACES must come to count as joined
 BEVEL = 0.006            # default bevel offset, metres
 BEVEL_ANGLE = math.radians(28)
 SMOOTH_ANGLE = math.radians(34)
 
 
+TAU = math.pi * 2
+
+
 class BuildError(Exception):
     pass
 
+class Bowl:
+    """What `Shape.shell()` hands back: the part plus the two heights a family
+    needs. `floor_y` is the TOP of the bowl floor -- a waste sits ON it, which
+    is the number the old builder made every family guess."""
+
+    __slots__ = ('part', 'floor_y', 'rim_y', 'inner')
+
+    def __init__(self, part, floor_y, rim_y, inner):
+        self.part = part
+        self.floor_y = floor_y
+        self.rim_y = rim_y
+        self.inner = inner
+
+
+def _ring_pts(w, d, n, round_xz=True, corner=None, arc=(0.0, 1.0), closed=True):
+    """A ring of (x, z) points: an ellipse, or a rounded rectangle.
+
+    A washbasin and a WC pan are ovals; a kitchen sink, a bath and a shower tray
+    are rounded rectangles. Both are lathe profiles here, so both come out as
+    one mesh instead of a ring of little plates. Point k of an inner ring always
+    corresponds to point k of the outer ring, which is what lets the bowl wall
+    and the rim bridge cleanly.
+    """
+    rx, rz = w / 2, d / 2
+    span = arc[1] - arc[0]
+    m = n if closed else n + 1
+    out = []
+    for k in range(m):
+        a = TAU * (arc[0] + span * k / n)
+        sx, cz = math.sin(a), math.cos(a)
+        if round_xz or not corner:
+            out.append((sx * rx, cz * rz))
+            continue
+        c = min(corner, rx * 0.9, rz * 0.9)
+        # walk the ray at angle `a` out to the rounded rectangle's boundary
+        ax, az = abs(sx), abs(cz)
+        fx, fz = rx - c, rz - c
+        # straight sides first
+        t = float('inf')
+        if ax > 1e-9:
+            ty = (rx) / ax
+            if abs(cz * ty) <= fz + 1e-9:
+                t = min(t, ty)
+        if az > 1e-9:
+            tz = (rz) / az
+            if abs(sx * tz) <= fx + 1e-9:
+                t = min(t, tz)
+        if t == float('inf'):
+            # corner arc: solve |p - centre| = c along the ray
+            cx, cz0 = fx * (1 if sx >= 0 else -1), fz * (1 if cz >= 0 else -1)
+            b = sx * cx + cz * cz0
+            disc = b * b - (cx * cx + cz0 * cz0 - c * c)
+            t = b + math.sqrt(max(0.0, disc))
+        out.append((sx * t, cz * t))
+    return out
+
 
 class Part:
-    __slots__ = ('name', 'slot', 'bm', 'lo', 'hi', 'bevel')
+    __slots__ = ('name', 'slot', 'bm', 'lo', 'hi', 'bevel', '_bvh')
 
     def __init__(self, name, slot, bm, bevel):
         self.name = name
         self.slot = slot
         self.bm = bm
         self.bevel = bevel
+        self._bvh = None
         vs = [v.co for v in bm.verts]
         self.lo = Vector((min(v.x for v in vs), min(v.y for v in vs), min(v.z for v in vs)))
         self.hi = Vector((max(v.x for v in vs), max(v.y for v in vs), max(v.z for v in vs)))
 
-    def overlaps(self, other, tol=TOUCH_TOL):
+    def box_overlaps(self, other, tol=TOUCH_TOL):
+        """Cheap AABB prefilter. NEVER a proof of contact -- see solid_overlaps."""
         for i in range(3):
             if self.lo[i] - tol > other.hi[i] or other.lo[i] - tol > self.hi[i]:
                 return False
         return True
+
+    def bvh(self):
+        if self._bvh is None:
+            self.bm.verts.index_update()
+            self.bm.faces.ensure_lookup_table()
+            verts = [v.co.copy() for v in self.bm.verts]
+            polys = [[v.index for v in f.verts] for f in self.bm.faces]
+            self._bvh = BVHTree.FromPolygons(verts, polys, all_triangles=False,
+                                             epsilon=SOLID_EPS)
+        return self._bvh
+
+    def invalidate(self):
+        self._bvh = None
+
+    def solid_overlaps(self, other):
+        """TRUE geometric contact: do any two faces of the two parts intersect?
+
+        The old test unioned parts whose axis-aligned BOXES overlapped within
+        2 mm, which is not a solidity test at all: a tap floating 6 mm above a
+        basin, a waste buried under a bowl floor and a pane sealed inside a sash
+        all have overlapping boxes and no shared surface. A critic reproduced
+        exactly that -- five models that passed here were in pieces when tested
+        face against face. So contact now means faces that actually meet,
+        within SOLID_EPS (0.2 mm, the weld distance).
+        """
+        if not self.box_overlaps(other, SOLID_EPS * 2):
+            return False
+        return bool(self.bvh().overlap(other.bvh()))
 
 
 def _xform(bm, pos, rot):
@@ -177,66 +268,90 @@ class Shape:
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         return self._add(bm, slot, bevel, name or 'tube')
 
+    def ring(self, outer, inner, thickness, pos, slot='tint', rot=(0, 0, 0),
+             bevel=None, name=None, seg=24, round_xz=True, corner=None,
+             arc=(0.0, 1.0)):
+        """A flat annulus with real thickness: a WC seat, a basin rim aperture,
+        a pot rim, a downlight bezel. ONE closed mesh, not N little plates.
+
+        `outer`/`inner` are (w, d) footprints; `arc` cuts a partial ring (a WC
+        seat is an open horseshoe, not a closed doughnut) as a fraction of a
+        full turn.
+        """
+        ow, od = outer
+        iw, idp = inner
+        closed = arc == (0.0, 1.0)
+        n = seg if closed else max(3, int(seg * (arc[1] - arc[0])))
+        outer_pts = _ring_pts(ow, od, n, round_xz, corner, arc, closed)
+        inner_pts = _ring_pts(iw, idp, n, round_xz, corner, arc, closed)
+        bm = bmesh.new()
+        top, bot = thickness / 2, -thickness / 2
+        ot = [bm.verts.new((x, top, z)) for x, z in outer_pts]
+        ob = [bm.verts.new((x, bot, z)) for x, z in outer_pts]
+        it = [bm.verts.new((x, top, z)) for x, z in inner_pts]
+        ib = [bm.verts.new((x, bot, z)) for x, z in inner_pts]
+        m = len(outer_pts)
+        span = m if closed else m - 1
+        for k in range(span):
+            k2 = (k + 1) % m
+            bm.faces.new((ot[k], ot[k2], it[k2], it[k]))       # top
+            bm.faces.new((ib[k], ib[k2], ob[k2], ob[k]))       # underside
+            bm.faces.new((ob[k], ob[k2], ot[k2], ot[k]))       # outer wall
+            bm.faces.new((it[k], it[k2], ib[k2], ib[k]))       # inner wall
+        if not closed:                                          # cap the two cut ends
+            bm.faces.new((ot[0], it[0], ib[0], ob[0]))
+            bm.faces.new((ob[-1], ib[-1], it[-1], ot[-1]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        _xform(bm, pos, rot)
+        return self._add(bm, slot, bevel, name or 'ring')
+
     def shell(self, outer, inner_depth, wall, pos, slot='ceramic', rot=(0, 0, 0),
-              bevel=None, name=None, seg=None, round_xz=False):
-        """An open-topped BOWL: an outer volume with a real recess cut into its top.
+              bevel=None, name=None, seg=None, round_xz=False, corner=None):
+        """An open-topped BOWL: one closed manifold with a real recess in its top.
 
-        The reviewer's complaint about the washbasin was "nie ma dziury na mycie"
-        -- there is nowhere to wash. A basin, a sink, a bath and a drip tray all
-        need an actual concave void, so the builder owns one instead of leaving
-        every family script to fake it with a darker box.
+        WHY IT IS ONE MESH NOW. The first version built the elliptical version
+        out of N boxes, each yawed to its own chord and 8 % overlong so the
+        corners would overlap. A critic photographed the result at eye height:
+        a castellated rim of unmerged plates with steps between them, and the
+        bowl floor z-fighting against the base it sat on. It also could not tell
+        anything where the bowl floor actually WAS, so families guessed the
+        waste height and missed it by 6 mm.
 
-        Built as five/annulus walls so it stays manifold and cheap; no booleans.
+        So a bowl is now lathed from a profile in one bmesh -- outer wall, base,
+        bowl floor, inner wall, rim -- and reports `floor_y` and `rim_y` back to
+        the caller, which is what a waste and a plughole are positioned from.
         """
         w, h, d = outer
-        parts = []
         base_h = h - inner_depth
         if base_h < 0.004:
             raise BuildError(f'{self.id}: shell base too thin ({base_h:.3f} m)')
-        if round_xz:
-            # elliptical bowl: a basin, a WC pan and a drip tray are all ovals, and
-            # a rectangular recess is exactly what stops one reading as a basin.
-            n = seg or 16
-            rx, rz = w / 2, d / 2
-            parts.append(self.cyl(min(rx, rz) * 0.8, 1.0, base_h,
-                                  (pos[0], pos[1] - h / 2 + base_h / 2, pos[2]),
-                                  slot, seg=n, rot=rot, bevel=bevel,
-                                  name=(name or 'bowl') + '-base'))
-            # scale the round base into the ellipse
-            bmesh.ops.transform(parts[-1].bm,
-                                matrix=(Matrix.Translation(Vector(pos))
-                                        @ Matrix.Diagonal(Vector((rx, 1.0, rz))).to_4x4()
-                                        @ Matrix.Translation(-Vector(pos))),
-                                verts=parts[-1].bm.verts)
-            self._recompute(parts[-1])
-            for k in range(n):
-                a0 = 2 * math.pi * k / n
-                a1 = 2 * math.pi * (k + 1) / n
-                am = (a0 + a1) / 2
-                p0 = (math.sin(a0) * rx, math.cos(a0) * rz)
-                p1 = (math.sin(a1) * rx, math.cos(a1) * rz)
-                seg_len = math.hypot(p1[0] - p0[0], p1[1] - p0[1]) * 1.08
-                mx, mz = (p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2
-                yaw = math.atan2(mx, mz)
-                parts.append(self.box(
-                    (seg_len, inner_depth, wall),
-                    (pos[0] + mx * (1 - wall / (2 * max(rx, rz))),
-                     pos[1] - h / 2 + base_h + inner_depth / 2,
-                     pos[2] + mz * (1 - wall / (2 * max(rx, rz)))),
-                    slot, rot=(0, yaw, 0), bevel=0.0, name=(name or 'bowl') + f'-w{k}'))
-            return parts
-        parts.append(self.box((w, base_h, d), (pos[0], pos[1] - h / 2 + base_h / 2, pos[2]),
-                              slot, rot=rot, bevel=bevel, name=(name or 'bowl') + '-base'))
-        y = pos[1] - h / 2 + base_h + inner_depth / 2
-        for sx in (-1, 1):
-            parts.append(self.box((wall, inner_depth, d),
-                                  (pos[0] + sx * (w / 2 - wall / 2), y, pos[2]),
-                                  slot, rot=rot, bevel=bevel, name=(name or 'bowl') + '-x'))
-        for sz in (-1, 1):
-            parts.append(self.box((w - wall * 2, inner_depth, wall),
-                                  (pos[0], y, pos[2] + sz * (d / 2 - wall / 2)),
-                                  slot, rot=rot, bevel=bevel, name=(name or 'bowl') + '-z'))
-        return parts
+        n = seg or (16 if round_xz else 20)
+        if not round_xz and corner is None:
+            corner = min(w, d) * 0.14
+        outer_pts = _ring_pts(w, d, n, round_xz, corner)
+        inner_pts = _ring_pts(w - wall * 2, d - wall * 2, n, round_xz,
+                              None if corner is None else max(0.004, corner - wall))
+        top = h / 2
+        bot = -h / 2
+        floor = bot + base_h
+        bm = bmesh.new()
+        ot = [bm.verts.new((x, top, z)) for x, z in outer_pts]
+        ob = [bm.verts.new((x, bot, z)) for x, z in outer_pts]
+        it = [bm.verts.new((x, top, z)) for x, z in inner_pts]
+        ib = [bm.verts.new((x, floor, z)) for x, z in inner_pts]
+        m = len(outer_pts)
+        for k in range(m):
+            k2 = (k + 1) % m
+            bm.faces.new((ob[k], ob[k2], ot[k2], ot[k]))       # outer wall
+            bm.faces.new((ot[k], ot[k2], it[k2], it[k]))       # rim
+            bm.faces.new((it[k], it[k2], ib[k2], ib[k]))       # bowl wall
+        bm.faces.new(list(reversed(ob)))                        # underside
+        bm.faces.new(ib)                                        # bowl floor
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        _xform(bm, pos, rot)
+        part = self._add(bm, slot, bevel, name or 'bowl')
+        return Bowl(part, pos[1] + floor, pos[1] + top,
+                    (w - wall * 2, d - wall * 2))
 
     # -- bookkeeping --------------------------------------------------------
 
@@ -249,7 +364,11 @@ class Shape:
     # -- the assertion ------------------------------------------------------
 
     def components(self, tol=TOUCH_TOL):
-        """Union-find over parts whose bounding boxes touch. Returns a list of lists."""
+        """Union-find over parts whose SURFACES meet. Returns a list of lists.
+
+        `tol` is only the box prefilter; the union itself is decided by
+        Part.solid_overlaps, i.e. by faces that actually intersect.
+        """
         n = len(self.parts)
         parent = list(range(n))
 
@@ -261,7 +380,8 @@ class Shape:
 
         for i in range(n):
             for j in range(i + 1, n):
-                if self.parts[i].overlaps(self.parts[j], tol):
+                if self.parts[i].box_overlaps(self.parts[j], tol) \
+                        and self.parts[i].solid_overlaps(self.parts[j]):
                     ri, rj = find(i), find(j)
                     if ri != rj:
                         parent[ri] = rj
@@ -296,6 +416,7 @@ class Shape:
         return lo, hi
 
     def _recompute(self, p):
+        p.invalidate()
         vs = [v.co for v in p.bm.verts]
         p.lo = Vector((min(v.x for v in vs), min(v.y for v in vs), min(v.z for v in vs)))
         p.hi = Vector((max(v.x for v in vs), max(v.y for v in vs), max(v.z for v in vs)))

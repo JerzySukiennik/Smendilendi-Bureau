@@ -38,6 +38,26 @@ const WALK_FOV = 62;
 
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
+const ZERO_INSETS = { left: 0, right: 0, top: 0, bottom: 0 };
+
+/**
+ * Does any sphere in `list` sit on the segment a-b (or swallow its start)?
+ * Used to keep Zoom Extents from parking the camera inside a tree canopy.
+ */
+function blocked(a, b, list) {
+  const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+  const len2 = abx * abx + aby * aby + abz * abz;
+  for (const o of list) {
+    const r = (o.r ?? 0) + 0.4;
+    const px = o.x - a.x, py = (o.y ?? a.y) - a.y, pz = o.z - a.z;
+    let t = len2 > 1e-6 ? (px * abx + py * aby + pz * abz) / len2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const dx = px - abx * t, dy = py - aby * t, dz = pz - abz * t;
+    if (dx * dx + dy * dy + dz * dz < r * r) return true;
+  }
+  return false;
+}
+
 export class EditorCameras {
   /**
    * @param {HTMLCanvasElement} canvas
@@ -57,6 +77,12 @@ export class EditorCameras {
     this.mode = 'orbit';
     this.width = 1;
     this.height = 1;
+
+    // Pixels of the viewport covered by the HUD. The HUD measures its own
+    // panels and writes this; framing then aims at what is left.
+    this.viewInsets = { left: 0, right: 0, top: 0, bottom: 0 };
+    // () -> [{ x, y, z, r }] — things the camera should not look through.
+    this.obstacles = opts.obstacles || null;
 
     // orbit state
     this.target = new Vector3(4, 1.2, 4);
@@ -146,19 +172,66 @@ export class EditorCameras {
     this.setView(order[(order.indexOf(this.mode) + 1) % order.length]);
   }
 
-  /** Frame a Box3 (Shift+Z, Zoom Extents). */
+  /**
+   * Frame a Box3 (Shift+Z, Zoom Extents).
+   *
+   * Two things a naive implementation gets wrong and this one does not.
+   * FIRST, the drawing is not centred on the canvas, it is centred on the part
+   * of the canvas nobody is standing on: `viewInsets` carries the width of the
+   * tool palette, the right-hand dock and the bars, so the model lands in the
+   * clear rectangle between them instead of half under a panel.
+   * SECOND, on a real plot the straight line from the camera to the model runs
+   * through a tree as often as not, so the orbit yaw is turned until the line
+   * of sight is clear of everything `obstacles()` reports.
+   */
   zoomExtents(box) {
     if (!box || box.isEmpty()) return;
     const c = box.getCenter(new Vector3());
     const size = box.getSize(new Vector3());
     const radius = Math.max(size.length() * 0.5, 2);
+    const ins = this.viewInsets || ZERO_INSETS;
+    const freeW = Math.max(80, this.width - ins.left - ins.right);
+    const freeH = Math.max(80, this.height - ins.top - ins.bottom);
+
     this.target.copy(c);
-    this.dist = radius / Math.tan(MathUtils.degToRad(ORBIT_FOV * 0.5)) * 1.15;
-    this.planCentre.set(c.x, c.z);
-    this.planHeight = Math.max(size.z, size.x / (this.width / this.height)) * 1.25 + 2;
+    // Pad for the fraction of the viewport the panels eat, so the model still
+    // fills the clear rectangle after it has been pushed into it.
+    const shrink = Math.min(freeW / this.width, freeH / this.height);
+    this.dist = (radius / Math.tan(MathUtils.degToRad(ORBIT_FOV * 0.5)) * 1.15) / Math.max(0.35, shrink);
+
+    // plan: fit the box in the CLEAR rectangle, then offset the camera so that
+    // rectangle, not the canvas, is what the drawing sits in the middle of.
+    const fitH = Math.max(size.z, size.x / (freeW / freeH)) * 1.25 + 2;
+    this.planHeight = fitH * (this.height / freeH);
+    const mpp = this.planHeight / this.height;
+    this.planCentre.set(
+      c.x - ((ins.left - ins.right) / 2) * mpp,
+      c.z - ((ins.top - ins.bottom) / 2) * mpp,
+    );
+
     if (this.mode === 'walk') this.setView('orbit');
-    else this._apply();
+    else { this._clearYaw(); this._apply(); }
     this.onChange?.();
+  }
+
+  /**
+   * Turn the orbit yaw until neither the camera nor its line of sight sits
+   * inside anything `obstacles()` reports (tree crowns, mostly). Tries the
+   * current yaw first, then ever wider swings, and gives up on the original if
+   * every direction is blocked — a bad view beats a moved view you did not ask
+   * for.
+   */
+  _clearYaw() {
+    const list = this.obstacles?.() || null;
+    if (!list || !list.length) return;
+    const yaw0 = this.yaw;
+    const steps = [0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5, 2.0, -2.0, 2.6, -2.6, 3.14];
+    for (const d of steps) {
+      this.yaw = yaw0 + d;
+      const pos = this._orbitPos(new Vector3());
+      if (!blocked(pos, this.target, list)) return;
+    }
+    this.yaw = yaw0;
   }
 
   /** Re-centre on a world point without changing the view direction. */
@@ -285,21 +358,46 @@ export class EditorCameras {
     return out.set((px / this.width) * 2 - 1, -(py / this.height) * 2 + 1);
   }
 
-  /** World point where the cursor ray meets a horizontal plane at height y. */
-  groundPoint(ndc, y = 0, out = new Vector3()) {
+  /**
+   * The cursor ray in WORLD space — origin and unit direction.
+   *
+   * Every linear inference (the axes, parallel, perpendicular, the arrow-key
+   * lock) is a closest-point problem between this ray and a line in the model,
+   * and it has to be solved in world space. Interpolating a world parameter
+   * from a screen-space one is only correct under an affine projection, so it
+   * works in the orthographic plan and is nonsense in the perspective view —
+   * which is the view the editor starts in. Written into `out` (a THREE.Ray)
+   * so the caller can keep one and never allocate.
+   */
+  cursorRay(ndc, out = new Ray()) {
     const cam = this.camera;
-    this._ray.origin.setFromMatrixPosition(cam.matrixWorld);
     if (cam.isOrthographicCamera) {
       this._tmp.set(ndc.x, ndc.y, -1).unproject(cam);
-      this._ray.origin.copy(this._tmp);
-      this._ray.direction.set(0, 0, -1).transformDirection(cam.matrixWorld).normalize();
+      out.origin.copy(this._tmp);
+      out.direction.set(0, 0, -1).transformDirection(cam.matrixWorld).normalize();
     } else {
+      out.origin.setFromMatrixPosition(cam.matrixWorld);
       this._tmp.set(ndc.x, ndc.y, 0.5).unproject(cam);
-      this._ray.direction.copy(this._tmp).sub(this._ray.origin).normalize();
+      out.direction.copy(this._tmp).sub(out.origin).normalize();
     }
+    return out;
+  }
+
+  /** World point where the cursor ray meets a horizontal plane at height y. */
+  groundPoint(ndc, y = 0, out = new Vector3()) {
+    this.cursorRay(ndc, this._ray);
     this._plane.set(UP, -y);
     const hit = this._ray.intersectPlane(this._plane, out);
     return hit ? out : null;
+  }
+
+  /** True when the world point is in front of the camera (behind = unprojectable). */
+  isInFront(p) {
+    const cam = this.camera;
+    if (cam.isOrthographicCamera) return true;
+    this._tmp.copy(p).sub(cam.position);
+    this._tmp2.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    return this._tmp.dot(this._tmp2) > 0.02;
   }
 
   /** Project a world point to canvas pixels. */

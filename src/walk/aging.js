@@ -39,6 +39,32 @@ const TREE_GROWTH = 1.42;
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
+/** Centroid of a plot polygon [[x, z], ...] — the direction "inward" points. */
+function polyCentre(poly) {
+  if (!poly || poly.length < 3) return null;
+  let x = 0, z = 0;
+  for (const p of poly) { x += p[0]; z += p[1]; }
+  return { x: x / poly.length, z: z / poly.length };
+}
+
+function pointInPoly(x, z, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], zi = poly[i][1], xj = poly[j][0], zj = poly[j][1];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function distToSegment(px, pz, ax, az, bx, bz) {
+  const dx = bx - ax, dz = bz - az;
+  const l2 = dx * dx + dz * dz;
+  if (l2 < 1e-9) return Math.hypot(px - ax, pz - az);
+  let t = ((px - ax) * dx + (pz - az) * dz) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+}
+
 // ---------------------------------------------------------------------------
 
 export class Aging {
@@ -180,33 +206,52 @@ export class Aging {
         lean: (rng() - 0.5) * 0.10,
       });
     }
-    // self-seeded, along the boundary, appearing between year 5 and year 25
+    // Self-seeded, along the boundary, appearing between year 5 and year 25.
+    //
+    // Nature does not weed itself, but it does not grow through the paving
+    // either. Three things get a tree rejected: a crown that would overhang the
+    // approach to the front door (a 1.85 m crown 1.5 m off the axis of the path
+    // is a tree growing through the paving, and it is the first thing anyone
+    // looking at the render sees), a crown against the building, and a trunk
+    // outside the plot. The offset from the boundary is unconditionally INWARD:
+    // it used to take a random sign, which put half of them on next door's land.
     const poly = plot?.boundary;
     const b = this.nav.levels[0];
-    const count = 9;
+    const count = 6;
+    const centre = polyCentre(poly) ?? {
+      x: b.minX + (b.w * this.nav.cell) / 2,
+      z: b.minZ + (b.h * this.nav.cell) / 2,
+    };
     for (let i = 0; i < count; i++) {
-      let x, z;
-      if (poly && poly.length >= 3) {
-        const k = Math.floor(rng() * poly.length);
-        const a = poly[k], c = poly[(k + 1) % poly.length];
-        const t = 0.15 + rng() * 0.7;
-        const inward = 1.6 + rng() * 2.4;
-        const dx = c[0] - a[0], dz = c[1] - a[1];
-        const len = Math.hypot(dx, dz) || 1;
-        x = a[0] + dx * t + (dz / len) * inward * (rng() < 0.5 ? 1 : -1);
-        z = a[1] + dz * t - (dx / len) * inward * (rng() < 0.5 ? 1 : -1);
-      } else {
-        const ang = (i / count) * Math.PI * 2 + rng();
-        const r = 26 + rng() * 14;
-        x = b.minX + (b.w * this.nav.cell) / 2 + Math.cos(ang) * r;
-        z = b.minZ + (b.h * this.nav.cell) / 2 + Math.sin(ang) * r;
+      const crown = 1.6 + rng() * 1.4;
+      let x = 0, z = 0, ok = false;
+      for (let attempt = 0; attempt < 6 && !ok; attempt++) {
+        if (poly && poly.length >= 3) {
+          const k = Math.floor(rng() * poly.length);
+          const a = poly[k], c = poly[(k + 1) % poly.length];
+          const t = 0.15 + rng() * 0.7;
+          const inward = 1.6 + rng() * 2.4;
+          const dx = c[0] - a[0], dz = c[1] - a[1];
+          const len = Math.hypot(dx, dz) || 1;
+          const ex = a[0] + dx * t, ez = a[1] + dz * t;
+          // the edge normal that points at the middle of the plot
+          let nx = dz / len, nz = -dx / len;
+          if ((centre.x - ex) * nx + (centre.z - ez) * nz < 0) { nx = -nx; nz = -nz; }
+          x = ex + nx * inward;
+          z = ez + nz * inward;
+        } else {
+          const ang = (i / count) * Math.PI * 2 + rng();
+          const r = 26 + rng() * 14;
+          x = centre.x + Math.cos(ang) * r;
+          z = centre.z + Math.sin(ang) * r;
+        }
+        ok = this._treeSpotFree(x, z, crown, poly);
       }
-      // never inside the building
-      if (this.nav.indexAt(x, z, 0) >= 0 && this.nav.roomAt(x, z, 0)) continue;
+      if (!ok) continue;
       this.trees.push({
         x, z,
         h0: 0, h1: 5 + rng() * 5,
-        r0: 0, r1: 1.6 + rng() * 1.4,
+        r0: 0, r1: crown,
         crownColour: rng() < 0.4 ? 0x86a659 : 0x6f8f4a,
         crownShade: rng() < 0.4 ? 0x74914c : 0x5f7c40,
         trunkColour: COLORS.woodDark,
@@ -214,6 +259,30 @@ export class Aging {
         lean: (rng() - 0.5) * 0.16,
       });
     }
+  }
+
+  /** Room for a full-grown crown here: not on the path, the building or next door. */
+  _treeSpotFree(x, z, crown, poly) {
+    const clear = crown + 1.0;
+    if (poly && poly.length >= 3 && !pointInPoly(x, z, poly)) return false;
+    // the building itself, sampled around the trunk
+    for (let a = 0; a < 8; a++) {
+      const px = x + Math.cos((a / 8) * Math.PI * 2) * clear;
+      const pz = z + Math.sin((a / 8) * Math.PI * 2) * clear;
+      if (this.nav.roomAt(px, pz, 0)) return false;
+    }
+    if (this.nav.roomAt(x, z, 0)) return false;
+    // the paved approach: a 1.50 m strip from the standoff point to the door
+    const e = this.nav.mainEntrance;
+    if (e) {
+      const d = distToSegment(x, z, e.x, e.z, e.outX, e.outZ);
+      if (d < clear + 0.75) return false;
+    }
+    // another tree
+    for (const t of this.trees) {
+      if (Math.hypot(t.x - x, t.z - z) < clear + (t.r1 ?? 1)) return false;
+    }
+    return true;
   }
 
   /**

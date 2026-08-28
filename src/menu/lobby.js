@@ -11,8 +11,29 @@
 import {
   createSession, formatCode, codeError, parseCode, PLAYER_COLORS,
 } from '../net/session.js';
+import { isPlaceholderConfig } from '../net/firebase-config.js';
 
 const STORE = 'smendilendi.menu';
+
+/**
+ * CREDITS.md in the project root is the audio credit file and is not this
+ * agent's to edit, but the credits PANEL is — and a panel that credits 48 CC0
+ * sound files while saying nothing about the renderer and the typeface the whole
+ * menu is built out of is not a credits panel. This is appended to it.
+ */
+const SOFTWARE_CREDITS = `
+## Software and type
+
+- **three.js** r0.180.0 — MIT licence, (c) 2010-2026 three.js authors (Mr.doob and
+contributors). Loaded from unpkg as ES modules; the whole game renders through it.
+- **Helvetiker Bold** — the typeface of the rooftop sign and of all four menu
+lines, shipped with the three.js examples as \`helvetiker_bold.typeface.json\`.
+Derived from Helvetiker by Kenn Munk and distributed under the three.js licence.
+- **Firebase JavaScript SDK** — Apache 2.0, used for the shared office session only.
+- Everything else in this build — the building, the site, the lettering geometry,
+the analysis engine, the retro OS and every line of the interface — was written
+for this project.
+`;
 const MAX_PLAYERS = 3;      // DESIGN-DECISIONS.md: 1-3 players, one shared office
 
 const DEFAULTS = {
@@ -80,6 +101,9 @@ export class Lobby {
     this.reportBtn = el('button', 'mn-btn mn-btn-ghost');
     this.reportBtn.innerHTML = `<span class="mn-dot"></span>Surveyor's report <b>${this.crimes.length}</b>`;
     this.reportBtn.addEventListener('click', () => this.openReport());
+    // hovering the chip brings all twelve tags up in the 3D scene
+    this.reportBtn.addEventListener('mouseenter', () => this.opts.onTagsHot?.(true));
+    this.reportBtn.addEventListener('mouseleave', () => this.opts.onTagsHot?.(false));
     tools.appendChild(this.reportBtn);
     root.appendChild(tools);
 
@@ -154,10 +178,16 @@ export class Lobby {
       <div class="mn-tag-code">${esc(crime.code)}</div>`;
     this.tagCard.hidden = false;
     const w = window.innerWidth, h = window.innerHeight;
-    const left = Math.min(Math.max(at.x * w + 22, 12), w - 372);
-    const top = Math.min(Math.max(at.y * h - 30, 12), h - 220);
-    this.tagCard.style.left = `${left}px`;
-    this.tagCard.style.top = `${top}px`;
+    // The card goes on the side of the pin with room for it, so it never lands
+    // on the defect it is diagnosing — round 1 put tag 2's card straight over the
+    // top of the escape stair.
+    const cw = this.tagCard.offsetWidth || 340;
+    const ch = this.tagCard.offsetHeight || 200;
+    const px = at.x * w, py = at.y * h;
+    const left = px + 22 + cw < w - 12 ? px + 22 : Math.max(12, px - 22 - cw);
+    const top = Math.min(Math.max(py - 30, 12), Math.max(12, h - ch - 12));
+    this.tagCard.style.left = `${Math.round(left)}px`;
+    this.tagCard.style.top = `${Math.round(top)}px`;
   }
 
   hideTag() { this.tagCard.hidden = true; }
@@ -175,6 +205,7 @@ export class Lobby {
     this.veil.hidden = false;
     this._panel = p;
     this.opts.onBlock?.(true);
+    if (cls.includes('mn-wide')) this.opts.onTagsHot?.(true);
     this.hideTag();
     this.ctx?.audio?.play('ui.window-open');
     return p;
@@ -186,6 +217,7 @@ export class Lobby {
     this._panel = null;
     this.veil.hidden = true;
     this.opts.onBlock?.(false);
+    this.opts.onTagsHot?.(false);
     this.ctx?.audio?.play('ui.window-close');
   }
 
@@ -204,16 +236,26 @@ export class Lobby {
   // -- multiplayer ----------------------------------------------------------
 
   openMultiplayer() {
+    // With placeholder Firebase credentials there is no network, so "join" can
+    // only ever succeed at joining an office that does not exist. Round 1
+    // accepted a valid-shaped code offline and dropped the player into an empty
+    // room that looked like a successful join. An honest disabled button and one
+    // sentence of why is better than a working-looking lie.
+    const offline = isPlaceholderConfig();
     const p = this._openPanel('Multiplayer', `
       <p class="mn-lead">One shared office, one shared model, up to ${MAX_PLAYERS} architects.
       No accounts — the office code is the key.</p>
       <div class="mn-row">
         <button class="mn-btn mn-btn-primary" data-a="host">Open a new office</button>
-        <button class="mn-btn" data-a="join">Join with a code</button>
+        <button class="mn-btn" data-a="join"${offline ? ' disabled' : ''}>Join with a code</button>
       </div>
+      ${offline ? `<div class="mn-status warn">This build has no Firebase credentials
+        (<code>src/net/firebase-config.js</code> still holds placeholders), so there is nothing
+        to join. Opening an office still works — it just runs on this machine alone.</div>` : ''}
       <div class="mn-slot"></div>`);
     p.querySelector('[data-a="host"]').addEventListener('click', () => this._host());
-    p.querySelector('[data-a="join"]').addEventListener('click', () => this._joinForm());
+    const join = p.querySelector('[data-a="join"]');
+    if (!offline) join.addEventListener('click', () => this._joinForm());
   }
 
   _joinForm() {
@@ -337,7 +379,7 @@ export class Lobby {
         ${['auto', 'low', 'medium', 'high'].map((q) => `<button data-q="${q}" class="${this.prefs.quality === q ? 'on' : ''}">${q[0].toUpperCase()}${q.slice(1)}</button>`).join('')}
       </div>
       <p class="mn-dim mn-mt">Auto watches the frame time over a two-second window and steps the
-      render scale between 1.0 and ${(this.ctx?.engine?.maxRatio ?? 1.75).toFixed(2)}. Locking it stops that.</p>`);
+      render scale between 1.00 and ${(this.ctx?.engine?.maxRatio ?? 1.75).toFixed(2)}. Locking it stops that.</p>`);
 
     p.querySelectorAll('[data-vol]').forEach((i) => {
       i.addEventListener('input', () => {
@@ -377,7 +419,7 @@ export class Lobby {
     fetch('CREDITS.md')
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
       .then((md) => {
-        this._creditsHtml = renderMarkdown(md);
+        this._creditsHtml = renderMarkdown(md) + renderMarkdown(SOFTWARE_CREDITS);
         if (this._panel === p) body.innerHTML = this._creditsHtml;
       })
       .catch((err) => {

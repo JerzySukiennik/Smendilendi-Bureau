@@ -27,7 +27,10 @@
     dev.html?plan=kindergarten&walk=broken
                                    the nursery with an unreachable playroom and
                                    the cloakroom lockers in the corridor
-    dev.html?roster=office&cap=30  any roster in any plan — the load case
+    dev.html?roster=office&cap=30  any roster in any plan
+    dev.html?people=30             exactly 30 people — the load case. `cap` only
+                                   ever scales a roster DOWN; `people` tops it
+                                   up with the dominant role as well.
     dev.html?fast=1                the day runs 6x faster, for the report
 
   WALKDEV in the console: .hour(h) .report() .stats() .nav .crowd
