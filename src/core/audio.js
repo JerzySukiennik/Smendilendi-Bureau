@@ -52,6 +52,27 @@
  *   footsteps get quieter as you slow down. It is treated exactly like distance on
  *   a positional sound — the reviewed number is the loudest the sound ever gets,
  *   and the world only takes away from it.
+ *
+ * ROUND 4 — THE THREE WAYS THE GUARANTEE WAS STILL DEFEATABLE.
+ *   An independent critic took a scratch copy of the repo and moved a level three
+ *   different ways while verify-signoff.mjs kept printing "all checks passed":
+ *
+ *     1. A THIRD copy of the bus mix in src/menu/lobby.js, pushed onto the bus on
+ *        menu entry. mix.json's music bus 0.45 -> 0.30 changed the review page and
+ *        not the game: lobby.js put 0.45 back, 1.5x louder than the promise.
+ *        FIXED by deleting the copy — a settings screen now records DEVIATIONS
+ *        (setUserVolume / applyUserVolumes below) and cannot state a default —
+ *        and by check 10, which fails on a bus-mix literal anywhere but here.
+ *     2. `h?.setVolume?.(0.15)` inside the OS play wrapper, cutting every sound the
+ *        OS routes to 15%. FIXED by deleting setVolume from the handle: the gain
+ *        node a play() returns is no longer writable from outside this file.
+ *     3. `play('ui.click', { bus: 'sfx' })` — a bus IS a level (ui 0.7 vs sfx 0.8),
+ *        and the scanner parsed the key while the check ignored it. FIXED by
+ *        deleting the override: the bus comes from the manifest's `kind`.
+ *
+ *   The pattern behind all three: any way to change a level that is not a number
+ *   in manifest.json or mix.json is a way to make the review page lie. So there is
+ *   now no such way, rather than a scanner racing to catch each new one.
  */
 
 /**

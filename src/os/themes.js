@@ -25,7 +25,7 @@
 
 import {
   WIN, PLATINUM, VGA, fill, hline, vline, frameRect, bevel, panel, checker, text,
-  textY, textCentred, triangle, focusRect, inside, button, field, SCROLLBAR,
+  textY, textCentred, triangle, focusRect, inside, button, field, SCROLLBAR, tile,
 } from './widgets.js';
 import { SANS, SANS_BOLD, splitMnemonic } from './font.js';
 import { I16, icon32, setIconGreys } from './icons.js';
@@ -585,12 +585,18 @@ class AtelierTheme extends PlatinumTheme {
     const { x, y, w, h } = win;
     const th = this.metrics.titleH;
 
+    // ATELIER's frame ramp is its own: black rule, then #EEEEEE / #999999,
+    // where VELLUM runs #FFFFFF / #999999 and adds no second step. Measured on
+    // column x = win.x: 000000, EEEEEE, CCCCCC, 999999 outward — a four-step
+    // frame against VELLUM's three.
     fill(g, x, y, w, h, pal.face);
     frameRect(g, x, y, w, h, pal.dark);
-    hline(g, x + 1, y + 1, w - 2, pal.hi);
-    vline(g, x + 1, y + 1, h - 2, pal.hi);
+    hline(g, x + 1, y + 1, w - 2, pal.mid);
+    vline(g, x + 1, y + 1, h - 2, pal.mid);
     hline(g, x + 1, y + h - 2, w - 2, pal.shadow);
     vline(g, x + w - 2, y + 1, h - 2, pal.shadow);
+    hline(g, x + 2, y + h - 3, w - 4, pal.stripe);
+    vline(g, x + w - 3, y + 2, h - 4, pal.stripe);
 
     // flat title band — no stripes anywhere
     const bar = { x: x + 1, y: y + 2, w: w - 2, h: th - 3 };
@@ -627,9 +633,28 @@ class AtelierTheme extends PlatinumTheme {
     return c;
   }
 
-  /** Flat desktop — no 50 % checkerboard under a 1152x870 screen. */
+  /**
+   * ATELIER's backdrop is a 4 px diagonal twill, not a flat grey field.
+   *
+   * Round 2 measured tier 4's desktop at 94.16 % one colour over a 1152x870
+   * screen, which made it read as a lighter recolour of VELLUM's Platinum
+   * checkerboard rather than a different machine. Platinum-era desktops shipped
+   * woven patterns, so this is one: two diagonal threads, #777777 dark and
+   * #EEEEEE light, over the #999999 ground — 25 / 25 / 50, three colours, a
+   * real 1-bit weave with no alpha anywhere (checklist 13). Drawn through a
+   * cached 4x4 CanvasPattern, so a whole-screen repaint is one fillRect.
+   */
   paintDesktop(g) {
-    fill(g, 0, 0, this.w, this.h, this.desktopA);
+    const ground = this.desktopA;
+    const dark = this.pal.stripe;
+    const lite = this.pal.mid;
+    tile(g, 0, 0, this.w, this.h, `twill|${ground}|${dark}|${lite}`, 4, 4, (t) => {
+      t.fillStyle = ground; t.fillRect(0, 0, 4, 4);
+      for (let i = 0; i < 4; i++) {
+        t.fillStyle = dark; t.fillRect(i, i, 1, 1);
+        t.fillStyle = lite; t.fillRect((i + 2) % 4, i, 1, 1);
+      }
+    });
   }
 
   paintShell(g, os) {
@@ -665,16 +690,62 @@ class AtelierTheme extends PlatinumTheme {
     hline(g, 0, sy, this.w, pal.dark);
     hline(g, 0, sy + 1, this.w, pal.hi);
     const list = os.wm.taskList();
-    const tile = 24;
-    let bx = ((this.w - list.length * (tile + 4)) >> 1);
+    const box = 24;
+    let bx = ((this.w - list.length * (box + 4)) >> 1);
     for (const win of list) {
       const active = os.wm.focused === win && !win.minimized;
-      fill(g, bx, sy + 2, tile, tile, pal.face);
-      bevel(g, bx, sy + 2, tile, tile, active ? 'pressed' : 'thin', pal);
+      fill(g, bx, sy + 2, box, box, pal.face);
+      bevel(g, bx, sy + 2, box, box, active ? 'pressed' : 'thin', pal);
       if (win.icon && I16[win.icon]) I16[win.icon].draw(g, bx + 4, sy + 6);
-      win._taskRect = { x: bx, y: sy + 2, w: tile, h: tile };
-      bx += tile + 4;
+      win._taskRect = { x: bx, y: sy + 2, w: box, h: box };
+      bx += box + 4;
     }
+    this.paintControlStrip(g, os, sy);
+  }
+
+  /**
+   * The Control Strip — the thing tier 4 has that tier 3 does not. Two tab
+   * modules pulled out at the right end of the dock: a sound level in five hard
+   * blocks, and a colour-depth module. Both are read-outs, not controls, and
+   * both are drawn from the same bevel kit as everything else.
+   */
+  paintControlStrip(g, os, sy) {
+    const pal = this.pal;
+    const h = this.metrics.shellH - 4;
+    const modules = [
+      { w: 62, draw: (x, y) => {
+        I16.settings?.draw(g, x + 3, y + ((h - 16) >> 1));
+        const level = 3;                       // the machine is quiet; it is an office
+        for (let i = 0; i < 5; i++) {
+          const bh = 4 + i * 2;
+          fill(g, x + 22 + i * 7, y + h - 4 - bh, 5, bh, i < level ? pal.dark : pal.shadow);
+        }
+      } },
+      { w: 88, draw: (x, y) => {
+        const d = new Date();
+        const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+        const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+        const label = `${day} ${d.getDate()} ${mon}`;
+        this.font.draw(g, label, x + ((88 - this.font.measure(label)) >> 1), textY(y, h), pal.text);
+      } },
+    ];
+    let x = this.w - 6;
+    for (let i = modules.length - 1; i >= 0; i--) x -= modules[i].w + 2;
+    for (const m of modules) {
+      fill(g, x, sy + 2, m.w, h, pal.face);
+      frameRect(g, x, sy + 2, m.w, h, pal.dark);
+      hline(g, x + 1, sy + 3, m.w - 2, pal.hi);
+      vline(g, x + 1, sy + 3, h - 2, pal.hi);
+      hline(g, x + 1, sy + h - 1, m.w - 2, pal.shadow);
+      vline(g, x + m.w - 2, sy + 3, h - 3, pal.shadow);
+      m.draw(x, sy + 2);
+      x += m.w + 2;
+    }
+    // the pull tab at the far right, the way a Control Strip is dragged closed
+    const tx = this.w - 4;
+    fill(g, tx - 1, sy + 2, 3, h, pal.face);
+    frameRect(g, tx - 1, sy + 2, 3, h, pal.dark);
   }
 }
 

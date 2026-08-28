@@ -15,6 +15,11 @@
 //      compute the same effective gain for every reviewed id and context
 //   8  every manifest duration matches its file
 //   9  no CALL SITE in src/ can produce a level other than the reviewed one
+//  10  no file outside src/core/audio.js states a bus LEVEL, and the engine's
+//      fallback mix still equals mix.json
+//
+// Pass --fast to skip 6 and 8, the two ffmpeg passes (~90 s). Everything else
+// runs in milliseconds, which is what tools/smoke.mjs calls.
 //
 // Check 9 is the one that had to exist. Until round 3 this script "passed"
 // because checks 1-8 compared two copies of the same incomplete arithmetic: the
@@ -24,6 +29,19 @@
 // the human had signed off at 12.8% down to 7.0%. So this script now reads every
 // play/music/loop call in src/ and fails if any of them lands anywhere other than
 // the number in the manifest.
+//
+// ROUND 4 added check 10 and closed three holes in check 9. An independent critic
+// moved a level three ways while this script printed "all checks passed":
+//   * a third hardcoded bus mix in src/menu/lobby.js, pushed onto the bus on menu
+//     entry — mix.json's music bus 0.45 -> 0.30 changed the promise and not the
+//     game (check 10);
+//   * `h?.setVolume?.(0.15)` inside the OS play wrapper, cutting every OS sound to
+//     15% — and the scanner dropped the wrapper line entirely (check 10c + the
+//     scanner no longer skips expression-form calls);
+//   * `play('ui.click', { bus: 'sfx' })`, swapping the ui bus (0.7) for sfx (0.8),
+//     a key the scanner parsed and the check ignored (checks 9a and 9f).
+// The engine now refuses all three at runtime as well; these checks make writing
+// one a build failure rather than a silent no-op.
 
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync, execFile } from 'node:child_process';
@@ -35,8 +53,11 @@ import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const AUDIO = join(ROOT, 'assets/audio');
-const { effectiveGain, contextNames } = await import(join(ROOT, 'src/core/audio.js'));
-const { scanCallSites, rawVolumeHits, stringRefs } = await import(join(dirname(fileURLToPath(import.meta.url)), 'scan-callsites.mjs'));
+const { effectiveGain, contextNames, DEFAULT_MIX, busNames } = await import(join(ROOT, 'src/core/audio.js'));
+const { scanCallSites, rawVolumeHits, stringRefs, mixLiteralHits, stripComments, sourceFiles } =
+  await import(join(dirname(fileURLToPath(import.meta.url)), 'scan-callsites.mjs'));
+
+const FAST = process.argv.includes('--fast');
 
 const manifest = JSON.parse(readFileSync(join(AUDIO, 'manifest.json'), 'utf8'));
 const mix = JSON.parse(readFileSync(join(AUDIO, 'mix.json'), 'utf8'));
@@ -109,7 +130,9 @@ async function probe(f) {
   }
 }
 const results = [];
-for (let i = 0; i < files.length; i += 8) results.push(...await Promise.all(files.slice(i, i + 8).map(probe)));
+if (FAST) console.log(`SKIP  6. decode + clipping (${files.length} files, ffmpeg) — --fast`);
+else for (let i = 0; i < files.length; i += 8) results.push(...await Promise.all(files.slice(i, i + 8).map(probe)));
+if (!FAST) {
 const decodeFails = results.filter(r => r.error).map(r => `${r.id}.${r.codec}: ${r.error}`);
 ok(`6a. every file decodes (${files.length} files)`, decodeFails.length === 0, decodeFails.slice(0, 6).join(' | '));
 
@@ -131,6 +154,7 @@ ok('6c. no file rebuilt by this sign-off decodes above 0 dBFS',
    over.filter(r => mine.has(r.id)).map(r => `${r.id}.${r.codec} ${r.peak}`).join(', '));
 if (over.length) console.log('      inherited codec overshoot, harmless at the mix: '
   + over.map(r => `${r.id}.${r.codec} ${r.peak.toFixed(2)} dBFS`).join(', '));
+}
 
 // 7 -------------------------------------------------------------------------
 // The tolerance is EXACT now (1e-12, i.e. float noise only). It used to allow a
@@ -165,13 +189,14 @@ ok(`7. engine and review page agree on all ${rows} reviewed levels (${reviewed.l
 // a real one — and it has to stay true.
 const dfmt = x => x < 10 ? `${x.toFixed(2)} s` : `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}`;
 const stale = [];
-for (const [id, e] of Object.entries(manifest)) {
+if (FAST) console.log('SKIP  8. manifest durations (ffprobe) — --fast');
+else for (const [id, e] of Object.entries(manifest)) {
   if (!e.duration) { stale.push(`${id} (none)`); continue; }
   const real = parseFloat(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration',
     '-of', 'default=nw=1:nk=1', join(AUDIO, e.ogg)]).toString().trim());
   if (dfmt(real) !== e.duration) stale.push(`${id} says ${e.duration}, file is ${dfmt(real)}`);
 }
-ok('8. every manifest duration matches its file', stale.length === 0, stale.slice(0, 5).join(', '));
+if (!FAST) ok('8. every manifest duration matches its file', stale.length === 0, stale.slice(0, 5).join(', '));
 
 // 9 -------------------------------------------------------------------------
 // THE CALL SITES. Everything above this line describes what the game is supposed
@@ -179,9 +204,11 @@ ok('8. every manifest duration matches its file', stale.length === 0, stale.slic
 const scan = scanCallSites({ root: ROOT, manifest });
 const reviewedIds = new Map(reviewed.map(i => [i.id, i]));
 
-// 9a — a raw `volume:` anywhere in src/ is the whole defect, in one grep.
+// 9a — a raw `volume:` or `bus:` anywhere in src/ is the whole defect, in one
+// grep. Both are levels: `volume` multiplies on top of the reviewed number, and
+// `bus` swaps one bus gain for another (ui 0.7 -> sfx 0.8 is 1.14x louder).
 const rawVol = rawVolumeHits(ROOT);
-ok(`9a. no call site passes a raw volume (${scan.files} source files scanned)`,
+ok(`9a. no call site passes a raw volume or bus (${scan.files} source files scanned)`,
    rawVol.length === 0, rawVol.slice(0, 8).join(' | '));
 
 // 9b — every named context exists in the manifest.
@@ -213,10 +240,17 @@ ok('9c. no sound with declared contexts is played at its unreviewed base level',
 // music.office-ambient-2 sat in the manifest, hand-trimmed, with no call site.
 // An id reached through a variable (the boot chimes, via computerTier().bootSound)
 // counts as played: the string is in src/ and it resolves at runtime.
+// ROUND 4: this used to accept ANY string literal of the id anywhere in src/ as
+// proof it was reachable, which counted a PRELOAD LIST as a playback path —
+// ui.mail-notify appeared only inside warmSounds()'s decode array and the table
+// printed it at 53.55% / yes for a sound nothing played. stringRefs now says what
+// each occurrence is doing, and only a dispatch slot (`sound: 'os.boot-tier1'`,
+// read back through computerTier(tier).bootSound) resolves to a real play.
 const refs = stringRefs(ROOT, new Set(Object.keys(manifest)));
+const dispatchRef = (id) => (refs.get(id) || []).filter(r => r.kind === 'dispatch');
 const played = new Set();
 for (const s of scan.sites) if (PLAYS.has(s.fn)) for (const id of s.ids) played.add(id);
-const reachable = (id) => played.has(id) || refs.has(id);
+const reachable = (id) => played.has(id) || dispatchRef(id).length > 0;
 const approvedSilent = [...reviewedIds.entries()]
   .filter(([id, i]) => i.decided?.verdict === 'approve' && !reachable(id)).map(([id]) => id);
 ok('9d. every APPROVED sound has a call site', approvedSilent.length === 0, approvedSilent.join(', '));
@@ -245,14 +279,15 @@ for (const id of Object.keys(manifest)) {
   const entry = manifest[id];
   const sites = byId.get(id) || [];
   if (!sites.length) {
-    // No literal call site. Either the id is reached through a variable (the
-    // string is still in src/) or nothing plays it at all.
-    const via = refs.get(id);
-    const why = via ? `via ${via[0].replace(/^src\//, '')}` : 'nothing plays this id';
+    // No literal call site. Either the id is reached through a dispatch slot on a
+    // data object (a boot chime) or nothing plays it at all. A mention inside a
+    // preload list is NOT a playback path — see 9d.
+    const via = dispatchRef(id);
+    const why = via.length ? `via ${via[0].at.replace(/^src\//, '')}` : 'nothing plays this id';
     console.log(`   ${id.padEnd(23)}${'—'.padEnd(12)}${why.padEnd(30)}`
-              + `${(via ? pct(effectiveGain(entry, mix).effective) : '—').padEnd(9)}`
-              + `${pct(effectiveGain(entry, mix).effective).padEnd(10)}${via ? 'yes' : 'unused'}`);
-    if (via) levelRows++;
+              + `${(via.length ? pct(effectiveGain(entry, mix).effective) : '—').padEnd(9)}`
+              + `${pct(effectiveGain(entry, mix).effective).padEnd(10)}${via.length ? 'yes' : 'unused'}`);
+    if (via.length) levelRows++;
     continue;
   }
   for (const s of sites) {
@@ -263,9 +298,15 @@ for (const id of Object.keys(manifest)) {
     const pageCtx = item && s.context ? (item.mix.contexts || []).find(c => c.name === s.context) : null;
     const want = item ? (s.context ? (pageCtx ? pageCtx.effective : NaN) : item.mix.effective)
                       : eng.effective;
-    // A raw volume would multiply in on top; a dynamic factor only attenuates.
-    const actual = eng.effective * (s.volume ? Number(s.volume) || NaN : 1);
-    const good = Number.isFinite(want) && Math.abs(actual - want) < 1e-12 && !s.volume;
+    // A raw volume would multiply in on top; a bus override would replace the bus
+    // gain with a different one; a dynamic factor only attenuates. The engine now
+    // ignores volume and bus, but the level this row PRINTS is what the call site
+    // asked for, so a reviewer sees the divergence rather than a silent no-op.
+    const busOverride = s.bus && mix.buses?.[s.bus] !== undefined
+      ? mix.buses[s.bus] / eng.busGain : (s.bus || s.busExpr ? NaN : 1);
+    const actual = eng.effective * (s.volume ? Number(s.volume) || NaN : 1) * busOverride;
+    const good = Number.isFinite(want) && Math.abs(actual - want) < 1e-12
+              && !s.volume && !s.bus && !s.busExpr;
     if (!good) levelBad++;
     levelRows++;
     console.log(`   ${id.padEnd(23)}${String(s.context || '(base)').padEnd(12)}`
@@ -279,7 +320,7 @@ for (const s of scan.sites) {
   // An id that only exists at runtime. It cannot be resolved here, but it also
   // cannot bend its level: with no override, whatever it names plays at that
   // id's reviewed number. An override on such a call IS unreviewable, so it fails.
-  const bad = !!s.volume || !!s.context || s.contextExpr;
+  const bad = !!s.volume || !!s.context || s.contextExpr || !!s.bus || s.busExpr;
   if (bad) levelBad++;
   levelRows++;
   console.log(`   ${s.arg.slice(0, 22).padEnd(23)}${'—'.padEnd(12)}`
@@ -291,9 +332,56 @@ console.log('');
 ok(`9f. all ${levelRows} playback paths land on the reviewed level`, levelBad === 0,
    levelBad ? `${levelBad} path(s) off` : '');
 
-const unused = Object.keys(manifest).filter(id => !byId.has(id) && !refs.has(id));
+const unused = Object.keys(manifest).filter(id => !byId.has(id) && !dispatchRef(id).length);
 if (unused.length) console.log(`      note: ${unused.length} id(s) nothing plays yet — `
   + `not a level bug, but they ship dead weight: ${unused.join(', ')}`);
+
+// 10 ------------------------------------------------------------------------
+// THE MIX HAS ONE HOME. Checks 1-9 all start from mix.json, so anything that
+// writes a bus level from somewhere else is invisible to every one of them. That
+// is not hypothetical: src/menu/lobby.js carried
+//   volumes: { master: 0.9, music: 0.45, ambient: 0.5, sfx: 0.8, ui: 0.7 }
+// and _applyPrefs() pushed all five onto the AudioBus from the constructor, on
+// the first screen of the game. Setting mix.json's music bus to 0.30 moved the
+// review page to 4.72% for music.walkthrough, this script printed "all checks
+// passed", and the game played 7.09% — 1.5x louder — because lobby.js put 0.45
+// back. The review page was promising a level the engine would not honour, which
+// is the round-2 defect relocated one file over.
+const BUSES = ['master', ...busNames(mix)];
+
+// 10a — the engine's fetch-failure fallback must still BE the mix.
+const mixEq = (a, b) => JSON.stringify({ master: a.master, buses: a.buses, kindToBus: a.kindToBus })
+                     === JSON.stringify({ master: b.master, buses: b.buses, kindToBus: b.kindToBus });
+ok('10a. DEFAULT_MIX in src/core/audio.js equals assets/audio/mix.json', mixEq(DEFAULT_MIX, mix),
+   mixEq(DEFAULT_MIX, mix) ? '' : `engine ${JSON.stringify(DEFAULT_MIX)} vs file ${JSON.stringify(mix)}`);
+
+// 10b — nowhere else may STATE a bus level: not as a literal map of bus names to
+// numbers, and not as a number handed to setVolume/setBusGain/setMasterGain. A
+// settings screen may say "the player moved this bus to this value"; it may not
+// say what the default is.
+const mixDupes = mixLiteralHits(ROOT, BUSES);
+ok(`10b. no bus level is written outside mix.json (${BUSES.join('/')})`,
+   mixDupes.length === 0, mixDupes.slice(0, 6).join(' | '));
+
+// 10c — the gain node behind a playing sound must not be writable from outside
+// the engine. One line in the OS play wrapper — `h?.setVolume?.(0.15)` — cut
+// every sound the OS routes to 15% of its reviewed level with all nine checks
+// still green, because no scanner can see a level change that never names an id.
+// So the write is gone rather than watched for.
+const engineSrc = readFileSync(join(ROOT, 'src/core/audio.js'), 'utf8');
+const handleWrite = /setVolume\s*:/.test(stripComments(engineSrc));
+ok('10c. a play() handle exposes no way to change its own gain', !handleWrite,
+   handleWrite ? 'src/core/audio.js defines a setVolume property on the play handle' : '');
+const outsideGain = [];
+for (const f of sourceFiles(ROOT)) {
+  const t = stripComments(readFileSync(f, 'utf8'));
+  t.split('\n').forEach((l, i) => {
+    if (/\.gain\b\s*(\.|\[)/.test(l) || /\bcreateGain\s*\(/.test(l) || /\bnew\s+AudioContext\b/.test(l))
+      outsideGain.push(`${f.replace(ROOT + '/', '')}:${i + 1}  ${l.trim().slice(0, 80)}`);
+  });
+}
+ok('10d. no file outside the engine touches a gain node or opens its own AudioContext',
+   outsideGain.length === 0, outsideGain.slice(0, 5).join(' | '));
 
 console.log(`\n${fails ? fails + ' CHECK(S) FAILED' : 'all checks passed'}`);
 process.exit(fails ? 1 : 0);

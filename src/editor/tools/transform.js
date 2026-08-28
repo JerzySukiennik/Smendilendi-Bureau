@@ -85,11 +85,14 @@ export class MoveTool extends TransformTool {
   activate() {
     const list = this.targets();
     if (!list.length) { this.op = null; return; }
-    this._start(list, this.centroid(list));
+    // Armed, not yet grabbed: the centroid is a usable anchor for a typed value
+    // straight away, and the first CLICK re-anchors the move to the point the
+    // player picked instead of dropping the objects there.
+    this._start(list, this.centroid(list), false);
   }
 
-  _start(list, anchor) {
-    this.op = { targets: list, anchor: anchor.clone(), delta: new Vector3(), copy: false };
+  _start(list, anchor, grabbed = true) {
+    this.op = { targets: list, anchor: anchor.clone(), delta: new Vector3(), copy: false, grabbed };
     this.lock(list.map(t => t.id));
   }
 
@@ -99,7 +102,7 @@ export class MoveTool extends TransformTool {
     if (!hit) return;
     this.ed.select([hit.entityId]);
     const list = this.targets();
-    if (list.length) this._start(list, p.snap.point.clone());
+    if (list.length) this._start(list, p.snap.point.clone(), true);
   }
 
   onMove(p) {
@@ -110,17 +113,48 @@ export class MoveTool extends TransformTool {
     this.setDisplay(fmt(this.op.delta.length()));
   }
 
+  /**
+   * FURNITURE STAYS ON THE FLOOR unless the blue axis is explicitly locked.
+   *
+   * The grab point and the drop point are snapped independently, so a grab that
+   * landed on a wall face and a drop that landed on the ground handed the move a
+   * vertical component nobody asked for: a dining chair moved 500 mm sideways
+   * came to rest 446 mm in the air, contact shadow and all. Height is a
+   * deliberate act (ArrowUp locks blue, or a typed vector with a y in it), never
+   * a by-product of where two rays happened to hit.
+   */
+  _groundOnly() {
+    if (this.ed.lockAxis === 'z') return false;
+    const list = this.op?.targets || [];
+    return list.length > 0 && list.every(t => t.kind === 'furniture');
+  }
+
   _constrain(v) {
     const a = this.ed.lockAxis;
-    if (!a || a === 'ref') return v;
-    const dir = AXIS[a].dir;
-    return dir.clone().multiplyScalar(v.dot(dir));
+    if (a && a !== 'ref') {
+      const dir = AXIS[a].dir;
+      return dir.clone().multiplyScalar(v.dot(dir));
+    }
+    if (this._groundOnly()) return new Vector3(v.x, 0, v.z);
+    return v;
   }
 
   onUp(p, info) {
     if (!this.op) return;
-    if (info?.dragged || this.op.delta.lengthSq() > 1e-8) this._commit(this.op.delta.clone());
-    void p;
+    if (info?.dragged) { this._commit(this.op.delta.clone()); return; }
+    // A CLICK, not a drag. SketchUp's Move is click-to-grab, move, click-to-drop,
+    // and a press-release on the object is the GRAB half of that. Treating it as
+    // the drop is what made Move drag-only: the mouse button had to stay down
+    // through the arrow key and all four digits of a typed distance.
+    if (!this.op.grabbed) {
+      this.op.grabbed = true;
+      this.op.anchor.copy(p.snap.point);
+      this.op.delta.set(0, 0, 0);
+      this.setDisplay('');
+      return;
+    }
+    if (this.op.delta.lengthSq() < 1e-8) { this.cancel(); return; }   // dropped where it was
+    this._commit(this.op.delta.clone());
   }
 
   _commit(delta, { copies = 1 } = {}) {
@@ -128,9 +162,11 @@ export class MoveTool extends TransformTool {
     const list = this.op.targets;
     const copy = this.op.copy || copies > 1;
     const ops = [];
+    const flat = this._groundOnly();
     for (let c = 1; c <= copies; c++) {
       const d = delta.clone().multiplyScalar(c);
-      for (const t of list) ops.push(...moveOps(this.model, t, d, copy));
+      const dGround = flat ? new Vector3(d.x, 0, d.z) : d;
+      for (const t of list) ops.push(...moveOps(this.model, t, t.kind === 'furniture' ? dGround : d, copy));
     }
     this.ed.applyMany(ops);
     this.last = { targets: list, delta: delta.clone(), copies, copy };
@@ -157,19 +193,28 @@ export class MoveTool extends TransformTool {
       return this._commit(step, { copies: v.n });
     }
     if (v.kind !== 'length') return false;
+    const sign = v.value < 0 ? -1 : 1;
+    const len = Math.abs(v.value);
     if (this.op) {
-      let dir = this.op.delta.clone();
-      const a = this.ed.lockAxis;
-      if (a && a !== 'ref') dir = AXIS[a].dir.clone();
-      else if (dir.lengthSq() < 1e-9) dir = new Vector3(1, 0, 0);
-      else dir.normalize();
-      return this._commit(dir.multiplyScalar(v.value));
+      // The lock names the LINE; the cursor still names which way along it.
+      let dir = this.lockedDir(this.op.delta, sign);
+      if (!dir) {
+        dir = this.op.delta.clone();
+        if (dir.lengthSq() < 1e-9) dir = new Vector3(sign, 0, 0);
+        else dir.normalize().multiplyScalar(sign);
+      }
+      return this._commit(dir.multiplyScalar(len));
     }
-    // after the fact: redo the last move at a new distance
+    // after the fact: redo the last move at a new distance — still down the
+    // locked axis if one is held, not down whatever diagonal the drag left.
     if (!this.last) return false;
-    const dir = this.last.delta.clone();
-    if (dir.lengthSq() < 1e-9) return false;
-    return this._redoLast(dir.normalize().multiplyScalar(v.value), true);
+    let dir = this.lockedDir(this.last.delta, sign);
+    if (!dir) {
+      dir = this.last.delta.clone();
+      if (dir.lengthSq() < 1e-9) return false;
+      dir.normalize().multiplyScalar(sign);
+    }
+    return this._redoLast(dir.multiplyScalar(len), true);
   }
 
   _redoLast(delta, undoFirst = false) {

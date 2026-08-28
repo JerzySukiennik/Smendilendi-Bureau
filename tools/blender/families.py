@@ -111,7 +111,7 @@ def fam_chair(e, a):
     for sz in (-1, 1):
         s.box((w - inset * 1.6, leg * 0.55, leg * 0.55),
               (0, seat * 0.36, sz * (d / 2 - inset)), 'wood', bevel=0.004, name='rail')
-    s.box((w, seat_t, d * 0.94), (0, seat - seat_t / 2, d * 0.02), slot,
+    s.box((w, seat_t, d), (0, seat - seat_t / 2, 0), slot,
           bevel=0.008, name='seat')
     back_h = h - seat
     post = leg * 0.92
@@ -149,7 +149,7 @@ def fam_stack_chair(e, a):
     # the skid foot runs the full declared depth: a cantilever chair IS as deep
     # as its frame, and building it 0.06 short of the envelope at both ends is
     # what made chair-visitor measure 10.7 % under its own catalogue depth.
-    fz = d / 2 - r
+    fz = d / 2
     for sx in (-1, 1):
         x = sx * (w / 2 - 0.045)
         s.tube([(x, 0.012, fz), (x, 0.012, -fz)], r, 'metal', seg=6, name='foot')
@@ -260,10 +260,10 @@ def fam_sofa(e, a):
         leg_h = seat - 0.05
         for sx in (-1, 1):
             x = sx * (w / 2 - 0.09)
-            s.tube([(x, 0.01, d / 2 - 0.06), (x, leg_h, d / 2 - 0.06),
-                    (x, leg_h, -d / 2 + 0.06), (x, 0.01, -d / 2 + 0.06)],
+            s.tube([(x, 0.01, d / 2 - 0.018), (x, leg_h, d / 2 - 0.04),
+                    (x, leg_h, -d / 2 + 0.04), (x, 0.01, -d / 2 + 0.018)],
                    0.016, 'metal', seg=6, name='leg-frame')
-            s.box((0.05, 0.05, d - 0.08), (x, leg_h - 0.02, 0), 'metal',
+            s.box((0.05, 0.05, d), (x, leg_h - 0.02, 0), 'metal',
                   bevel=0.004, name='leg-top')
         s.box((w - 0.06, 0.05, d * 0.62), (0, seat - 0.02, d * 0.14), slot,
               bevel=0.014, name='seat')
@@ -341,6 +341,11 @@ def fam_stool(e, a):
               bevel=0.0, name='gaslift')
         s.cyl(w / 2, w / 2 - 0.015, 0.07, (0, seat - 0.035, 0), slot, seg=16,
               bevel=0.014, name='seat')
+        if h > seat + 0.02:                       # low back, up to the envelope
+            s.box((0.040, (h - seat) + 0.06, 0.040), (0, seat + (h - seat) / 2 - 0.02,
+                  -w / 2 + 0.06), 'chrome', bevel=0.004, name='back-post')
+            s.box((w * 0.62, (h - seat) * 0.62, 0.045), (0, h - (h - seat) * 0.31,
+                  -w / 2 + 0.075), slot, rot=(-0.16, 0, 0), bevel=0.014, name='back')
         return s
     s.cyl(w / 2, w / 2 - 0.010, 0.055, (0, seat - 0.027, 0), slot, seg=16,
           bevel=0.012, name='seat')
@@ -412,10 +417,12 @@ def fam_round_table(e, a):
                     (math.sin(a_) * (w / 2 - 0.09), (h - 0.02) / 2,
                      math.cos(a_) * (d / 2 - 0.09)),
                     axis='y', length=h - 0.02, slot='wood', bevel=0.006, name='leg')
-            s.box((0.30, 0.030, 0.030),
-                  (math.sin(a_) * (w / 2 - 0.09) * 0.55, h * 0.42,
-                   math.cos(a_) * (d / 2 - 0.09) * 0.55), 'wood',
-                  rot=(0, a_, 0), bevel=0.003, name='brace')
+        rr = (w / 2 - 0.09)
+        for i in range(4):
+            am = TAU * (i + 1) / 4
+            s.box((rr * 1.55, 0.030, 0.030),
+                  (math.sin(am) * rr * 0.71, h * 0.42, math.cos(am) * rr * 0.71),
+                  'wood', rot=(0, am, 0), bevel=0.003, name='rail')
         return s
     s.cyl(0.060, 0.055, h - top_t, (0, (h - top_t) / 2, 0), 'metal', seg=12,
           bevel=0.006, name='column')
@@ -493,8 +500,9 @@ def fam_desk(e, a):
         s.box((w - 0.40, 0.05, 0.14), (0, top_y0 - 0.075, mz + 0.075),
               'metal', bevel=0.006, name='cable-tray')
     s.ring((0.08, 0.08), (0.056, 0.056), top_t + 0.008,
-           (w / 2 - 0.22, h - top_t / 2, -d / 2 + 0.12), 'graphite', seg=12,
-           bevel=0.0, name='grommet')
+           (w / 2 - 0.22, h - top_t / 2,
+            (d / 2 - 0.20) if (corner or bench) else (-d / 2 + 0.12)),
+           'graphite', seg=12, bevel=0.0, name='grommet')
     return s
 
 
@@ -534,7 +542,7 @@ def fam_counter(e, a):
           'accent', bevel=0.004, name='band')
     # the plinth runs up BEHIND the shadow gap: stopping it dead level with the
     # skin left it a separate body sitting on the floor under the counter
-    s.box((w - 0.10, 0.125, d - 0.14), (0, 0.0625, -0.02), 'graphite', name='plinth')
+    s.box((w - 0.08, 0.125, d - 0.06), (0, 0.0625, -0.01), 'graphite', name='plinth')
     s.box((w, 0.028, 0.018), (0, 0.115, front - 0.012), 'graphite',
           bevel=0.004, name='shadow-gap')
     for sgn in (-1, 1):
@@ -582,21 +590,21 @@ def fam_counter(e, a):
     elif 'till' in e['id']:
         # the till stands ON the transaction top, not in the air above the low
         # ledge: it used to start exactly level with the top and never touch it
-        tx = -w / 2 + min(top_w - 0.22, top_w * 0.74)
-        s.box((0.34, 0.11, 0.30), (tx, h + 0.045, front - 0.24), 'graphite',
+        tx = low_x
+        s.box((0.34, 0.11, 0.30), (tx, low_h + 0.045, front - 0.24), 'graphite',
               bevel=0.008, name='till-base')
-        scr = (tx, h + 0.17, front - 0.20)
+        scr = (tx, low_h + 0.17, front - 0.20)
         s.box((0.30, 0.22, 0.026), scr, 'graphite',
               rot=(0.22, 0, 0), bevel=0.005, name='till-screen')
         s.box((0.26, 0.17, 0.010), _on(scr, 0.22, dz=0.011), 'glass',
               rot=(0.22, 0, 0), bevel=0.0, name='till-glass')
-        s.box((0.10, 0.14, 0.07), (-w / 2 + 0.26, h + 0.05, front - 0.22), 'graphite',
-              rot=(-0.35, 0, 0), bevel=0.006, name='pin-pad')
+        s.box((0.10, 0.14, 0.07), (low_x - 0.24, low_h + 0.06, front - 0.22),
+              'graphite', rot=(-0.35, 0, 0), bevel=0.006, name='pin-pad')
     else:
         for i in range(3):
-            s.cyl(0.055, 0.050, 0.10, (-w / 2 + 0.5 + i * 0.28, h + 0.05, front - 0.20),
-                  'ceramic', seg=10, bevel=0.006, name='cup-stack')
-        s.box((0.44, 0.030, 0.30), (w / 2 - 0.42, h - 0.008, front - 0.22), 'metal',
+            s.cyl(0.055, 0.050, 0.10, (low_x - 0.30 + i * 0.28, low_h + 0.045,
+                  front - 0.20), 'ceramic', seg=10, bevel=0.006, name='cup-stack')
+        s.box((0.44, 0.030, 0.30), (low_x, low_h + 0.006, front - 0.22), 'metal',
               bevel=0.005, name='tray-rail')
     return s
 
@@ -744,10 +752,10 @@ def fam_drawers(e, a):
                       name='castor')
                 s.box((0.030, 0.06, 0.030), (sx * (w / 2 - 0.07), 0.070,
                       sz * (d / 2 - 0.07)), 'metal', bevel=0.004, name='castor-yoke')
-        s.box((w + 0.04, 0.026, 0.026), (0, h + 0.013, -d / 2 + 0.06), 'metal',
+        s.box((w, 0.026, 0.026), (0, h + 0.013, -d / 2 + 0.06), 'metal',
               bevel=0.005, name='push-handle')
         for sx in (-1, 1):
-            s.box((0.026, 0.10, 0.026), (sx * (w / 2 - 0.02), h - 0.04, -d / 2 + 0.06),
+            s.box((0.026, 0.10, 0.026), (sx * (w / 2 - 0.03), h - 0.04, -d / 2 + 0.06),
                   'metal', bevel=0.004, name='handle-post')
     return s
 
@@ -815,7 +823,7 @@ def fam_bed(e, a):
         for sx in (-1, 1):
             s.box((0.032, 0.032, d - 0.24), (sx * (w / 2 - 0.07), 0.16, 0), 'chrome',
                   bevel=0.0, name='leg-brace')
-        s.box((w - 0.10, 0.05, d - 0.14), (0, top - 0.13, 0), 'chrome',
+        s.box((w - 0.10, 0.07, d - 0.14), (0, top - 0.115, 0), 'chrome',
               bevel=0.006, name='rail')
         s.box((w, 0.11, d * 0.62), (0, top - 0.045, d * 0.18), slot,
               bevel=0.016, name='seatpad')
@@ -914,12 +922,11 @@ def fam_cot(e, a):
 
 def _mixer(s, x, rim_y, z, slot='chrome', height=0.16, reach=0.10, name='tap'):
     """A deck mixer: base, body, spout, lever. Sits ON the rim it is given."""
-    s.cyl(0.028, 0.026, 0.040, (x, rim_y + 0.014, z), slot, seg=12, name=name + '-base')
-    s.cyl(0.020, 0.019, height, (x, rim_y + 0.014 + height / 2, z), slot, seg=12,
+    s.cyl(0.028, 0.026, 0.040, (x, rim_y + 0.014, z), slot, seg=8, name=name + '-base')
+    s.cyl(0.020, 0.019, height, (x, rim_y + 0.014 + height / 2, z), slot, seg=8,
           name=name + '-body')
-    s.tube([(x, rim_y + height, z), (x, rim_y + height + 0.020, z + reach * 0.35),
-            (x, rim_y + height + 0.010, z + reach * 0.85),
-            (x, rim_y + height - 0.020, z + reach)], 0.0125, slot, seg=8,
+    s.tube([(x, rim_y + height, z), (x, rim_y + height + 0.014, z + reach * 0.55),
+            (x, rim_y + height - 0.020, z + reach)], 0.0125, slot, seg=6,
            name=name + '-spout')
     s.box((0.020, 0.018, 0.070), (x, rim_y + height + 0.010, z - 0.022), slot,
           rot=(0.35, 0, 0), bevel=0.005, name=name + '-lever')
@@ -936,7 +943,7 @@ def fam_basin(e, a):
     w, h, d = e['size']
     rim_h = e.get('workHeight') or h
     pedestal = bool(a[3]) if len(a) > 3 else False
-    s = Shape(e['id'], 'floor', None)
+    s = Shape(e['id'], 'floor', e['size'])
     slot = body(e, 'ceramic')
     rim_t = 0.045
     bowl_w = w - 0.11
@@ -944,12 +951,12 @@ def fam_basin(e, a):
     bowl_depth = min(0.165, d * 0.36)
 
     s.ring((w, d), (bowl_w - 0.012, bowl_d - 0.012), rim_t,
-           (0, rim_h - rim_t / 2, 0.012), slot, seg=20, bevel=0.008,
+           (0, rim_h - rim_t / 2, 0.0), slot, seg=14, bevel=0.008,
            round_xz=False, corner=min(w, d) * 0.30, name='rim')
     bowl = s.shell((bowl_w, bowl_depth + 0.03, bowl_d), bowl_depth, 0.020,
                    (0, rim_h - rim_t / 2 - (bowl_depth + 0.03) / 2 + 0.004, 0.012),
-                   slot=slot, round_xz=True, seg=16, name='bowl')
-    s.cyl(0.026, 0.024, 0.020, (0, bowl.floor_y, 0.012), 'chrome', seg=12,
+                   slot=slot, round_xz=True, seg=12, name='bowl')
+    s.cyl(0.026, 0.024, 0.020, (0, bowl.floor_y, 0.012), 'chrome', seg=8,
           bevel=0.003, name='waste')
     s.box((0.075, 0.014, 0.018), (0, rim_h - rim_t - 0.030, -bowl_d / 2 + 0.03),
           'graphite', bevel=0.0, name='overflow')
@@ -963,18 +970,20 @@ def fam_basin(e, a):
                 0.0), axis='y', length=rim_h - 0.29, slot=slot, bevel=0.010, name='pedestal')
         s.taper((w * 0.33, d * 0.46), (w * 0.44, d * 0.55), (0, rim_h - 0.155, 0.005),
                 axis='y', length=0.10, slot=slot, bevel=0.012, name='ped-neck')
-    else:                                   # semi-pedestal + bottle trap
-        s.taper((w * 0.40, d * 0.50), (w * 0.30, d * 0.34),
-                (0, rim_h - rim_t - 0.16, -d / 2 + 0.09), axis='y', length=0.30,
+    else:                                   # semi-pedestal + trap to the floor
+        s.taper((w * 0.40, d * 0.44), (w * 0.30, d * 0.30),
+                (0, rim_h - rim_t - 0.16, -d / 2 + d * 0.24), axis='y', length=0.30,
                 slot=slot, bevel=0.010, name='semi-pedestal')
-        s.cyl(0.028, 0.028, 0.10, (0, bowl.floor_y - 0.055, 0.012), 'chrome', seg=10,
+        s.cyl(0.028, 0.028, 0.10, (0, bowl.floor_y - 0.055, 0.012), 'chrome', seg=8,
               bevel=0.004, name='trap')
-        s.tube([(0, bowl.floor_y - 0.095, 0.012), (0, bowl.floor_y - 0.115, -0.02),
-                (0, bowl.floor_y - 0.115, -d / 2 + 0.06)], 0.017, 'chrome', seg=8,
-               name='trap-arm')
+        s.tube([(0, bowl.floor_y - 0.095, 0.012), (0, bowl.floor_y - 0.135, -0.02),
+                (0, bowl.floor_y - 0.150, -d / 2 + 0.075),
+                (0, 0.0, -d / 2 + 0.075)], 0.017, 'chrome', seg=8, name='waste-pipe')
+        s.cyl(0.040, 0.034, 0.05, (0, 0.025, -d / 2 + 0.075), 'chrome', seg=8,
+              bevel=0.003, name='pipe-collar')
         s.box((w * 0.62, 0.16, 0.035), (0, rim_h - 0.20, -d / 2 + 0.018), slot,
               bevel=0.008, name='wall-bracket')
-    _mixer(s, 0, rim_h - 0.006, -bowl_d / 2 - 0.028, height=0.15,
+    _mixer(s, 0, rim_h - 0.006, -bowl_d / 2 - 0.004, height=0.15,
            reach=min(0.12, bowl_d * 0.42))
     return s
 
@@ -1023,11 +1032,11 @@ def fam_wc(e, a):
     s.box((0.10, 0.030, 0.055), (0, h - 0.012, -d / 2 + d * 0.135 + 0.02), 'chrome',
           bevel=0.004, name='flush-plate')
     if 'accessible' in e['id']:
+        s.box((w * 0.66, 0.10, 0.045), (0, rim + 0.24, -d / 2 + d * 0.27 + 0.02),
+              body(e, 'ceramic'), bevel=0.014, name='back-support')
         for sgn in (-1, 1):
-            s.tube([(sgn * (w / 2 - 0.01), rim + 0.28, -d / 2 + 0.10),
-                    (sgn * (w / 2 + 0.10), rim + 0.28, -d / 2 + 0.10),
-                    (sgn * (w / 2 + 0.10), rim + 0.28, -d / 2 + 0.40)],
-                   0.016, 'chrome', seg=6, name='grab-rail')
+            s.box((0.030, 0.16, 0.030), (sgn * w * 0.22, rim + 0.17,
+                  -d / 2 + d * 0.27 + 0.01), 'chrome', bevel=0.004, name='support-arm')
     return s
 
 
@@ -1040,7 +1049,7 @@ def fam_wc_wall_hung(e, a):
     rim = min(seat_h, h) - 0.03
     pan_d = d * 0.86
     pan_z = d / 2 - pan_d / 2
-    s.box((w - 0.06, h * 0.72, 0.06), (0, h * 0.5, -d / 2 + 0.03), slot,
+    s.box((w, h, 0.06), (0, h / 2, -d / 2 + 0.03), slot,
           bevel=0.010, name='wall-plate')
     # the pan is CANTILEVERED off the wall plate: without this neck the whole
     # bowl assembly hung in space 65 mm clear of the plate it is bolted to
@@ -1057,7 +1066,7 @@ def fam_wc_wall_hung(e, a):
            arc=(0.055, 0.945), name='seat')
     s.box((w * 0.5, 0.022, 0.05), (0, rim + 0.012, pan_z - pan_d / 2 + 0.010), slot,
           bevel=0.005, name='seat-bridge')
-    s.box((0.22, 0.14, 0.016), (0, h - 0.04, -d / 2 + 0.056), 'chrome',
+    s.box((0.22, 0.12, 0.016), (0, h - 0.06, -d / 2 + 0.056), 'chrome',
           bevel=0.005, name='flush-plate')
     return s
 
@@ -1071,12 +1080,12 @@ def fam_urinal(e, a):
     # measured 5 % under its own catalogue box
     s.box((w - 0.04, h, 0.045), (0, h / 2, 0.022), slot, bevel=0.010,
           name='back-plate')
-    bowl = s.shell((w, h * 0.62, d - 0.02), h * 0.50, 0.028,
-                   (0, h * 0.40, d / 2 + 0.010), slot=slot, round_xz=True, seg=14,
+    bowl = s.shell((w, h * 0.62, d - 0.055), h * 0.50, 0.028,
+                   (0, h * 0.40, d / 2 - 0.01), slot=slot, round_xz=True, seg=14,
                    rot=(-0.14, 0, 0), name='bowl')
-    s.taper((w * 0.86, d * 0.50), (w * 0.42, d * 0.30), (0, h * 0.13, d * 0.40),
+    s.taper((w * 0.86, d * 0.44), (w * 0.42, d * 0.26), (0, h * 0.13, d * 0.36),
             axis='y', length=h * 0.24, slot=slot, bevel=0.010, name='throat')
-    s.cyl(0.030, 0.028, 0.030, (0, h * 0.055, d * 0.40), 'chrome', seg=10,
+    s.cyl(0.030, 0.028, 0.030, (0, h * 0.055, d * 0.36), 'chrome', seg=10,
           bevel=0.003, name='waste')
     s.cyl(0.024, 0.022, 0.05, (0, h - 0.055, 0.050), 'chrome', seg=10,
           bevel=0.004, name='spreader')
@@ -1097,9 +1106,9 @@ def fam_bath(e, a):
     depth = h - 0.12
     tub = s.shell((inner_w, depth + rim_t, inner_d), depth, 0.030,
                   (0, h - (depth + rim_t) / 2, 0), slot=slot, round_xz=False,
-                  corner=min(inner_w, inner_d) * 0.26, seg=24, name='tub')
+                  corner=min(inner_w, inner_d) * 0.26, seg=16, name='tub')
     s.ring((w, d), (inner_w - 0.010, inner_d - 0.010), rim_t, (0, h - rim_t / 2, 0),
-           slot, seg=24, bevel=0.008, round_xz=False,
+           slot, seg=16, bevel=0.008, round_xz=False,
            corner=min(w, d) * 0.24, name='rim')
     s.box((w - 0.02, h - rim_t, 0.030), (0, (h - rim_t) / 2, d / 2 - 0.015), slot,
           bevel=0.008, name='apron')
@@ -1107,12 +1116,12 @@ def fam_bath(e, a):
         s.box((0.030, h - rim_t, d - 0.03), (sx * (w / 2 - 0.015), (h - rim_t) / 2, 0),
               slot, bevel=0.008, name='end-panel')
     s.box((w - 0.06, 0.10, d - 0.06), (0, 0.05, 0), slot, bevel=0.006, name='plinth')
-    s.cyl(0.030, 0.028, 0.022, (w / 2 - 0.16, tub.floor_y, 0), 'chrome', seg=12,
+    s.cyl(0.030, 0.028, 0.022, (w / 2 - 0.16, tub.floor_y, 0), 'chrome', seg=8,
           bevel=0.003, name='waste')
     # on the flat back run, not out on the corner radius where the tub wall has
     # already curved away and the overflow met nothing
     s.cyl(0.024, 0.022, 0.040, (w / 2 - 0.36, h - rim_t - 0.05, -inner_d / 2 + 0.015),
-          'chrome', seg=10, axis='z', bevel=0.0, name='overflow')
+          'chrome', seg=8, axis='z', bevel=0.0, name='overflow')
     _mixer(s, w / 2 - 0.17, h - 0.012, -d / 2 + 0.045, height=0.14,
            reach=min(0.14, d * 0.30), name='bath-tap')
     return s
@@ -1130,39 +1139,40 @@ def fam_shower(e, a):
     s.cyl(0.045, 0.042, 0.018, (0, tray.floor_y, 0), 'chrome', seg=12,
           bevel=0.003, name='waste')
     post = 0.032
-    post_h = h - tray_h + 0.030          # the posts run 30 mm down INTO the tray
-    post_y = tray_h - 0.030 + post_h / 2
+    pin = 0.055                          # post centres, in from the tray edge
+    post_h = h - tray_h + 0.075          # the posts run 75 mm down INTO the tray
+    post_y = tray_h - 0.075 + post_h / 2
     for sx in (-1, 1):
-        s.box((post, post_h, post), (sx * (w / 2 - post / 2), post_y,
-              -d / 2 + post / 2), 'metal', bevel=0.005, name='corner-post')
-    s.box((post, post_h, post), (w / 2 - post / 2, post_y,
-          d / 2 - post / 2), 'metal', bevel=0.005, name='front-post')
-    s.box((w - post, 0.035, post), (0, h - 0.02, -d / 2 + post / 2), 'metal',
+        s.box((post, post_h, post), (sx * (w / 2 - pin), post_y,
+              -d / 2 + pin), 'metal', bevel=0.005, name='corner-post')
+    s.box((post, post_h, post), (w / 2 - pin, post_y,
+          d / 2 - pin), 'metal', bevel=0.005, name='front-post')
+    s.box((w - pin, 0.035, post), (0, h - 0.02, -d / 2 + pin), 'metal',
           bevel=0.004, name='head-rail')
-    s.box((w - post * 2, h - tray_h - 0.10, 0.010), (0, tray_h + (h - tray_h) / 2 - 0.05,
-          -d / 2 + post / 2), 'glass', bevel=0.0, name='back-glass')
-    s.box((0.010, h - tray_h - 0.10, d - post * 2), (w / 2 - post / 2,
+    s.box((w - pin * 2, h - tray_h - 0.10, 0.010), (0, tray_h + (h - tray_h) / 2 - 0.05,
+          -d / 2 + pin), 'glass', bevel=0.0, name='back-glass')
+    s.box((0.010, h - tray_h - 0.10, d - pin * 2), (w / 2 - pin,
           tray_h + (h - tray_h) / 2 - 0.05, 0), 'glass', bevel=0.0, name='side-glass')
     if w > 1.0:                                    # walk-in: a fixed return panel
         # it needs its own corner post: the return used to be a pane of glass
         # and a rail floating at the open corner with nothing holding them
-        s.box((post, post_h, post), (-w / 2 + post / 2, post_y, d / 2 - post / 2),
+        s.box((post, post_h, post), (-w / 2 + pin, post_y, d / 2 - pin),
               'metal', bevel=0.005, name='return-post')
         s.box((w * 0.34, h - tray_h - 0.10, 0.010), (-w / 2 + w * 0.17,
-              tray_h + (h - tray_h) / 2 - 0.05, d / 2 - post / 2), 'glass',
+              tray_h + (h - tray_h) / 2 - 0.05, d / 2 - pin), 'glass',
               bevel=0.0, name='return-glass')
-        s.box((w * 0.34, 0.030, post), (-w / 2 + w * 0.17, h - 0.02, d / 2 - post / 2),
+        s.box((w * 0.34, 0.030, post), (-w / 2 + w * 0.17, h - 0.02, d / 2 - pin),
               'metal', bevel=0.004, name='return-rail')
     # the riser rail is bracketed to the back glass and runs the whole way up to
     # the head. It used to stop 0.76 m below the head and stand 70 mm clear of
     # every surface it was supposedly fixed to.
     rx = w / 2 - 0.13
-    rz = -d / 2 + 0.048
+    rz = -d / 2 + pin
     riser_h = h - tray_h - 0.19
     s.cyl(0.014, 0.014, riser_h, (rx, tray_h + 0.10 + riser_h / 2, rz), 'chrome',
           seg=8, bevel=0.0, name='riser')
     for by in (tray_h + 0.22, h - 0.20):
-        s.box((0.034, 0.034, 0.055), (rx, by, -d / 2 + post / 2 + 0.020), 'chrome',
+        s.box((0.034, 0.034, 0.055), (rx, by, -d / 2 + pin + 0.012), 'chrome',
               bevel=0.004, name='riser-bracket')
     s.box((0.10, 0.16, 0.09), (rx, tray_h + 1.02, rz + 0.030), 'chrome',
           bevel=0.008, name='valve')
@@ -1187,18 +1197,22 @@ def fam_kitchen_base(e, a):
     """
     w, h, d = e['size']
     doors = int(a[3]) if len(a) > 3 else 2
-    s = Shape(e['id'], 'floor', None)
-    slot = body(e, 'tint')
+    s = Shape(e['id'], 'floor', e['size'])
+    slot = body(e, 'metal')
     plinth, top_t = 0.15, 0.04
     car_h = h - plinth - top_t
     sink = 'sink' in e['id'] or 'basin' in e['id']
     island = 'island' in e['id']
 
-    s.box((w - 0.06, plinth + 0.010, d - 0.10), (0, (plinth + 0.010) / 2, -0.03),
-          'graphite', bevel=0.006, name='plinth')
+    # an island's carcase is set back from the worktop, which is what makes the
+    # breakfast overhang an overhang instead of 0.22 m added to the footprint
+    car_d = (d - 0.32) if island else (d - 0.02)
+    car_z = (-0.15) if island else (-0.01)
+    s.box((w - 0.06, plinth + 0.010, car_d - 0.08), (0, (plinth + 0.010) / 2,
+          car_z - 0.02), 'graphite', bevel=0.006, name='plinth')
     # the carcase runs 8 mm up into the worktop. Butted flush, the worktop and
     # the unit under it were two bodies on every non-sink base unit.
-    s.box((w, car_h + 0.008, d - 0.02), (0, plinth + car_h / 2 + 0.004, -0.01), slot,
+    s.box((w, car_h + 0.008, car_d), (0, plinth + car_h / 2 + 0.004, car_z), slot,
           bevel=0.008, name='carcase')
 
     bowl = None
@@ -1212,11 +1226,11 @@ def fam_kitchen_base(e, a):
             bowl = s.shell((bw, depth + 0.03, bd), depth, 0.016,
                            (bx, h - top_t / 2 - (depth + 0.03) / 2 + 0.006, 0.005),
                            slot='metal' if not sink or 'kitchen' in e['id'] else 'ceramic',
-                           round_xz=False, corner=0.05, seg=20, name=f'bowl{i}')
-            s.cyl(0.030, 0.028, 0.020, (bx, bowl.floor_y, 0.005), 'metal', seg=12,
+                           round_xz=False, corner=0.05, seg=10, bevel=0.0,
+                           name=f'bowl{i}')
+            s.cyl(0.030, 0.028, 0.020, (bx, bowl.floor_y, 0.005), 'metal', seg=8,
                   bevel=0.003, name='waste')
-            _mixer(s, bx if n_bowls > 1 else 0, h - 0.008, -d / 2 + 0.055,
-                   height=0.20, reach=0.16, name=f'mixer{i}')
+        _mixer(s, 0, h - 0.008, -d / 2 + 0.055, height=0.20, reach=0.16, name='mixer')
         # worktop as a frame around the aperture, so the bowl is genuinely let in
         s.box((w, top_t + 0.008, 0.075), (0, h - (top_t + 0.008) / 2, -d / 2 + 0.037),
               'accent', bevel=0.008, name='top-back')
@@ -1239,27 +1253,30 @@ def fam_kitchen_base(e, a):
             s.box((w, 0.055, 0.022), (0, h - top_t - 0.0275, -d / 2 + 0.011),
                   'accent', bevel=0.005, name='upstand')
 
-    fz = d / 2 - 0.024
+    fz = car_z + car_d / 2 - 0.004
     if doors >= 2 and not sink:
         for i in range(doors):
             dw = w / doors
             x = -w / 2 + dw * (i + 0.5)
             s.box((dw - 0.008, car_h - 0.01, 0.020), (x, plinth + car_h / 2, fz),
                   slot, bevel=0.005, name='door')
-            s.box((dw * 0.5, 0.014, 0.028), (x, plinth + car_h - 0.06, d / 2 - 0.010),
+            s.box((dw * 0.5, 0.014, 0.028), (x, plinth + car_h - 0.06, fz + 0.014),
                   'chrome', bevel=0.003, name='handle')
     else:
         s.box((w - 0.008, 0.14, 0.020), (0, plinth + car_h - 0.08, fz), slot,
               bevel=0.005, name='drawer-front')
         s.box((w - 0.008, car_h - 0.17, 0.020), (0, plinth + (car_h - 0.17) / 2, fz),
               slot, bevel=0.005, name='door')
-        s.box((w * 0.55, 0.014, 0.028), (0, plinth + car_h - 0.08, d / 2 - 0.010),
+        s.box((w * 0.55, 0.014, 0.028), (0, plinth + car_h - 0.08, fz + 0.014),
               'chrome', bevel=0.003, name='handle-drawer')
-        s.box((w * 0.55, 0.014, 0.028), (0, plinth + car_h - 0.24, d / 2 - 0.010),
+        s.box((w * 0.55, 0.014, 0.028), (0, plinth + car_h - 0.24, fz + 0.014),
               'chrome', bevel=0.003, name='handle-door')
     if island:
-        s.box((w, 0.05, 0.24), (0, h - 0.025, d / 2 + 0.10), 'accent',
-              bevel=0.008, name='breakfast-overhang')
+        # a corbel from the carcase out under the overhang, lapping both
+        cb_z1 = d / 2 - 0.04
+        cb_z0 = car_z + car_d / 2 - 0.04
+        s.box((w - 0.12, 0.14, cb_z1 - cb_z0), (0, h - 0.07, (cb_z0 + cb_z1) / 2),
+              'metal', bevel=0.006, name='overhang-bracket')
     return s
 
 
@@ -1267,7 +1284,7 @@ def fam_kitchen_wall(e, a):
     """Wall unit: carcase 0.35 deep off the wall face, doors, underside detail."""
     w, h, d = e['size']
     s = Shape(e['id'], 'wall', e['size'])
-    slot = body(e, 'tint')
+    slot = body(e, 'metal')
     s.box((w, h, d - 0.01), (0, h / 2, d / 2), slot, bevel=0.008, name='carcase')
     for i in range(2):
         dw = w / 2
@@ -1326,8 +1343,8 @@ def fam_tall_unit(e, a):
               seg=10, axis='z', bevel=0.004, name='dial')
         s.box((w * 0.55, 0.055, 0.026), (-w * 0.10, h - 0.09, fz + 0.008), 'metal',
               bevel=0.004, name='drawer')
-        s.ring((0.36, 0.36), (0.29, 0.29), 0.040, (0, h * 0.46, fz + 0.010), 'metal',
-               seg=16, bevel=0.006, name='door-ring')
+        s.ring((0.36, 0.36), (0.29, 0.29), 0.040, (0, h * 0.46, fz + 0.012), 'metal',
+               seg=16, rot=(math.pi / 2, 0, 0), bevel=0.006, name='door-ring')
         s.cyl(0.148, 0.148, 0.030, (0, h * 0.46, fz + 0.006), 'glass', seg=16,
               axis='z', bevel=0.0, name='porthole')
         s.box((0.030, 0.09, 0.030), (0.20, h * 0.46, fz + 0.012), 'metal',
@@ -1365,7 +1382,7 @@ def fam_tall_unit(e, a):
         s.box((w - 0.08, 0.024, 0.10), (0, h - 0.72, d / 2 - 0.04), 'metal',
               bevel=0.004, name='drip-tray')
     elif 'scales' in item:
-        s.box((w + 0.10, 0.05, d * 0.62), (0, 0.03, d * 0.16), 'metal', bevel=0.006,
+        s.box((w, 0.05, d * 0.62), (0, 0.03, d * 0.16), 'metal', bevel=0.006,
               name='platform')
         s.box((w * 0.6, h - 0.20, d * 0.30), (0, h / 2, -d / 2 + d * 0.16), 'metal',
               bevel=0.008, name='column')
@@ -1469,7 +1486,7 @@ def _stove(e, s, w, h, d):
     top_y0 = h - 0.20
     s.box((w, top_y0 - body_y0, dz), (0, (body_y0 + top_y0) / 2, cz), 'graphite',
           bevel=0.012, name='firebox')
-    s.box((w + 0.02, 0.045, dz + 0.02), (0, top_y0 + 0.010, cz), 'metal',
+    s.box((w, 0.045, dz), (0, top_y0 + 0.010, cz), 'metal',
           bevel=0.006, name='top-plate')
     s.cyl(0.075, 0.070, 0.20, (0, h - 0.10, -d / 2 + 0.16), 'graphite', seg=12,
           bevel=0.006, name='flue')
@@ -1478,7 +1495,7 @@ def _stove(e, s, w, h, d):
           bevel=0.008, name='firebox-door')
     s.box((w - 0.22, top_y0 - body_y0 - 0.24, 0.012), (0, door_y, fz + 0.010),
           'glass', bevel=0.0, name='fire-glass')
-    s.box((0.030, 0.11, 0.045), (w / 2 - 0.09, door_y, fz + 0.016), 'metal',
+    s.box((0.030, 0.11, 0.030), (w / 2 - 0.09, door_y, fz + 0.010), 'metal',
           bevel=0.005, name='door-handle')
     s.box((0.11, 0.028, 0.040), (-w / 2 + 0.12, body_y0 + 0.05, fz + 0.012), 'metal',
           bevel=0.004, name='air-slider')
@@ -1488,9 +1505,9 @@ def _stove(e, s, w, h, d):
 def _piano(e, s, w, h, d, slot):
     """An upright piano, because "tall unit" would have made it a wardrobe."""
     key_y = 0.66
-    s.box((w, h - 0.10, d - 0.16), (0, 0.10 + (h - 0.10) / 2, -0.08), slot,
+    s.box((w, h - 0.10, d - 0.10), (0, 0.10 + (h - 0.10) / 2, -0.05), slot,
           bevel=0.010, name='body')
-    s.box((w, 0.10, d - 0.16), (0, 0.05, -0.08), 'woodDark', bevel=0.006, name='plinth')
+    s.box((w, 0.10, d - 0.10), (0, 0.05, -0.05), 'woodDark', bevel=0.006, name='plinth')
     s.box((w, 0.09, d), (0, key_y - 0.045, 0.0), slot, bevel=0.008, name='keybed')
     s.box((w - 0.10, 0.020, 0.32), (0, key_y + 0.010, d / 2 - 0.16), 'ceramic',
           bevel=0.0, name='white-keys')
@@ -1498,11 +1515,11 @@ def _piano(e, s, w, h, d, slot):
         x = -w / 2 + 0.10 + i * (w - 0.20) / 15
         s.box((0.018, 0.018, 0.20), (x, key_y + 0.026, d / 2 - 0.22), 'graphite',
               bevel=0.0, name='black-key')
-    s.box((w, 0.16, 0.05), (0, key_y + 0.11, d / 2 - 0.025), slot, rot=(-0.20, 0, 0),
+    s.box((w, 0.16, 0.05), (0, key_y + 0.065, d / 2 - 0.045), slot, rot=(-0.20, 0, 0),
           bevel=0.008, name='fallboard')
-    s.box((w - 0.06, 0.30, 0.030), (0, h - 0.20, -d / 2 + 0.10), 'woodDark',
+    s.box((w - 0.06, 0.30, 0.030), (0, h - 0.30, d / 2 - 0.085), 'woodDark',
           rot=(0.18, 0, 0), bevel=0.006, name='music-desk')
-    s.box((w - 0.06, 0.035, 0.10), (0, h - 0.34, -d / 2 + 0.13), 'woodDark',
+    s.box((w - 0.06, 0.035, 0.09), (0, h - 0.44, d / 2 - 0.075), 'woodDark',
           bevel=0.005, name='music-ledge')
     for sx in (-1, 1):
         s.box((0.09, key_y - 0.06, 0.16), (sx * (w / 2 - 0.05), (key_y - 0.06) / 2,
@@ -1571,8 +1588,8 @@ def fam_block(e, a):
     if 'planter' in item:
         trough = s.shell((w, h, d), h - 0.10, 0.035, (0, h / 2, 0), slot=slot,
                          round_xz=False, corner=0.06, seg=20, name='trough')
-        s.cyl(w * 0.46, w * 0.46, 0.05, (0, trough.floor_y + 0.020, 0), 'soil',
-              seg=14, bevel=0.0, name='soil')
+        s.box((trough.inner[0] - 0.010, 0.05, trough.inner[1] - 0.010),
+              (0, trough.floor_y + 0.018, 0), 'soil', bevel=0.0, name='soil')
         rng = _Rng(7717)
         for i in range(14):
             x = -w / 2 + 0.10 + (w - 0.20) * i / 13.0
@@ -1610,15 +1627,15 @@ def _espresso(e):
     disappeared and it read as a black slab with a white lid again.
     """
     w, h, d = e['size']                  # 0.75 x 0.55 x 0.55
-    s = Shape(e['id'], 'floor', None)
+    s = Shape(e['id'], 'floor', e['size'])
     body_front = 0.19
 
     s.box((w - 0.03, 0.055, 0.42), (0, 0.028, -0.03), 'chrome', bevel=0.004,
           name='drip-tray')
     s.box((w - 0.09, 0.012, 0.36), (0, 0.058, -0.03), 'graphite', bevel=0.0,
           name='tray-well')
-    for i in range(5):
-        s.box((w - 0.10, 0.010, 0.016), (0, 0.064, -0.15 + i * 0.058), 'chrome',
+    for i in range(3):
+        s.box((w - 0.10, 0.010, 0.016), (0, 0.064, -0.13 + i * 0.086), 'chrome',
               bevel=0.0, name='grille-bar')
     # tray returns down both sides: visible from az25 and az135
     for sgn in (-1, 1):
@@ -1643,23 +1660,21 @@ def _espresso(e):
               name='group-head')
         s.cyl(0.058, 0.058, 0.030, (x, 0.098, body_front - 0.02), 'chrome', seg=8,
               bevel=0.0, name='portafilter')
-        s.tube([(x, 0.100, body_front + 0.005), (x, 0.098, body_front + 0.060),
+        s.tube([(x, 0.100, body_front + 0.005),
                 (x, 0.094, body_front + 0.098)], 0.013, 'graphite', seg=6,
                name='pf-handle')
-        s.cyl(0.020, 0.020, 0.020, (x, 0.100, body_front + 0.010), 'chrome', seg=8,
-              axis='z', bevel=0.0, name='pf-ferrule')
 
     for sgn in (-1, 1):
         x = sgn * 0.30
-        s.cyl(0.026, 0.026, 0.030, (x, 0.29, body_front - 0.02), 'chrome', seg=10,
+        s.cyl(0.026, 0.026, 0.030, (x, 0.29, body_front - 0.02), 'chrome', seg=8,
               axis='z', bevel=0.004, name='steam-knob')
-        s.tube([(x, 0.285, body_front - 0.03), (x, 0.235, body_front + 0.02),
-                (x * 0.90, 0.150, body_front + 0.010), (x * 0.88, 0.105, body_front - 0.01)],
+        s.tube([(x, 0.285, body_front - 0.03), (x, 0.200, body_front + 0.015),
+                (x * 0.88, 0.105, body_front - 0.01)],
                0.0085, 'chrome', seg=5, name='steam-wand')
 
-    s.cyl(0.046, 0.046, 0.022, (0, 0.315, body_front - 0.002), 'chrome', seg=10,
+    s.cyl(0.046, 0.046, 0.022, (0, 0.315, body_front - 0.002), 'chrome', seg=8,
           axis='z', bevel=0.0, name='gauge-bezel')
-    s.cyl(0.036, 0.036, 0.008, (0, 0.315, body_front + 0.010), 'paper', seg=10,
+    s.cyl(0.036, 0.036, 0.008, (0, 0.315, body_front + 0.010), 'paper', seg=8,
           axis='z', bevel=0.0, name='gauge-face')
     s.box((0.006, 0.030, 0.006), (0, 0.325, body_front + 0.014), 'accent',
           rot=(0, 0, 0.5), bevel=0.0, name='gauge-needle')
@@ -1671,16 +1686,14 @@ def _espresso(e):
               bevel=0.0, name='warmer-rail')
     s.box((w - 0.10, 0.028, 0.014), (0, 0.474, -0.24), 'chrome', bevel=0.0,
           name='warmer-rail-b')
-    for cx, cz in ((-0.21, -0.14), (-0.04, -0.16), (0.13, -0.13), (-0.12, 0.04),
-                   (0.13, 0.04)):
-        s.cyl(0.030, 0.034, 0.052, (cx, 0.488, cz), 'ceramic', seg=10, bevel=0.0,
+    for cx, cz in ((-0.21, -0.14), (0.13, -0.13)):
+        s.cyl(0.030, 0.034, 0.052, (cx, 0.488, cz), 'ceramic', seg=8, bevel=0.0,
               name='cup')
         s.ring((0.068, 0.068), (0.052, 0.052), 0.012, (cx, 0.512, cz), 'ceramic',
-               seg=10, bevel=0.0, name='cup-mouth')
+               seg=8, bevel=0.0, name='cup-mouth')
 
     s.box((w - 0.06, 0.115, 0.16), (0, 0.492, -0.17), 'graphite', bevel=0.010,
           name='boiler-housing')
-    s.box((0.20, 0.030, 0.012), (0, 0.520, -0.093), 'chrome', bevel=0.0, name='badge')
     return s
 
 
@@ -1735,8 +1748,8 @@ def fam_panel(e, a):
         s.box((w, h - 0.06, d * 0.50), (0, h / 2, d * 0.25), slot, bevel=0.006,
               name='panel')
         for i in range(int(w / 0.06)):
-            s.box((0.020, h - 0.12, d * 0.50), (-w / 2 + 0.04 + i * 0.06, h / 2,
-                  d * 0.75), slot, bevel=0.0, name='fin')
+            s.box((0.020, h - 0.12, d * 0.56), (-w / 2 + 0.04 + i * 0.06, h / 2,
+                  d * 0.72), slot, bevel=0.0, name='fin')
         s.box((w - 0.02, 0.020, d * 0.90), (0, h - 0.02, d * 0.50), 'metal',
               bevel=0.004, name='top-grille')
         for sx in (-1, 1):
@@ -1758,16 +1771,14 @@ def fam_panel(e, a):
     # whiteboard, meeting screen, TV
     screen = 'screen' in item or 'tv' in item
     frame_t = 0.030 if screen else 0.040
-    s.box((w, h, d * 0.45), (0, h / 2, d * 0.22), 'graphite' if screen else 'metal',
-          bevel=0.005, name='frame')
+    s.box((w, h, d * 0.90), (0, h / 2, d * 0.45),
+          body(e, 'graphite') if screen else 'metal', bevel=0.005, name='frame')
     s.box((w - frame_t * 2, h - frame_t * 2, 0.010), (0, h / 2, d - 0.006),
           'graphite' if screen else slot, bevel=0.0, name='face')
     if screen:
         s.box((w - frame_t * 2 - 0.008, h - frame_t * 2 - 0.008, 0.006),
-              (0, h / 2, d - 0.002), 'glass', bevel=0.0, name='glass')
-        s.box((0.30, 0.30, d * 0.4), (0, h / 2, d * 0.12), 'graphite', bevel=0.006,
-              name='wall-bracket')
-        s.box((w * 0.3, 0.014, 0.010), (0, 0.030, d - 0.004), 'metal', bevel=0.0,
+              (0, h / 2, d - 0.003), 'glass', bevel=0.0, name='glass')
+        s.box((w * 0.3, 0.014, 0.010), (0, 0.030, d - 0.007), 'metal', bevel=0.0,
               name='badge')
     else:
         # the tray sits INSIDE the declared 50 mm projection; at 75 mm deep
@@ -1792,7 +1803,7 @@ def fam_door_leaf(e, a):
     """
     w, h, d = e['size']
     item = e['id']
-    s = Shape(e['id'], 'wall', None)
+    s = Shape(e['id'], 'wall', e['size'])
     slot = body(e, 'wood')
     leaf = max(0.040, float(a[2]) if len(a) > 2 else 0.04)
     glazed = 'glazed' in item
@@ -1805,7 +1816,9 @@ def fam_door_leaf(e, a):
     for i in range(n):
         x0 = -w / 2 + lw * i
         cx = x0 + lw / 2
-        z0 = leaf / 2 + (0.012 if sliding else 0.0)
+        # a sliding leaf hangs ON the wall face; the declared depth is the leaf
+        # plus the track projection, so nothing is offset off the datum
+        z0 = leaf / 2
         if glazed or entrance:
             rail = 0.14 if entrance else 0.12
             gh = h * (0.52 if entrance else 0.62)
@@ -1853,11 +1866,11 @@ def fam_door_leaf(e, a):
         s.box((0.020, h - 0.10, leaf + 0.010), (0, h / 2, leaf / 2), slot,
               bevel=0.004, name='astragal')
     if sliding:
-        s.box((w + 0.10, 0.055, 0.055), (0, h + 0.030, leaf / 2 + 0.012), 'metal',
+        s.box((w, 0.055, 0.075), (0, h - 0.028, leaf + 0.0225), 'metal',
               bevel=0.006, name='track')
         for sx in (-1, 1):
-            s.box((0.030, 0.075, 0.030), (sx * (w / 2 - 0.12), h + 0.005,
-                  leaf / 2 + 0.012), 'metal', bevel=0.004, name='hanger')
+            s.box((0.030, 0.075, 0.030), (sx * (w / 2 - 0.12), h - 0.050,
+                  leaf + 0.014), 'metal', bevel=0.004, name='hanger')
     if 'fire' in item:
         s.box((0.30, 0.055, 0.055), (w / 2 - 0.30, h - 0.06, leaf + 0.030), 'metal',
               bevel=0.005, name='closer-arm')
@@ -1892,8 +1905,9 @@ def fam_window(e, a):
     item = e['id']
     s = Shape(e['id'], 'wall', e['size'])
     slot = body(e, 'metal')
-    fd = min(0.085, d * 0.62)
-    zc = d * 0.38
+    roof = 'rooflight' in item
+    fd = d if roof else min(0.085, d * 0.62)
+    zc = d / 2 if roof else d * 0.38
     f = max(0.050, fw)
     lap = 0.012                       # how far the sash laps onto the frame
 
@@ -1909,7 +1923,7 @@ def fam_window(e, a):
     bay_w = inner_w / bays
     rail = min(0.052, bay_w * 0.16)
     st = 0.042
-    zs = zc + 0.008
+    zs = (d - st / 2 - 0.008) if roof else (zc + 0.008)
     handle_at = None
 
     for i in range(bays):
@@ -1942,15 +1956,10 @@ def fam_window(e, a):
             if handle_at is None and r1 - r0 > 0.5:
                 handle_at = (cx - (sw / 2 - rail / 2), cy)
 
-    if 'rooflight' in item:
-        # the kerb wraps the frame and runs back to the outer face; it used to
-        # be a lintel floating 55 mm behind everything else
-        for sx in (-1, 1):
-            s.box((f, h, d - zc + fd / 2), (sx * (w / 2 - f / 2), h / 2,
-                  (zc - fd / 2 + d) / 2), slot, bevel=0.006, name='kerb-s')
-        for y in (f / 2, h - f / 2):
-            s.box((w, f, d - zc + fd / 2), (0, y, (zc - fd / 2 + d) / 2), slot,
-                  bevel=0.006, name='kerb-h')
+    if roof:
+        # the frame above is the kerb; all it needs is the flashing skirt
+        s.box((w, f * 0.5, 0.030), (0, f * 0.25, 0.015), 'accent', bevel=0.004,
+              name='flashing')
     elif 'shopfront' in item:
         s.box((w, 0.28, d), (0, 0.14, d / 2), slot, bevel=0.006, name='base-panel')
     else:
@@ -2001,11 +2010,11 @@ def fam_linear_light(e, a):
         s.box((w, h * 0.36, d), (0, -h * 0.18, 0), 'graphite', bevel=0.004, name='track')
         for i in range(3):
             x = -w / 2 + w * (i + 0.5) / 3
-            s.cyl(0.020, 0.020, h * 0.30, (x, -h * 0.46, 0), 'graphite', seg=8,
+            s.cyl(0.020, 0.020, h * 0.30, (x, -h * 0.48, 0), 'graphite', seg=8,
                   bevel=0.0, name='spot-stem')
-            s.cyl(d * 0.42, d * 0.38, h * 0.36, (x, -h * 0.66, 0.01), 'graphite',
+            s.cyl(d * 0.32, d * 0.28, h * 0.36, (x, -h * 0.72, 0.004), 'graphite',
                   seg=10, rot=(0.5, 0, 0), bevel=0.004, name='spot-head')
-            s.cyl(d * 0.30, d * 0.30, 0.010, (x, -h * 0.80, 0.030), 'glass', seg=10,
+            s.cyl(d * 0.24, d * 0.24, 0.010, (x, -h * 0.86, 0.014), 'glass', seg=10,
                   rot=(0.5, 0, 0), bevel=0.0, name='spot-lens')
         return s
     s.box((w, h * 0.55, d), (0, -h * 0.275, 0), slot, bevel=0.004, name='housing')
@@ -2038,13 +2047,13 @@ def fam_desk_lamp(e, a):
     w, h, d = e['size']
     s = Shape(e['id'], 'floor', e['size'])
     slot = body(e, 'metal')
-    s.cyl(w / 2, w * 0.46, 0.020, (0, 0.010, 0), 'metal', seg=14, bevel=0.004,
+    s.cyl(w / 2, w * 0.46, 0.020, (0, 0.010, 0), 'metal', seg=20, bevel=0.004,
           name='base')
-    s.tube([(0, 0.014, 0), (0, h * 0.55, -0.01), (0, h * 0.86, 0.03),
-            (0.0, h - 0.06, 0.06)], 0.010, 'metal', seg=6, name='arm')
-    s.cyl(w * 0.40, w * 0.30, 0.10, (0, h - 0.055, 0.075), slot, seg=12,
+    s.tube([(0, 0.014, -0.045), (0, h * 0.52, -0.055), (0, h * 0.80, -0.02),
+            (0.0, h - 0.11, 0.012)], 0.010, 'metal', seg=6, name='arm')
+    s.cyl(w * 0.40, w * 0.30, 0.10, (0, h - 0.098, 0.014), slot, seg=12,
           rot=(0.7, 0, 0), bevel=0.005, name='head')
-    s.cyl(w * 0.26, w * 0.26, 0.010, (0, h - 0.10, 0.10), 'glass', seg=12,
+    s.cyl(w * 0.26, w * 0.26, 0.010, (0, h - 0.135, 0.036), 'glass', seg=12,
           rot=(0.7, 0, 0), bevel=0.0, name='lens')
     return s
 
@@ -2057,7 +2066,7 @@ def fam_desk_lamp(e, a):
 def fam_monitor(e, a):
     w, h, d = e['size']
     s = Shape(e['id'], 'floor', e['size'])
-    s.box((w * 0.42, 0.016, d * 0.80), (0, 0.008, 0), 'graphite', bevel=0.004,
+    s.box((w * 0.42, 0.016, d), (0, 0.008, 0), 'graphite', bevel=0.004,
           name='foot')
     s.box((0.06, h * 0.36, 0.05), (0, h * 0.18, -0.01), 'graphite', bevel=0.005,
           name='stem')
@@ -2116,7 +2125,7 @@ def fam_plant(e, a):
 
     n_branch = 16 if big else 10
     leaves_per = 8 if big else 5
-    leaf_lo, leaf_hi = (0.075, 0.115) if big else (0.10, 0.15)
+    leaf_lo, leaf_hi = (0.075, 0.115) if big else (0.11, 0.17)
     tips = []
     for i in range(n_branch):
         a_ = i * 2.39996 + rng.f(-0.22, 0.22)
@@ -2124,7 +2133,7 @@ def fam_plant(e, a):
         base_t = 0.46 + 0.54 * ((i / max(1, n_branch - 1)) ** 0.72)
         by = pot_h + (top * 0.88 - pot_h) * base_t
         bx = 0.012 * math.sin(base_t * 3)
-        reach = spread * (rng.f(0.24, 0.42) if big else rng.f(0.16, 0.26))
+        reach = spread * (rng.f(0.24, 0.42) if big else rng.f(0.23, 0.35))
         rise = rng.f(0.10, 0.30) * (1.0 if big else 0.7)
         mid = (bx + math.sin(a_) * reach * 0.45, by + rise * 0.65,
                math.cos(a_) * reach * 0.45)
@@ -2132,12 +2141,12 @@ def fam_plant(e, a):
         s.tube([(bx, by, 0.0), mid, tip], rng.f(0.010, 0.015), 'stem', seg=5,
                name='branch')
         tips.append((mid, tip, a_))
-    tips.append(((0.004, top * 0.92, 0.004), (0.004, top + 0.02, 0.004), 0.0))
+    tips.append(((0.012, top * 0.86, -0.008), (0.004, top - 0.01, 0.004), 0.0))
 
     n = 0
     for mid, tip, a_ in tips:
         for k in range(leaves_per):
-            t = 0.24 + 0.92 * k / max(1, leaves_per - 1)
+            t = 0.22 + 0.72 * k / max(1, leaves_per - 1)
             px = mid[0] + (tip[0] - mid[0]) * t
             py = mid[1] + (tip[1] - mid[1]) * t
             pz = mid[2] + (tip[2] - mid[2]) * t
@@ -2206,7 +2215,7 @@ def fam_stair_flight(e, a):
               (0, y - tread_t / 2, z), slot, bevel=0.006, name='tread')
         s.box((w - string_t * 2, rise - tread_t + 0.012, 0.024),
               (0, y - rise / 2 - tread_t / 2, z - going / 2 + 0.012), slot,
-              bevel=0.004, name='riser')
+              bevel=0.0, name='riser')
     # closed strings: a solid wedge under the nosing line, flat on the floor.
     # A rotated slab would hang below y = 0 and above y = h.
     for sx in (-1, 1):
@@ -2215,24 +2224,24 @@ def fam_stair_flight(e, a):
     # balustrade on the left string, capped at the floor above
     rail_h = 0.90
     x = -w / 2 + string_t / 2
-    z_bot, z_top = d / 2 - 0.07, -d / 2 + 0.07
+    z_bot = d / 2 - 0.07
     y_bot = h * (d / 2 - z_bot) / d
+    # the rake rail runs at rail_h above the pitch line and STOPS where it meets
+    # the floor above
+    z_top = d / 2 - d * (h - rail_h) / h
     y_top = h * (d / 2 - z_top) / d
-    s.box((0.055, rail_h + y_bot, 0.055), (x, (rail_h + y_bot) / 2, z_bot), 'metal',
+    s.box((0.055, y_bot + rail_h, 0.055), (x, (y_bot + rail_h) / 2, z_bot), 'metal',
           bevel=0.005, name='newel-bottom')
-    s.box((0.055, rail_h * 0.5 + 0.10, 0.055), (x, y_top - 0.05 + (rail_h * 0.5) / 2,
-          z_top), 'metal', bevel=0.005, name='newel-top')
-    s.tube([(x, y_bot + rail_h, z_bot), (x, min(h, y_top + rail_h * 0.5), z_top)],
-           0.024, 'metal', seg=8, name='handrail')
-    nb = max(3, n // 2)
+    s.box((0.055, h, 0.055), (x, h / 2, z_top), 'metal', bevel=0.005, name='newel-top')
+    s.tube([(x, y_bot + rail_h, z_bot), (x, y_top + rail_h, z_top)], 0.024, 'metal',
+           seg=8, name='handrail')
+    nb = max(3, n // 3)
     for i in range(nb):
         t = (i + 0.5) / nb
         z = z_bot + (z_top - z_bot) * t
         y0 = h * (d / 2 - z) / d
-        y1 = (y_bot + rail_h) + (min(h, y_top + rail_h * 0.5) - (y_bot + rail_h)) * t
-        if y1 - y0 < 0.10:
-            continue
-        s.cyl(0.011, 0.011, y1 - y0 + 0.03, (x, (y0 + y1) / 2, z), 'metal', seg=6,
+        y1 = y0 + rail_h
+        s.cyl(0.011, 0.011, rail_h + 0.03, (x, (y0 + y1) / 2, z), 'metal', seg=6,
               bevel=0.0, name='baluster')
     return s
 
@@ -2267,7 +2276,7 @@ def fam_stair_u_return(e, a):
                   bevel=0.006, name='tread')
             s.box((flight_w - 0.02, rise - tread_t + 0.012, 0.024),
                   (x0, y - rise / 2 - tread_t / 2, z - direction * (going / 2 - 0.012)),
-                  slot, bevel=0.004, name='riser')
+                  slot, bevel=0.0, name='riser')
         # a wedge carriage under the whole run, on the datum it starts from
         s.wedge((flight_w + 0.01, half, run_d),
                 (x0, up_from, z_nose0 + direction * run_d / 2),
@@ -2339,24 +2348,15 @@ def fam_ramp(e, a):
     s = Shape(e['id'], 'floor', e['size'])
     slot = body(e, 'metal')
     s.wedge((w, h, d), (0, 0, 0), slot, bevel=0.0, name='deck')
-    # edge protection is a channel SUNK INTO the deck, not an upstand on it
+    # edge protection is a flush strip ON the deck, not an upstand over it
     for sx in (-1, 1):
-        s.wedge((0.040, h - 0.014, d - 0.06), (sx * (w / 2 - 0.05), 0, 0),
-                'graphite', bevel=0.0, name='edge-channel')
+        s.box((0.040, 0.014, d - 0.30), (sx * (w / 2 - 0.05), h / 2, 0), 'graphite',
+              rot=(math.atan2(h, d), 0, 0), bevel=0.0, name='edge-strip')
     for i in range(7):
         z = d / 2 - 0.12 - (d - 0.34) * i / 6
         y = h * (d / 2 - z) / d
         s.box((w - 0.14, 0.014, 0.040), (0, y - 0.004, z), 'accent',
               rot=(math.atan2(h, d), 0, 0), bevel=0.0, name='nosing-strip')
-    for sx in (-1, 1):
-        for i in range(4):
-            z = d / 2 - 0.20 - (d - 0.40) * i / 3
-            y = h * (d / 2 - z) / d
-            s.cyl(0.022, 0.022, 0.95, (sx * (w / 2 - 0.03), y + 0.45, z), 'metal',
-                  seg=8, bevel=0.0, name='rail-post')
-        s.tube([(sx * (w / 2 - 0.03), 0.92, d / 2 - 0.20),
-                (sx * (w / 2 - 0.03), h + 0.92, -d / 2 + 0.20)], 0.024, 'metal',
-               seg=8, name='handrail')
     return s
 
 
@@ -2420,10 +2420,44 @@ def builder_for(entry):
     return lambda e: fn(e, list(proc)[1:])
 
 
-# Items whose finished bounding box deliberately differs from the catalogue.
-# Each one is reported to the catalogue's owner (verify.mjs EXPECTED_DRIFT and
-# the handoff file) with the value the catalogue should carry; none is scaled to
-# hide the difference. Everything NOT listed here is built to the catalogue.
+# THE DECLARED ENVELOPE, where a real fitting stands outside its catalogue box.
+#
+# Every one of the 122 entries is built to the size its own catalogue row gives.
+# Fifteen of them then carry a piece of real ironmongery that cannot fit inside
+# that box: a basin's catalogue height IS its rim height (the same number the
+# entry carries as `workHeight`, which the ergonomics module reads), and a deck
+# mixer stands 0.18 m above the rim; a door's catalogue thickness is the LEAF,
+# and a lever projects 0.05 m each side of it.
+#
+# These are the only fifteen, they are all a single axis, and each one is
+# printed as `drift` by verify.mjs and written into _tmp/catalog-handoff.json
+# with the value src/model/catalog.js should carry. That file belongs to another
+# agent; this pipeline reports and never edits. Nothing here is a licence to
+# scale a wrong design into place -- the finished mesh is still asserted against
+# the number below to within 4 %.
+#
+# Keep in step with EXPECTED_DRIFT in verify.mjs; a mismatch fails the audit.
+ENVELOPE = {
+    # deck mixers above a rim height
+    'basin-560': [0.56, 1.03, 0.46],
+    'basin-cloak-400': [0.40, 1.03, 0.30],
+    'basin-clinical': [0.60, 1.08, 0.50],
+    'basin-vanity-800': [0.80, 1.07, 0.48],
+    'kitchen-base-sink-800': [0.80, 1.12, 0.60],
+    'kids-basin-row': [1.20, 0.77, 0.40],
+    'bath-1700': [1.70, 0.74, 0.75],
+    # lever handles either side of a leaf
+    'door-internal-800': [0.80, 2.05, 0.15],
+    'door-internal-900': [0.90, 2.05, 0.15],
+    'door-internal-1000': [1.00, 2.05, 0.15],
+    'door-glazed-900': [0.90, 2.05, 0.15],
+    'door-double-1600': [1.60, 2.10, 0.15],
+    'door-fire-ei30-900': [0.90, 2.05, 0.17],
+    'door-entrance-1000': [1.00, 2.10, 0.18],
+}
+
+# Kept for the case where a family must be BUILT to something other than the
+# catalogue number. Empty: every family reads the catalogue directly.
 SIZE_OVERRIDES = {}
 
 # Per-item fit tolerance. Joinery is built to the millimetre and gets the 4 %
@@ -2435,29 +2469,10 @@ FIT_MAX = {
     'plant-pot-small': 0.16,
 }
 
-FIT_AXES = {
-    'plant-ficus-large': 'xz',
-    'plant-monstera': 'xz',
-    'plant-pot-small': 'xz',
-    # a tap, a lever handle and a grab rail stand outside the catalogue envelope
-    # on purpose; fitting those axes would squash the fitting, not fix it.
-    'basin-560': 'xz',
-    'basin-cloak-400': 'xz',
-    'basin-clinical': 'xz',
-    'kitchen-base-sink-800': 'xz',
-    'basin-vanity-800': 'xz',
-    'kids-basin-row': 'xz',
-    'kitchen-base-600': 'xz',
-    'kitchen-base-corner': 'xz',
-    'kitchen-island-1800': 'xz',
-    'bath-1700': 'xz',
-    'wc-accessible': 'yz',
-    'door-internal-800': 'xy',
-    'door-internal-900': 'xy',
-    'door-internal-1000': 'xy',
-    'door-glazed-900': 'xy',
-    'door-double-1600': 'xy',
-    'door-sliding-900': 'xy',
-    'door-fire-ei30-900': 'xy',
-    'door-entrance-1000': 'xy',
-}
+# Every axis of every item is now fitted and asserted. This table used to
+# exempt 19 items from one or two axes each, and those unwatched axes are
+# exactly where the drift hid: a wall-hung basin whose rim landed at 0.53 m
+# instead of 0.85, an island 24 % over its own depth, a kids' basin row 41 %
+# over its height. Anything that legitimately sits outside the catalogue box
+# belongs in ENVELOPE above, where it is declared and handed off.
+FIT_AXES = {}

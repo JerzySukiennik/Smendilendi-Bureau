@@ -179,15 +179,6 @@
     "source": "owner-supplied file: windows-10-notification.mp3",
     "duration": "1.99 s"
   },
-  "ui.snap": {
-    "ogg": "ui/snap.ogg",
-    "m4a": "ui/snap.m4a",
-    "kind": "ui",
-    "loop": false,
-    "gain": 0.85,
-    "positional": false,
-    "duration": "0.11 s"
-  },
   "ui.submit": {
     "ogg": "ui/submit.ogg",
     "m4a": "ui/submit.m4a",
@@ -409,7 +400,7 @@
     "m4a": "sfx/keyboard-type-1.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1,
+    "gain": 0.45,
     "positional": true,
     "duration": "0.11 s"
   },
@@ -418,7 +409,7 @@
     "m4a": "sfx/keyboard-type-2.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1,
+    "gain": 0.45,
     "positional": true,
     "duration": "0.22 s"
   },
@@ -427,7 +418,7 @@
     "m4a": "sfx/keyboard-type-3.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1,
+    "gain": 0.45,
     "positional": true,
     "duration": "0.15 s"
   },
@@ -436,7 +427,7 @@
     "m4a": "sfx/keyboard-type-4.m4a",
     "kind": "sfx",
     "loop": false,
-    "gain": 1,
+    "gain": 0.45,
     "positional": true,
     "duration": "0.25 s"
   },
@@ -485,15 +476,6 @@
     "positional": true,
     "duration": "0.50 s"
   },
-  "sfx.pen-scribble": {
-    "ogg": "sfx/pen-scribble.ogg",
-    "m4a": "sfx/pen-scribble.m4a",
-    "kind": "sfx",
-    "loop": false,
-    "gain": 1,
-    "positional": true,
-    "duration": "3.20 s"
-  },
   "amb.birds-outside": {
     "ogg": "amb/birds-outside.ogg",
     "m4a": "amb/birds-outside.m4a",
@@ -521,21 +503,12 @@
     "positional": false,
     "duration": "1:00"
   },
-  "amb.rain-window": {
-    "ogg": "amb/rain-window.ogg",
-    "m4a": "amb/rain-window.m4a",
-    "kind": "amb",
-    "loop": true,
-    "gain": 0.55,
-    "positional": false,
-    "duration": "1:00"
-  },
   "amb.street-outside": {
     "ogg": "amb/street-outside.ogg",
     "m4a": "amb/street-outside.m4a",
     "kind": "amb",
     "loop": true,
-    "gain": 0.55,
+    "gain": 0.28,
     "positional": false,
     "duration": "1:00"
   }

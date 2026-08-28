@@ -183,7 +183,9 @@ export class Editor {
     }
     const m = this.model;
     for (const id of changed) {
-      if (m.furniture[id] || id.startsWith('f')) { this._dirty.furniture = true; continue; }
+      // The plan draws furniture as symbols now, so moving a chair redraws the
+      // sheet as surely as moving a wall does.
+      if (m.furniture[id] || id.startsWith('f')) { this._dirty.furniture = true; this._dirty.plan = true; continue; }
       if (m.texts[id] || id.startsWith('t')) { this._dirty.texts = true; continue; }
       const w = m.walls[id];
       const o = m.openings[id];
@@ -710,6 +712,14 @@ export class Editor {
     this.plan.visible = plan;
     if (plan) this.plan.build(this.model, this.levelId, this.roomLabels());
     for (const built of this.builtByLevel.values()) built.group.visible = !plan;
+    // The 3D furniture and the 3D lettering come out of the picture too, and
+    // plan.js draws proper 2D symbols in their place. A shaded box with a drop
+    // shadow standing in a line drawing is the one thing on the sheet that reads
+    // as a screenshot rather than as a drawing. They stay in the scene graph and
+    // stay pickable — three's raycaster does not care about `visible` — so a
+    // chair can still be selected and moved in plan.
+    this.furniture.group.visible = !plan;
+    this.texts.group.visible = !plan;
     this.gizmos.axesVisible = !plan;
     // A plan is a section at 1.20 m, so everything the section would remove is
     // taken out of the picture: the 3D shell (replaced by the drawing) and, via

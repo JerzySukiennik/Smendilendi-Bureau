@@ -36,13 +36,37 @@ for this project.
 `;
 const MAX_PLAYERS = 3;      // DESIGN-DECISIONS.md: 1-3 players, one shared office
 
+/**
+ * `volumes` is DELIBERATELY EMPTY, and must stay empty.
+ *
+ * It used to be `{ master: 0.9, music: 0.45, ambient: 0.5, sfx: 0.8, ui: 0.7 }` —
+ * a third hardcoded copy of assets/audio/mix.json, written onto all five buses by
+ * _applyPrefs() every time the menu was entered, i.e. on the first screen of the
+ * game. It happened to agree with mix.json, and nothing checked that it did:
+ * changing the music bus in mix.json moved the review page's promised level and
+ * not a decibel of what the game played, because this object put the old number
+ * back. That is exactly the defect the audio sign-off exists to prevent, one file
+ * over from where it was found the first time.
+ *
+ * So this map now holds only the buses the PLAYER has dragged — deviations from
+ * mix.json, never the mix itself. The defaults come from the audio bus, which
+ * reads mix.json and nothing else. assets/audio/build/verify-signoff.mjs check 10
+ * fails the build if a bus-mix literal reappears anywhere outside src/core/audio.js.
+ */
 const DEFAULTS = {
   nick: '',
   color: PLAYER_COLORS[0],
-  volumes: { master: 0.9, music: 0.45, ambient: 0.5, sfx: 0.8, ui: 0.7 },
+  volumes: {},
   sensitivity: 0.0022,
   quality: 'auto',
 };
+
+/** Slider order and labels. A LIST of pairs, not a map keyed by bus name — the
+ *  shape that check 10 forbids is an object whose keys are the mix's buses. */
+const BUS_ROWS = [
+  ['master', 'Master'], ['music', 'Music'], ['ambient', 'Ambience'],
+  ['sfx', 'Effects'], ['ui', 'Interface'],
+];
 
 export class Lobby {
   constructor(ctx, opts = {}) {
@@ -134,8 +158,8 @@ export class Lobby {
   _applyPrefs() {
     this.nickInput.value = this.prefs.nick || '';
     this.swatches.forEach((b, i) => b.classList.toggle('on', PLAYER_COLORS[i] === this.prefs.color));
-    const audio = this.ctx?.audio;
-    if (audio) for (const [bus, v] of Object.entries(this.prefs.volumes)) audio.setVolume(bus, v);
+    // mix.json supplies every default; this only replays the player's own moves.
+    this.ctx?.audio?.applyUserVolumes?.(this.prefs.volumes);
     if (this.ctx?.input) this.ctx.input.mouseSensitivity = this.prefs.sensitivity;
     this._applyQuality();
   }
@@ -354,20 +378,21 @@ export class Lobby {
   // -- settings -------------------------------------------------------------
 
   openSettings() {
-    const v = this.prefs.volumes;
-    const row = (id, label, val) => `
+    // Where a slider STARTS is the live bus level — mix.json plus whatever this
+    // player has already moved. This screen never names a default of its own.
+    const live = this.ctx?.audio?.volumes || {};
+    const row = ([id, label]) => {
+      const val = typeof live[id] === 'number' ? live[id] : 0;
+      return `
       <label class="mn-slider">
         <span>${esc(label)}</span>
         <input type="range" min="0" max="1" step="0.01" value="${val}" data-vol="${id}">
         <b>${Math.round(val * 100)}</b>
       </label>`;
+    };
     const p = this._openPanel('Settings', `
       <div class="mn-chip-label">Sound</div>
-      ${row('master', 'Master', v.master)}
-      ${row('music', 'Music', v.music)}
-      ${row('ambient', 'Ambience', v.ambient)}
-      ${row('sfx', 'Effects', v.sfx)}
-      ${row('ui', 'Interface', v.ui)}
+      ${BUS_ROWS.map(row).join('')}
       <div class="mn-chip-label mn-mt">Mouse</div>
       <label class="mn-slider">
         <span>Look sensitivity</span>
@@ -385,8 +410,9 @@ export class Lobby {
       i.addEventListener('input', () => {
         const bus = i.dataset.vol;
         const val = Number(i.value);
-        this.prefs.volumes[bus] = val;
-        this.ctx?.audio?.setVolume(bus, val);
+        // setUserVolume returns the deviation map — only the buses this player has
+        // actually moved — which is the only thing that may be persisted.
+        this.prefs.volumes = this.ctx?.audio?.setUserVolume?.(bus, val) ?? this.prefs.volumes;
         i.parentElement.querySelector('b').textContent = String(Math.round(val * 100));
         savePrefs(this.prefs);
       });
@@ -482,20 +508,27 @@ function esc(s) {
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/**
+ * Anyone who played build 1 has all five bus levels sitting in localStorage as
+ * absolute numbers, written there by the DEFAULTS map that used to live at the
+ * top of this file. Restoring those as "the player's own choices" would pin the
+ * old mix onto the bus forever and reopen the exact defect this build closed, so
+ * a prefs blob from before the change loses its volumes and keeps everything else.
+ */
+const PREFS_VERSION = 2;
+
 function loadPrefs() {
   try {
     const raw = JSON.parse(localStorage.getItem(STORE) || '{}');
-    return {
-      ...DEFAULTS, ...raw,
-      volumes: { ...DEFAULTS.volumes, ...(raw.volumes || {}) },
-    };
+    const volumes = raw.v === PREFS_VERSION ? (raw.volumes || {}) : {};
+    return { ...DEFAULTS, ...raw, v: PREFS_VERSION, volumes: { ...volumes } };
   } catch (_) {
-    return { ...DEFAULTS, volumes: { ...DEFAULTS.volumes } };
+    return { ...DEFAULTS, v: PREFS_VERSION, volumes: {} };
   }
 }
 
 function savePrefs(p) {
-  try { localStorage.setItem(STORE, JSON.stringify(p)); } catch (_) { /* private mode */ }
+  try { localStorage.setItem(STORE, JSON.stringify({ ...p, v: PREFS_VERSION })); } catch (_) { /* private mode */ }
 }
 
 /**

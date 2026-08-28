@@ -656,15 +656,54 @@ async function main() {
   console.log('SMOKE TEST PASSED');
 }
 
+/**
+ * The audio sign-off, checked here so it cannot rot unnoticed.
+ *
+ * assets/audio/build/verify-signoff.mjs is what keeps "what Jurek hears is what
+ * ships" true: it reads every play/music/loop call in src/ and fails if any of
+ * them can produce a level other than the reviewed one. Until now the whole
+ * guarantee depended on somebody remembering to type the command, and nothing
+ * automated ever ran it. --fast skips the two ffmpeg passes (decode/clipping and
+ * durations, ~90 s); run the script directly for those, or `npm run verify:audio`.
+ *
+ * Deliberately spawned rather than imported: this file is also loaded in the
+ * browser (the core it exercises is view-free), and the verifier is a node-only
+ * script with fs and child_process at its top level.
+ */
+async function verifyAudioSignoff() {
+  if (process.argv.includes('--no-audio')) return;
+  const { spawnSync } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const script = fileURLToPath(new URL('../assets/audio/build/verify-signoff.mjs', import.meta.url));
+  const r = spawnSync(process.execPath, [script, '--fast'], { encoding: 'utf8' });
+  const out = `${r.stdout || ''}${r.stderr || ''}`;
+  const lines = out.split('\n');
+  const failed = lines.filter((l) => l.startsWith('FAIL'));
+  const passed = lines.filter((l) => l.startsWith('PASS')).length;
+  console.log('');
+  console.log(`== AUDIO SIGN-OFF ${'='.repeat(60)}`);
+  console.log('');
+  if (r.status === 0) {
+    console.log(`${passed} checks passed — every call site in src/ lands on its reviewed level`);
+    console.log('(ffmpeg decode/clipping and duration checks skipped; `npm run verify:audio` runs them)');
+    return;
+  }
+  for (const l of failed) console.error(l);
+  console.error('\nAUDIO SIGN-OFF FAILED — run: node assets/audio/build/verify-signoff.mjs');
+  process.exit(1);
+}
+
 // Importable from a browser as well as runnable from node: the browser has no
 // `process`, and the whole point of this file is that the core it exercises is
 // view-free and runs in both.
 const invokedDirectly = typeof process !== 'undefined' && Array.isArray(process.argv)
   && process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
 if (invokedDirectly) {
-  main().catch((err) => {
-    console.error('\nSMOKE TEST FAILED');
-    console.error(err && err.stack ? err.stack : String(err));
-    process.exit(1);
-  });
+  main()
+    .then(() => verifyAudioSignoff())
+    .catch((err) => {
+      console.error('\nSMOKE TEST FAILED');
+      console.error(err && err.stack ? err.stack : String(err));
+      process.exit(1);
+    });
 }

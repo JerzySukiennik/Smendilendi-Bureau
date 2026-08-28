@@ -122,7 +122,7 @@ export class FilesApp {
     this.os.wm.dialog({
       title: 'Open variant', icon: 'info', w: 360, h: 140,
       message: `${v.name}.plan\n${v.size} KB, saved ${dateShort(v.at)}.\n\nThe model in the editor is replaced.`,
-      buttons: ['&OK', '&Cancel'],
+      buttons: ['OK', 'Cancel'],
       onResult: (i) => { if (i === 0) this.os.emit('variant:open', v); },
     });
   }

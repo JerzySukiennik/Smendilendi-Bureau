@@ -161,6 +161,15 @@ export const HAIR_TONES = [0x2b2825, 0x4a3527, 0x6d4b2c, 0x9a7440, 0xc9b083, 0x8
 //                  does not have twenty people walking through the door in the
 //                  same second.
 //   needs          per-hour probability weights for the two involuntary goals.
+//   topUp          how readily this role absorbs a shortfall when the head
+//                  count has to be raised (see buildPopulation). 0 = never.
+//                  A busier building has more visitors, more children and more
+//                  patients; it does not have more of whichever role happened
+//                  to be the largest, which is how a three-bedroom family house
+//                  ended up with FOUR PARENTS — and with twenty-four of them at
+//                  the thirty-person load case.
+//   maxCount       hard ceiling on this role, whatever else is asked for. Two
+//                  parents is two parents.
 
 const ADULT = { height: 1.72, speed: 1.35, adult: true };
 const CHILD = { height: 1.05, speed: 0.85, adult: false, child: true };
@@ -174,6 +183,8 @@ function role(key, label, base, extra) {
     needs: { wc: 1.0, coffee: 1.0 },
     arrive: [8.0, 9.0],
     leave: [16.5, 18.0],
+    topUp: 0,
+    maxCount: Infinity,
     ...extra,
   };
 }
@@ -182,7 +193,7 @@ function role(key, label, base, extra) {
 
 const HOUSE_ROLES = [
   role('parent', 'Parent', ADULT, {
-    cloth: 0x35566e, count: () => 2, resident: true,
+    cloth: 0x35566e, count: () => 2, resident: true, maxCount: 2,
     arrive: [6.8, 7.4], leave: [21.5, 22.5],
     day: [
       { from: 6.5, to: 8.5, goals: { eat: 4, wc: 3, bedroom: 2, living: 1 } },
@@ -193,6 +204,7 @@ const HOUSE_ROLES = [
   }),
   role('child', 'Child', CHILD, {
     cloth: 0xd4763a, count: (p) => Math.max(1, (p.bedrooms ?? 3) - 1), resident: true,
+    topUp: 2, maxCount: 5,
     arrive: [7.0, 7.6], leave: [21.0, 21.6],
     day: [
       { from: 6.5, to: 8.0, goals: { eat: 4, wc: 3, bedroom: 3 } },
@@ -202,21 +214,21 @@ const HOUSE_ROLES = [
     ],
   }),
   role('grandparent', 'Grandparent', ELDER, {
-    cloth: 0x7a6b8a, count: () => 1, visitor: true,
+    cloth: 0x7a6b8a, count: () => 1, visitor: true, topUp: 1, maxCount: 4,
     arrive: [11.0, 12.5], leave: [18.0, 19.5],
     day: [
       { from: 10.0, to: 20.0, goals: { living: 5, eat: 3, wc: 2, bedroom: 1 } },
     ],
   }),
   role('friend', 'Visiting friend', TEEN, {
-    cloth: 0x476b4a, count: () => 2, visitor: true,
+    cloth: 0x476b4a, count: () => 2, visitor: true, topUp: 3, maxCount: 14,
     arrive: [14.0, 16.5], leave: [18.0, 19.5],
     day: [
       { from: 13.0, to: 20.0, goals: { play: 4, bedroom: 3, living: 3, wc: 1, eat: 1 } },
     ],
   }),
   role('courier', 'Courier', ADULT, {
-    cloth: 0xb2472e, count: () => 1, visitor: true,
+    cloth: 0xb2472e, count: () => 1, visitor: true, maxCount: 2,
     arrive: [10.0, 15.0], leave: [10.2, 15.2], stay: [4, 8],
     day: [{ from: 6.0, to: 22.0, goals: { deliver: 5, arrive: 1 } }],
   }),
@@ -227,6 +239,7 @@ const HOUSE_ROLES = [
 const KINDERGARTEN_ROLES = [
   role('nurseryChild', 'Child', CHILD, {
     cloth: 0xc9a227, count: (p) => Math.min(18, p.children ?? 24),
+    topUp: 3, maxCount: 24,
     arrive: [7.2, 8.6], leave: [15.0, 16.8],
     needs: { wc: 2.6, coffee: 0 },
     day: [
@@ -239,6 +252,7 @@ const KINDERGARTEN_ROLES = [
   }),
   role('teacher', 'Teacher', ADULT, {
     cloth: 0x3f7a76, count: (p) => Math.max(2, Math.ceil((p.children ?? 24) / 12)),
+    topUp: 1, maxCount: 6,
     arrive: [6.8, 7.4], leave: [16.0, 17.2],
     day: [
       { from: 6.5, to: 9.0, goals: { classroom: 4, staff: 3, coffee: 2 } },
@@ -248,7 +262,7 @@ const KINDERGARTEN_ROLES = [
     ],
   }),
   role('cook', 'Cook', ADULT, {
-    cloth: 0xe8ddcd, count: () => 1,
+    cloth: 0xe8ddcd, count: () => 1, maxCount: 2,
     arrive: [6.2, 6.8], leave: [14.5, 15.5],
     day: [
       { from: 6.0, to: 11.0, goals: { cook: 7, store: 3 } },
@@ -257,7 +271,7 @@ const KINDERGARTEN_ROLES = [
     ],
   }),
   role('parentDropoff', 'Parent', ADULT, {
-    cloth: 0x8d7f6c, count: () => 4, visitor: true,
+    cloth: 0x8d7f6c, count: () => 4, visitor: true, topUp: 2, maxCount: 8,
     arrive: [7.4, 8.8], leave: [7.7, 9.2], stay: [4, 10],
     day: [{ from: 6.0, to: 18.0, goals: { arrive: 3, classroom: 4, reception: 2 } }],
   }),
@@ -268,6 +282,7 @@ const KINDERGARTEN_ROLES = [
 const OFFICE_ROLES = [
   role('staff', 'Member of staff', ADULT, {
     cloth: 0x55504a, count: (p) => Math.min(20, Math.max(8, p.staff ?? 16)),
+    topUp: 3, maxCount: 24,
     arrive: [7.8, 9.4], leave: [16.4, 18.4],
     day: [
       { from: 7.5, to: 10.0, goals: { desk: 7, coffee: 3, meeting: 1 } },
@@ -278,17 +293,17 @@ const OFFICE_ROLES = [
     ],
   }),
   role('receptionistOffice', 'Receptionist', ADULT, {
-    cloth: 0xd4763a, count: () => 1,
+    cloth: 0xd4763a, count: () => 1, maxCount: 2,
     arrive: [7.6, 8.0], leave: [16.6, 17.2],
     day: [{ from: 7.0, to: 18.0, goals: { reception: 8, coffee: 2, wc: 1, store: 1 } }],
   }),
   role('visitor', 'Visitor', ADULT, {
-    cloth: 0x9d5f38, count: () => 4, visitor: true,
+    cloth: 0x9d5f38, count: () => 4, visitor: true, topUp: 2, maxCount: 10,
     arrive: [9.5, 15.5], leave: [10.5, 16.5], stay: [25, 60],
     day: [{ from: 8.0, to: 18.0, goals: { reception: 2, meeting: 6, coffee: 2, wc: 1 } }],
   }),
   role('cleaner', 'Cleaner', ADULT, {
-    cloth: 0x476b4a, count: () => 1,
+    cloth: 0x476b4a, count: () => 1, maxCount: 2,
     arrive: [6.4, 6.9], leave: [17.5, 18.5],
     day: [{ from: 6.0, to: 19.0, goals: { clean: 6, store: 3, wc: 1, coffee: 1 } }],
   }),
@@ -299,16 +314,18 @@ const OFFICE_ROLES = [
 const CLINIC_ROLES = [
   role('patient', 'Patient', ADULT, {
     cloth: 0xbfae95, count: (p) => Math.min(14, Math.max(8, (p.consultingRooms ?? 4) * 3)), visitor: true,
+    topUp: 3, maxCount: 18,
     arrive: [8.0, 16.0], leave: [8.6, 16.8], stay: [25, 55],
     day: [{ from: 7.0, to: 18.0, goals: { reception: 2, waiting: 6, consult: 5, wc: 2 } }],
   }),
   role('receptionistClinic', 'Receptionist', ADULT, {
-    cloth: 0x3f7a76, count: () => 1,
+    cloth: 0x3f7a76, count: () => 1, maxCount: 2,
     arrive: [7.4, 7.9], leave: [17.5, 18.2],
     day: [{ from: 7.0, to: 19.0, goals: { reception: 8, coffee: 2, wc: 1 } }],
   }),
   role('nurse', 'Nurse', ADULT, {
     cloth: 0x86a6c9, count: (p) => Math.max(2, Math.ceil((p.consultingRooms ?? 4) / 2)),
+    topUp: 1, maxCount: 6,
     arrive: [7.2, 7.8], leave: [16.8, 17.6],
     day: [
       { from: 7.0, to: 12.0, goals: { treat: 6, store: 2, waiting: 2, coffee: 1 } },
@@ -318,6 +335,7 @@ const CLINIC_ROLES = [
   }),
   role('doctor', 'Doctor', ADULT, {
     cloth: 0xf3ece1, count: (p) => Math.max(2, p.consultingRooms ?? 4),
+    topUp: 1, maxCount: 8,
     arrive: [7.8, 8.4], leave: [17.0, 18.0],
     day: [
       { from: 7.5, to: 12.5, goals: { consult: 8, treat: 2, coffee: 1 } },
@@ -326,7 +344,7 @@ const CLINIC_ROLES = [
     ],
   }),
   role('cleanerClinic', 'Cleaner', ADULT, {
-    cloth: 0x476b4a, count: () => 1,
+    cloth: 0x476b4a, count: () => 1, maxCount: 2,
     arrive: [6.4, 6.9], leave: [17.5, 18.5],
     day: [{ from: 6.0, to: 19.0, goals: { clean: 6, store: 3, wc: 1 } }],
   }),
@@ -336,22 +354,22 @@ const CLINIC_ROLES = [
 
 const LIBRARY_ROLES = [
   role('reader', 'Reader', ADULT, {
-    cloth: 0x7a6b8a, count: () => 10, visitor: true,
+    cloth: 0x7a6b8a, count: () => 10, visitor: true, topUp: 3, maxCount: 18,
     arrive: [9.0, 16.0], leave: [10.0, 17.5], stay: [35, 90],
     day: [{ from: 8.0, to: 19.0, goals: { read: 7, browse: 4, wc: 1, coffee: 1 } }],
   }),
   role('studentReader', 'Student', TEEN, {
-    cloth: 0x35566e, count: () => 4, visitor: true,
+    cloth: 0x35566e, count: () => 4, visitor: true, topUp: 2, maxCount: 10,
     arrive: [13.0, 16.0], leave: [15.0, 18.0], stay: [50, 110],
     day: [{ from: 12.0, to: 19.0, goals: { read: 8, browse: 3, wc: 1 } }],
   }),
   role('librarian', 'Librarian', ADULT, {
-    cloth: 0x3f7a76, count: () => 3,
+    cloth: 0x3f7a76, count: () => 3, maxCount: 4,
     arrive: [8.2, 8.8], leave: [17.4, 18.4],
     day: [{ from: 8.0, to: 19.0, goals: { reception: 5, browse: 3, store: 2, coffee: 2, wc: 1 } }],
   }),
   role('libraryChild', 'Child', CHILD, {
-    cloth: 0xd4763a, count: () => 3, visitor: true,
+    cloth: 0xd4763a, count: () => 3, visitor: true, topUp: 1, maxCount: 6,
     arrive: [15.0, 16.5], leave: [16.5, 18.0], stay: [40, 70],
     needs: { wc: 2.4, coffee: 0 },
     day: [{ from: 14.0, to: 19.0, goals: { read: 4, browse: 5, play: 3, wc: 2 } }],
@@ -363,21 +381,23 @@ const LIBRARY_ROLES = [
 const CAFE_ROLES = [
   role('guest', 'Guest', ADULT, {
     cloth: 0x8d7f6c, count: (p) => Math.min(16, Math.max(8, Math.round((p.seats ?? 40) / 3))), visitor: true,
+    topUp: 3, maxCount: 20,
     arrive: [8.5, 19.0], leave: [9.5, 20.0], stay: [30, 70],
     day: [{ from: 8.0, to: 21.0, goals: { eat: 7, till: 2, wc: 2 } }],
   }),
   role('waiter', 'Waiter', ADULT, {
     cloth: 0x2f2c29, count: (p) => Math.max(2, Math.ceil((p.seats ?? 40) / 20)),
+    topUp: 1, maxCount: 6,
     arrive: [7.6, 8.2], leave: [19.5, 21.0],
     day: [{ from: 7.5, to: 21.5, goals: { serve: 6, till: 3, cook: 2, store: 1, wc: 1 } }],
   }),
   role('chef', 'Chef', ADULT, {
-    cloth: 0xf3ece1, count: () => 2,
+    cloth: 0xf3ece1, count: () => 2, maxCount: 3,
     arrive: [6.6, 7.2], leave: [19.5, 20.5],
     day: [{ from: 6.5, to: 21.0, goals: { cook: 8, store: 2, wc: 1, coffee: 1 } }],
   }),
   role('barista', 'Barista', ADULT, {
-    cloth: 0x9d5f38, count: () => 1,
+    cloth: 0x9d5f38, count: () => 1, maxCount: 2,
     arrive: [6.8, 7.4], leave: [17.5, 18.5],
     day: [{ from: 6.5, to: 19.0, goals: { serve: 6, till: 4, store: 1 } }],
   }),
@@ -387,17 +407,17 @@ const CAFE_ROLES = [
 
 const SHOP_ROLES = [
   role('shopper', 'Shopper', ADULT, {
-    cloth: 0x8d7f6c, count: () => 12, visitor: true,
+    cloth: 0x8d7f6c, count: () => 12, visitor: true, topUp: 3, maxCount: 20,
     arrive: [9.0, 18.0], leave: [9.3, 18.4], stay: [8, 22],
     day: [{ from: 8.0, to: 20.0, goals: { browse: 7, till: 3, wc: 1 } }],
   }),
   role('cashier', 'Cashier', ADULT, {
-    cloth: 0xd4763a, count: () => 2,
+    cloth: 0xd4763a, count: () => 2, maxCount: 4,
     arrive: [8.4, 8.9], leave: [18.4, 19.2],
     day: [{ from: 8.0, to: 20.0, goals: { till: 8, browse: 2, coffee: 1, wc: 1 } }],
   }),
   role('stockStaff', 'Stock assistant', ADULT, {
-    cloth: 0x55504a, count: () => 2,
+    cloth: 0x55504a, count: () => 2, topUp: 1, maxCount: 4,
     arrive: [7.4, 8.0], leave: [16.5, 17.5],
     day: [{ from: 7.0, to: 18.0, goals: { store: 5, browse: 4, deliver: 2, coffee: 1 } }],
   }),
@@ -408,6 +428,7 @@ const SHOP_ROLES = [
 const APARTMENT_ROLES = [
   role('resident', 'Resident', ADULT, {
     cloth: 0x35566e, count: (p) => Math.min(18, Math.max(10, (p.flats ?? 8) * 2)), resident: true,
+    topUp: 3, maxCount: 22,
     arrive: [6.6, 8.6], leave: [17.0, 20.0],
     day: [
       { from: 6.0, to: 9.0, goals: { eat: 4, wc: 3, living: 2, leave: 2 } },
@@ -417,6 +438,7 @@ const APARTMENT_ROLES = [
   }),
   role('residentChild', 'Child', CHILD, {
     cloth: 0xc9a227, count: (p) => Math.min(6, Math.max(2, Math.round((p.flats ?? 8) / 2))), resident: true,
+    topUp: 2, maxCount: 9,
     arrive: [7.0, 7.8], leave: [20.5, 21.5],
     needs: { wc: 2.2, coffee: 0 },
     day: [
@@ -425,12 +447,12 @@ const APARTMENT_ROLES = [
     ],
   }),
   role('postman', 'Postal worker', ADULT, {
-    cloth: 0xb2472e, count: () => 1, visitor: true,
+    cloth: 0xb2472e, count: () => 1, visitor: true, maxCount: 1,
     arrive: [10.0, 11.5], leave: [10.3, 11.8], stay: [5, 10],
     day: [{ from: 9.0, to: 13.0, goals: { deliver: 6, arrive: 2 } }],
   }),
   role('caretaker', 'Caretaker', ELDER, {
-    cloth: 0x476b4a, count: () => 1,
+    cloth: 0x476b4a, count: () => 1, maxCount: 1,
     arrive: [7.4, 8.2], leave: [15.5, 16.5],
     day: [{ from: 7.0, to: 17.0, goals: { clean: 5, store: 3, utility: 2, coffee: 1 } }],
   }),
@@ -488,9 +510,19 @@ const pickOf = (rng, arr) => arr[Math.min(arr.length - 1, Math.floor(rng() * arr
  *
  * The count is the sum of the roster's own count() functions, scaled down as a
  * whole if it would exceed `cap` (performance, DESIGN-DECISIONS "NPC count
- * capped") and topped up with the roster's most numerous role if it falls below
- * MIN_POPULATION. Scaling is proportional, so the mix stays right: a clinic
- * that has to shed people sheds patients, not its only receptionist.
+ * capped") and topped up if it falls below MIN_POPULATION or below an
+ * explicitly requested head count.
+ *
+ * Scaling DOWN is proportional, so the mix stays right: a clinic that has to
+ * shed people sheds patients, not its only receptionist.
+ *
+ * Scaling UP goes to the roles that plausibly scale, by their `topUp` weight
+ * and never past their `maxCount`. Handing the whole shortfall to whichever
+ * role was already the largest is what put four Parents in a three-bedroom
+ * family house — and twenty-four of them at the thirty-person load case. A
+ * busier house has more visiting friends and more children in it. It does not
+ * have more parents. Where the plausible ceilings cannot reach the number that
+ * was asked for, the population stops at what the building can honestly hold.
  */
 export function buildPopulation({
   typeKey = DEFAULT_ROSTER, params = {}, seed = 'walk',
@@ -499,17 +531,28 @@ export function buildPopulation({
   const roster = ROSTERS[typeKey] || ROSTERS[DEFAULT_ROSTER];
   const rng = rngFrom(`${seed}|${typeKey}`);
 
-  const wanted = roster.map((r) => ({ role: r, n: Math.max(0, Math.round(r.count(params) || 0)) }));
+  const wanted = roster.map((r) => ({
+    role: r,
+    n: Math.min(r.maxCount ?? Infinity, Math.max(0, Math.round(r.count(params) || 0))),
+    added: 0,
+  }));
   let total = wanted.reduce((s, w) => s + w.n, 0);
 
   // Top up towards the minimum — or towards an explicitly requested head count,
-  // which is how the load case is reached — with whichever role is already the
-  // most numerous: that is the building's dominant user group by construction.
+  // which is how the load case is reached. One person at a time, always to the
+  // role whose share is furthest behind its topUp weight, so the mix stays
+  // recognisable at every head count and the result is deterministic.
   const floor = Math.min(MAX_POPULATION, Math.max(MIN_POPULATION, want || 0));
-  if (total < floor && wanted.length) {
-    const biggest = wanted.reduce((a, b) => (b.n > a.n ? b : a));
-    biggest.n += floor - total;
-    total = floor;
+  while (total < floor) {
+    let pick = null, best = -Infinity;
+    for (const w of wanted) {
+      const weight = w.role.topUp || 0;
+      if (weight <= 0 || w.n >= (w.role.maxCount ?? Infinity)) continue;
+      const share = weight / (w.added + 1);
+      if (share > best) { best = share; pick = w; }
+    }
+    if (!pick) break;                 // nobody left who can plausibly scale
+    pick.n++; pick.added++; total++;
   }
   // Scale down proportionally, but never below one of any role that had one.
   if (total > cap) {

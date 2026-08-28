@@ -59,7 +59,8 @@ def main():
                                  f'{(entry.get("proc") or ["-"])[0]}')
             shape = builder(entry)
             comps = len(shape.components())
-            objs = finish(shape, palette, target_size=shape.declared,
+            objs = finish(shape, palette,
+                          target_size=families.ENVELOPE.get(item_id, shape.declared),
                           fit_axes=families.FIT_AXES.get(item_id, 'xyz'),
                           fit_max=families.FIT_MAX.get(item_id, 0.04))
             lo, hi = shape.bounds()
@@ -98,10 +99,9 @@ def main():
         'note': 'add `file:` to these catalogue entries; sizes listed under '
                 'drift are the value catalog.js should carry',
         'files': {r['id']: f'assets/models/{r["id"]}.glb' for r in report},
-        'drift': {r['id']: {'measured': r['bbox'], 'catalogue': r['catalog']}
-                  for r in report
-                  if any(abs(r['bbox'][k] - r['catalog'][k]) / max(1e-6, r['catalog'][k])
-                         > 0.02 for k in range(3))},
+        'drift': {r['id']: {'measured': r['bbox'], 'catalogue': r['catalog'],
+                            'should_read': families.ENVELOPE[r['id']]}
+                  for r in report if r['id'] in families.ENVELOPE},
     }
     (HERE / '_tmp').mkdir(exist_ok=True)
     (HERE / '_tmp' / 'catalog-handoff.json').write_text(json.dumps(handoff, indent=1))

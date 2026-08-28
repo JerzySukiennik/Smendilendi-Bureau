@@ -21,6 +21,7 @@
 // are muscle memory: click, move, click — or press, drag, release.
 
 import { Vector3 } from 'three';
+import { AXIS } from '../constants.js';
 
 export class Tool {
   static id = 'tool';
@@ -42,6 +43,30 @@ export class Tool {
   apply(op, opts) { return this.ed.apply(op, opts); }
   flash(msg) { this.ed.hud?.flash(msg); }
   setDisplay(v) { this.ed.measurements.setDisplay(v); }
+
+  /** Refuse, and say why on the error line of the Measurements box. */
+  refuse(msg) {
+    this.ed.measurements.setError(msg);
+    this.flash(msg);
+    return true;                    // the value WAS ours; we just would not do it
+  }
+
+  /**
+   * The direction a locked axis means RIGHT NOW.
+   *
+   * An arrow key names the LINE, never the way along it — the cursor names that,
+   * exactly as it does with no lock at all. Taking the axis vector raw made a
+   * typed length build east while the preview, the guide and the Measurements
+   * box all said west, which is the one thing the inference engine exists to
+   * make impossible. A negative typed length flips it, as it does in SketchUp.
+   */
+  lockedDir(hint, sign = 1) {
+    const a = this.ed.lockAxis;
+    if (!a || a === 'ref' || !AXIS[a]) return null;
+    const dir = AXIS[a].dir.clone();
+    if (hint && hint.lengthSq() > 1e-12 && dir.dot(hint) < 0) dir.negate();
+    return sign < 0 ? dir.negate() : dir;
+  }
 
   activate() {}
   deactivate() { this.cancel(); }
@@ -94,7 +119,22 @@ export class TwoPointTool extends Tool {
     if (here.distanceTo(this.from) > 1e-4) this._commit(this.from, here);
   }
 
+  /**
+   * Nothing shorter than this is built, whichever gesture asked for it.
+   *
+   * Clicking twice in the same place used to leave a 2 mm wall in the model —
+   * invisible, costed, in the schedule, and measured by the analysis engine.
+   * The typed path already refused a zero; the clicked path did not, and the
+   * guard belongs where BOTH of them end up.
+   */
+  get minLength() { return 0; }
+
   _commit(a, b) {
+    const len = a.distanceTo(b);
+    if (len < this.minLength) {
+      this.refuse(`Too short — ${this.name.toLowerCase()}s start at ${Math.round(this.minLength * 1000)} mm`);
+      return;                       // the run stays live: the next click still lands
+    }
     const next = this.finish(a.clone(), b.clone());
     this.from = next ? next.clone() : null;
     this.pressFrom = null;

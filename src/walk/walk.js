@@ -230,34 +230,83 @@ export class WalkthroughMode extends Mode {
     const fallbackBrief = () => (kg ? kindergartenCommission(brokenDemo) : demoCommission(brokenDemo));
     this.model = params.model || this.ctx?.state?.get('model') || fallbackModel();
     this.commission = params.commission || this.ctx?.state?.get('commission') || fallbackBrief();
+    // The brief the walkthrough measures against has to be the brief the CLIENT
+    // wrote, `constraints` and all. Without them `briefLimit` finds nothing and
+    // every module silently falls back to its own constant — so a clinic whose
+    // client demanded 1.50 m of circulation in writing got a report benchmarked
+    // at 1.20 m, and a house whose client demanded 1.20 m got one benchmarked at
+    // 0.90 m. The client must never contradict himself in writing.
     this.brief = {
       buildingType: this.commission?.type ?? 'house',
       type: this.commission?.type ?? 'house',
+      title: this.commission?.title,
+      client: this.commission?.client,
       budget: this.commission?.budget,
       program: this.commission?.program ?? [],
       params: this.commission?.params ?? {},
+      constraints: this.commission?.constraints ?? [],
+      plot: this.commission?.plot ?? null,
     };
     this.analysis = params.analysis || this.ctx?.state?.get('analysis') || safeAnalysis(this.model, this.brief);
     this.seed = String(this.commission?.id ?? this.model?.id ?? 'walk');
     this.rng = rngFrom(`${this.seed}|walk`);
 
+    // THE MODE SWITCH MUST NOT FREEZE THE TAB.
+    //
+    // Building the navmesh is the expensive thing here — 100 ms to a second on
+    // a single-storey house, most of it inside the 100 mm occupancy grid the
+    // analysis owns, and worse on four storeys. Doing it before the transition
+    // existed meant the whole cut was preceded by a dead tab of exactly that
+    // length, which is the first thing the player sees after signing off his
+    // building. Nothing needs it until the presim starts, a second and a half
+    // into the time lapse, so the shell goes up, the camera starts moving, and
+    // the rest is built a slice at a time under the animation.
+    this._buildShell();
+    this._startTransition();
+    this.ready = false;
+    this._bootT = 0;
+    this._boot = this._bootSteps();
+
+    this.ctx?.audio?.music?.('music.walkthrough', { fade: 2.0 });
+    this._bindNet();
+  }
+
+  /**
+   * The build, in slices. Each `yield` is a frame boundary the time lapse can
+   * draw between; the labels are what the debug overlay reports.
+   */
+  * _bootSteps() {
     const t0 = performance.now();
     this.nav = buildNav(this.model, this.brief);
+    const tNav = performance.now() - t0;
     if (!this.nav) {
       this._fatal('There is no enclosed room in this model, so there is nothing to walk through.');
       return;
     }
-    const tNav = performance.now() - t0;
-
-    this._buildScene();
+    yield 'navmesh';
     this._buildPeople();
+    yield 'people';
+    // Warming the goal fields is a Dijkstra each, and there are a dozen of
+    // them; one per slice keeps every one of them off the frame it would
+    // otherwise have dropped.
+    for (const g of this._goalKeys) { this.crowd.fieldForGoal(g); yield `field:${g}`; }
+    this.nav.fieldToOutside();
+    yield 'routes';
     this._buildAging();
-    this._startTransition();
-
+    this.ready = true;
+    const total = performance.now() - t0;
     this.ctx?.engine?.debug?.report('walk', `nav ${tNav.toFixed(0)} ms · ${this.crowd.agents.length} people`);
-    this.ctx?.audio?.music?.('music.walkthrough', { fade: 2.0 });
-    this._bindNet();
-    console.info(`[walk] ${this.crowd.agents.length} people, ${this.nav.roomIds.length} rooms, nav in ${tNav.toFixed(0)} ms`);
+    console.info(`[walk] ${this.crowd.agents.length} people, ${this.nav.roomIds.length} rooms, nav in ${tNav.toFixed(0)} ms, ready in ${total.toFixed(0)} ms`);
+  }
+
+  /** Pump the boot generator for at most `budget` ms of this frame. */
+  _pumpBoot(budget = 8) {
+    if (!this._boot) return;
+    const until = performance.now() + budget;
+    do {
+      const step = this._boot.next();
+      if (step.done) { this._boot = null; return; }
+    } while (performance.now() < until);
   }
 
   exit() {
@@ -270,7 +319,13 @@ export class WalkthroughMode extends Mode {
 
   // -- scene ---------------------------------------------------------------
 
-  _buildScene() {
+  /**
+   * Everything the opening shot needs and nothing that needs the navmesh: the
+   * building, the site light, the furniture. The bounds come off the built
+   * geometry's own bounding box rather than the room polygons, because the
+   * navmesh does not exist yet when the camera starts moving.
+   */
+  _buildShell() {
     const scene = this.scene;
     const sky = skyFor('afternoon');
     scene.background = new Color(sky.sky);
@@ -282,17 +337,13 @@ export class WalkthroughMode extends Mode {
     this.worldGroup.add(this.built.group);
 
     // where it is and how big, for the light rig and the opening camera
-    const L0 = this.nav.levels[0];
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const r of this.nav.topo.rooms) {
-      for (const p of r.polygon) {
-        if (p[0] < minX) minX = p[0];
-        if (p[0] > maxX) maxX = p[0];
-        if (p[1] < minZ) minZ = p[1];
-        if (p[1] > maxZ) maxZ = p[1];
-      }
-    }
-    this.centre = { x: (minX + maxX) / 2, y: L0.elevation, z: (minZ + maxZ) / 2 };
+    const b = this.built.bounds;
+    const minX = Number.isFinite(b?.min?.x) ? b.min.x : 0;
+    const maxX = Number.isFinite(b?.max?.x) ? b.max.x : 12;
+    const minZ = Number.isFinite(b?.min?.z) ? b.min.z : 0;
+    const maxZ = Number.isFinite(b?.max?.z) ? b.max.z : 9;
+    const elevation = this.model.levels?.[0]?.elevation ?? 0;
+    this.centre = { x: (minX + maxX) / 2, y: elevation, z: (minZ + maxZ) / 2 };
     this.radius = Math.max(6, Math.max(maxX - minX, maxZ - minZ) / 2);
 
     if (this.rig) this.rig.dispose();
@@ -391,26 +442,39 @@ export class WalkthroughMode extends Mode {
       cap: want || cap,
       want,
     });
+    // TWO grids, and they are not the same measurement.
+    //
+    // `heat` is MOVEMENT: metres walked, fed only by addPath. It is what the
+    // drawing titled "Movement heat map" shows and what wears the floor.
+    // `occupancy` is STANDING: person-seconds spent in one spot.
+    //
+    // They were one grid, and standing outweighed walking about a hundred to
+    // one — a dwell of 20-70 minutes deposited 60-210 units while a metre
+    // walked deposited 0.74 — so the 98th-percentile normalisation buried every
+    // route. The drawing then showed the circulation spine as the coldest part
+    // of the plan directly underneath a table saying the corridor carried 218
+    // journeys, which is a report contradicting itself on one page.
     this.heat = new Heatmap(this.nav);
-    this.stats = new Stats(this.nav, { typeKey: rosterKey, years: this.years });
+    this.occupancy = new Heatmap(this.nav);
+    this.stats = new Stats(this.nav, { typeKey: rosterKey, years: this.years, brief: this.brief });
     this.crowd = new Crowd({
       nav: this.nav,
       stats: this.stats,
       heat: this.heat,
+      occupancy: this.occupancy,
       population: this.population,
       audio: this.ctx?.audio ?? null,
       rng: this.rng,
     });
     this.crowd.registerPools(this.dynPool);
 
-    // Warm every goal field once, here, rather than the first time somebody
+    // Every goal field is warmed once, rather than the first time somebody
     // needs a WC in the middle of the walk — a Dijkstra over the whole building
-    // is a few milliseconds, and a few milliseconds is a dropped frame.
+    // is a few milliseconds, and a few milliseconds is a dropped frame. The
+    // warming itself happens one field per slice, in `_bootSteps`.
     this._goalKeys = [...new Set(this.population.flatMap(
       (p) => (p.day ?? []).flatMap((b) => Object.keys(b.goals)),
     ))];
-    for (const g of this._goalKeys) this.crowd.fieldForGoal(g);
-    this.nav.fieldToOutside();
 
     // the presim walks each person from wherever they last were
     this._presimState = this.population.map(() => null);
@@ -428,7 +492,9 @@ export class WalkthroughMode extends Mode {
       rng: this.rng,
     }).build();
     this.aging.registerPools(this.dynPool);
-    this.aging.setAge(0);
+    // The time lapse may already have aged the building past 0 while this was
+    // still being built; join it where it is, not at handover.
+    this.aging.setAge(this._age ?? 0);
   }
 
   // -- the cut -------------------------------------------------------------
@@ -444,8 +510,12 @@ export class WalkthroughMode extends Mode {
       radius: this.radius,
       title: this.commission?.title ?? '',
       duration: 9.0,
-      onAge: (a) => this.aging.setAge(a),
-      presim: (k) => this._presim(k),
+      // Both of these run while the rest of the mode is still being built a
+      // slice at a time under the animation, so both have to tolerate not
+      // existing yet. The presim just starts later and runs the same 1400
+      // journeys over the remaining lapse.
+      onAge: (a) => { this._age = a; this.aging?.setAge(a); },
+      presim: (k) => { if (this.ready) this._presim(k); },
     });
   }
 
@@ -462,7 +532,11 @@ export class WalkthroughMode extends Mode {
    */
   _presim(k) {
     const target = Math.floor(k * PRESIM_JOURNEYS);
-    let budget = 24;
+    // Two dozen journeys a frame is the steady rate. When the presim starts
+    // late — it waits for the navmesh, which is built under the same animation
+    // — it is allowed to catch up rather than arrive at the walk with half the
+    // sample, because the whole report is computed off this.
+    let budget = Math.max(24, Math.ceil((target - this._presimDone) / 24));
     while (this._presimDone < target && budget-- > 0) {
       const i = this._presimDone % this.population.length;
       const person = this.population[i];
@@ -530,7 +604,7 @@ export class WalkthroughMode extends Mode {
    */
   _wearInRoom(roomId, from, dwell) {
     const cells = this.nav.roomCells(roomId);
-    if (!cells.length) { this.heat.add(from.x, from.z, from.level ?? 0, dwell * 3); return; }
+    if (!cells.length) { this.occupancy.add(from.x, from.z, from.level ?? 0, dwell * 3); return; }
     const level = from.level ?? 0;
     const picks = 3;
     for (let n = 0; n < picks; n++) {
@@ -542,9 +616,11 @@ export class WalkthroughMode extends Mode {
       }
       if (best < 0) continue;
       const p = this.nav.centreOf(best);
+      // the last couple of metres in are WALKED, so they are movement…
       this.heat.addPath([{ x: from.x, z: from.z, level }, { x: p.x, z: p.z, level }],
         1 / (2.4 * picks));
-      this.heat.add(p.x, p.z, level, (dwell * 3) / picks);
+      // …and the dwell itself is STANDING, which is a different drawing.
+      this.occupancy.add(p.x, p.z, level, (dwell * 3) / picks);
     }
   }
 
@@ -555,10 +631,26 @@ export class WalkthroughMode extends Mode {
     const L = this.nav.levels[e ? e.levelIdx : 0];
     this.playerLevel = e ? e.levelIdx : 0;
     if (e) {
+      // `e.nx, e.nz` points AWAY from the building, and the player is placed
+      // 2.6 m out along it, so he has to be turned back through it to see the
+      // facade. The camera convention is three.js's: forward is (-sin, -cos)
+      // — so forward is (-nx, -nz) when yaw = atan2(nx, nz). npc.js uses the
+      // opposite convention, (sin, cos), and copying its expression here landed
+      // the very first frame of the walkthrough on an empty lawn with the whole
+      // building behind the player's head.
+      // Far enough back that the facade, not one door reveal, is what lands in
+      // the first frame — scaled to the building, capped so a large one does
+      // not put the player out in the street.
+      const standoff = Math.min(6.5, Math.max(3.4, this.radius * 0.55));
       this.player = {
-        x: e.x + e.nx * 2.6, z: e.z + e.nz * 2.6,
-        yaw: Math.atan2(-e.nx, -e.nz), pitch: -0.05,
+        x: e.x + e.nx * standoff, z: e.z + e.nz * standoff,
+        yaw: Math.atan2(e.nx, e.nz), pitch: -0.05,
       };
+      // The one assertion worth keeping: the first thing he sees is the thing
+      // he drew. forward . (entrance - player) must be positive.
+      const fx = -Math.sin(this.player.yaw), fz = -Math.cos(this.player.yaw);
+      const dot = fx * (e.x - this.player.x) + fz * (e.z - this.player.z);
+      if (dot <= 0) console.error(`[walk] player spawned facing away from the entrance (dot ${dot.toFixed(2)})`);
     } else {
       const a = this.nav.roomPoint(this.nav.roomIds[0]);
       this.player = { x: a?.x ?? 0, z: a?.z ?? 0, yaw: 0, pitch: 0 };
@@ -683,10 +775,15 @@ export class WalkthroughMode extends Mode {
   // -- frame ---------------------------------------------------------------
 
   update(dt) {
-    if (!this.nav) return;
+    if (!this.built || this.phase === 'fatal') return;
 
     if (this.phase === 'transition') {
-      if (this.transition.update(dt)) this._startWalk();
+      // Build what is left of the mode inside the animation's own frames, then
+      // let the lapse run. The cut will not land before `ready`, because the
+      // player cannot be put in a building whose navmesh does not exist.
+      this._pumpBoot(this._boot ? 8 : 0);
+      const over = this.transition.update(dt);
+      if (over && this.ready) this._startWalk();
       this._relight();
       this._renderDynamic();
       return;
@@ -725,12 +822,14 @@ export class WalkthroughMode extends Mode {
   _renderDynamic() {
     const pool = this.dynPool;
     pool.begin();
-    this.aging.render(pool);
+    // Everything below is built a slice at a time under the time lapse, so the
+    // first frames of the cut legitimately have none of it yet.
+    this.aging?.render(pool);
     if (this.phase !== 'transition') {
-      this.crowd.render(pool, this.camera);
+      this.crowd?.render(pool, this.camera);
       this._renderRemotePlayers(pool);
     } else {
-      this.crowd.doors.render(pool);
+      this.crowd?.doors.render(pool);
     }
     pool.flush();
   }
@@ -748,7 +847,11 @@ export class WalkthroughMode extends Mode {
   _buildHud() {
     this.ui.innerHTML = `
       <div class="walk-crosshair"></div>
-      <div class="walk-clock"><span class="wc-time">07:00</span><span class="wc-year"></span></div>
+      <div class="walk-clock">
+        <span class="wc-dial"><i></i></span>
+        <span class="wc-time">Early morning</span>
+        <span class="wc-year"></span>
+      </div>
       <div class="walk-room"><span class="wr-name"></span><span class="wr-area"></span></div>
       <div class="walk-look"></div>
       <div class="walk-hint"></div>
@@ -760,6 +863,7 @@ export class WalkthroughMode extends Mode {
       <div class="walk-overlay" hidden></div>`;
     this.el = {
       time: this.ui.querySelector('.wc-time'),
+      dial: this.ui.querySelector('.wc-dial'),
       year: this.ui.querySelector('.wc-year'),
       roomName: this.ui.querySelector('.wr-name'),
       roomArea: this.ui.querySelector('.wr-area'),
@@ -786,10 +890,45 @@ export class WalkthroughMode extends Mode {
     });
   }
 
+  /**
+   * A DAY DIAL, NOT A WALL CLOCK — and the difference is a matter of honesty.
+   *
+   * A whole working day is compressed into about 150 seconds of watching, while
+   * the people in it walk at their own real speed: 1.35 m/s for an adult, 0.93
+   * for a child, because those are the figures a corridor is designed to. The
+   * two rates differ by a factor of three hundred. An hh:mm readout beside them
+   * therefore asserted something false about the one number a player whose
+   * profession is circulation will actually read off the screen — a child was
+   * seen taking 55 minutes of "clock time" to cross a 12 x 9 m house.
+   *
+   * So the clock says how far through the day the building is, which is true
+   * and is what the light and the population are keyed to, and says nothing
+   * about how long anything takes. The travel times that ARE asserted are in
+   * the report, computed from measured route lengths at a stated walking speed.
+   */
+  _dayLabel(hour) {
+    if (hour < 8.5) return 'Early morning';
+    if (hour < 10.5) return 'Mid-morning';
+    if (hour < 12.0) return 'Late morning';
+    if (hour < 14.0) return 'Midday';
+    if (hour < 16.0) return 'Afternoon';
+    if (hour < 18.0) return 'Late afternoon';
+    return 'Evening';
+  }
+
   _updateHud() {
-    const h = Math.floor(this.hour);
-    const m = Math.floor((this.hour - h) * 60);
-    this.el.time.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const through = MathUtils.clamp((this.hour - DAY_START) / (DAY_END - DAY_START), 0, 1);
+    const label = this._dayLabel(this.hour);
+    if (label !== this._lastDayLabel) {
+      this._lastDayLabel = label;
+      this.el.time.textContent = label;
+    }
+    const pct = Math.round(through * 100);
+    if (pct !== this._lastDayPct) {
+      this._lastDayPct = pct;
+      this.el.dial.style.setProperty('--through', `${through * 360}deg`);
+      this.el.dial.title = `${pct} % through the working day`;
+    }
 
     const room = this.nav.roomAt(this.player.x, this.player.z, this.playerLevel);
     if (room !== this._lastRoom) {
@@ -861,15 +1000,25 @@ export class WalkthroughMode extends Mode {
     this.phase = 'report';
     this.paused = true;
     this.ctx?.input?.exitLock?.();
+    // Two drawings, because they are two measurements. The first is metres
+    // walked and answers "where is the circulation"; the second is time stood
+    // still and answers "where is the building lived in". One grid carrying
+    // both used to answer neither.
     const plan = this.heat.planCanvas(this.playerLevel, {
       width: 980,
       title: 'Movement heat map — thirty years of use',
-      subtitle: `${this.stats.journeys} journeys sampled · clear widths measured on a 100 mm grid`,
+      subtitle: `${this.stats.journeys} journeys sampled · metres walked · clear widths measured on a 100 mm grid`,
+    });
+    const occupancyPlan = this.occupancy.planCanvas(this.playerLevel, {
+      width: 980,
+      title: 'Occupancy — where people stood still',
+      subtitle: 'person-seconds at rest, over the same thirty years',
     });
     const sheet = renderReport(this.stats, {
       analysis: this.analysis,
       commission: this.commission,
       heatCanvas: plan,
+      occupancyCanvas: occupancyPlan,
       years: this.years,
     });
     const bar = document.createElement('div');
@@ -999,6 +1148,8 @@ export class WalkthroughMode extends Mode {
   _bindKeys() {
     this._onKey = (ev) => {
       if (!this.active || this.el.chat.classList.contains('typing')) return;
+      // Nothing to show until the navmesh, the people and the statistics exist.
+      if (!this.ready && ev.code !== 'Escape') return;
       switch (ev.code) {
         case 'KeyH': this._toggleHeat(); break;
         case 'KeyR': this.phase === 'report' ? this._closeReport() : this._openReport(); break;
@@ -1022,6 +1173,10 @@ export class WalkthroughMode extends Mode {
   // -- teardown -------------------------------------------------------------
 
   _fatal(message) {
+    this.phase = 'fatal';
+    this.transition?.dispose();
+    this.transition = null;
+    this._boot = null;
     this.ui.hidden = false;
     this.el.overlay.hidden = false;
     this.el.overlay.innerHTML = '';

@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node tools/smoke.mjs --quiet",
+    "smoke": "node tools/smoke.mjs",
+    "verify:audio": "node assets/audio/build/verify-signoff.mjs",
+    "verify:audio:fast": "node assets/audio/build/verify-signoff.mjs --fast"
   },
   "keywords": [],
   "author": "",

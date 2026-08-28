@@ -184,10 +184,26 @@ export function money(v) {
   return String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
-export function dateShort(ms) {
+/**
+ * Explorer's Modified column. Recent files get "dd Mon  h:mm AM"; anything
+ * outside the current period switches to dd/mm/yy hh:mm, exactly as Win95 does.
+ *
+ * Without the switch, README.TXT (700 days old) rendered as "27 Sep  9:42 AM"
+ * in a listing whose other rows were 27 and 28 Aug — a bare day and month with
+ * no year reads as a date a month in the FUTURE, not as a two-year-old file.
+ */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const RECENT_MS = 180 * 86400e3;
+
+export function dateShort(ms, now = Date.now()) {
   const d = new Date(ms);
   const day = String(d.getDate()).padStart(2, '0');
-  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+  if (Math.abs(now - ms) > RECENT_MS) {
+    const mon = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = String(d.getFullYear() % 100).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    return `${day}/${mon}/${yy} ${hh}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
   let h = d.getHours(); const ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
-  return `${day} ${mon}  ${h}:${String(d.getMinutes()).padStart(2, '0')} ${ampm}`;
+  return `${day} ${MONTHS[d.getMonth()]}  ${h}:${String(d.getMinutes()).padStart(2, '0')} ${ampm}`;
 }

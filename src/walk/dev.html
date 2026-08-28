@@ -83,12 +83,28 @@ window.WALKDEV = {
   hour(h) { mode.hour = h; return h; },
   report() { mode._openReport(); },
   stats() { return mode.stats.summary(); },
+  /**
+   * Finish the chunked build immediately. `enter()` now puts the shell up and
+   * builds the navmesh, the people and the weathering a slice at a time under
+   * the time lapse, so anything that wants the finished mode has to drain that
+   * first instead of assuming it is there.
+   */
+  ready() { while (mode._boot) mode._pumpBoot(1000); return mode.ready; },
   /** Jump straight past the time lapse — for screenshots of the walk itself. */
   skip() {
+    this.ready();
     if (mode.transition) { mode.transition.dispose(); mode.transition = null; }
     mode.aging.setAge(1);
     mode._startWalk();
     mode.phase = 'walk';
+  },
+  /** Run the whole presim without waiting for the lapse. */
+  presim() {
+    this.ready();
+    let guard = 5000;
+    let last = -1;
+    while (mode._presimDone !== last && guard-- > 0) { last = mode._presimDone; mode._presim(1); }
+    return mode._presimDone;
   },
   /** Teleport the camera. */
   at(x, z, yaw = 0) { mode.player.x = x; mode.player.z = z; mode.player.yaw = yaw; mode._placeCamera(); },

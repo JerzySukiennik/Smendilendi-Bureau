@@ -505,7 +505,101 @@
    "status": "fail",
    "headline": "20/20 — The pixels are the best retro-OS reproduction I have measured — a clean 20/20 — but no player will ever see them. src/office/desks.js declares the contract `createOsSurface({width,height,tier,",
    "at": "2026-08-28T07:59:52.848Z"
+  },
+  {
+   "piece": "walkthrough",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "Navmesh and statistics are genuinely derived from the player geometry (corridor drawn 0.80 m measures 0.800 m; sealed room = NO ROUTE), but NPCs walk through the 240 mm front wall on arrival (203 frames, 4 people, wall w56), the player spawns facing away from the building, and the \"movement heat map\" reads the corridor 7x cooler than the rooms it serves.",
+   "shot": "shots/walk-c1-FAIL-through-front-wall.png",
+   "at": "2026-08-28T08:09:21.399Z"
+  },
+  {
+   "piece": "walk",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "Navmesh truth: 9/10 · Statistics truth: 8/10 · Physical correctness: 2/10 · Presentation: 6/10 — overall FAIL on the stated automatic-fail condition (NPCs walk through a wall) — Everything the piece w",
+   "at": "2026-08-28T08:11:14.547Z"
+  },
+  {
+   "piece": "menu",
+   "role": "critic",
+   "round": 2,
+   "status": "fail",
+   "headline": "Menu does not boot at HEAD (stray `o` arg, menu.js:1107). After a 1-char local fix: look scores 12/15, but only 5 of 12 crimes read from the composed shot, tag 6 contradicts its own geometry, tag 11 quotes 2.4 m for a 9.9 m drop, and the perf fix (half-float 4xMSAA RT) is dead weight - the frame is CPU/draw-call bound, not fill-rate bound (dpr 0.35 = 6.61 ms vs dpr 1.75 = 6.70 ms).",
+   "shot": "shots/menu-r2-overview.jpg",
+   "gap": "The joke is carried by hover text, not by the building: 7 of 12 crimes are invisible in the composed menu render.",
+   "files": [
+    "src/menu/menu.js",
+    "src/menu/bad-building.js",
+    "src/menu/lobby.js",
+    "src/menu/lettering.js"
+   ],
+   "metrics": {
+    "lumaP5": 29.3,
+    "lumaP95": 212.2,
+    "lumaP50": 118.9,
+    "meanSat": 0.348,
+    "bareGroundPct": 14.8,
+    "largestBarePatchPct": 7.7,
+    "drawCalls": 75,
+    "triangles": 73736,
+    "frameMsCleanLoad": 10.41,
+    "updateMs": 1.15,
+    "dpr035Ms": 6.61,
+    "dpr175Ms": 6.7,
+    "rtPathMs": 6.52,
+    "overrideOneMaterialMs": 13.13,
+    "fullMs": 21.02,
+    "checklist": "12/15"
+   },
+   "at": "2026-08-28T08:21:13.086Z"
+  },
+  {
+   "piece": "menu",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "12/15 — The joke is being told by hover text, not by the building. Only 5 of the 12 crimes (7 downpipe, 8 window heads, 11 scupper stain, 12 unshaded south glass, and partly 1) are readable in the com",
+   "at": "2026-08-28T08:24:10.754Z"
+  },
+  {
+   "piece": "os",
+   "role": "builder",
+   "round": 2,
+   "status": "pass",
+   "headline": "createOsSurface adapter shipped — the real OS now runs on the desk monitor (804x480 pillarboxed, CRT pass, office pointer(u,v,buttons) bridge); Find/Documents get their own 8-colour icons; OK/Cancel lose their mnemonics; ATELIER 9 gets a twill desktop, its own frame ramp and a Control Strip; Explorer dates switch to dd/mm/yy past 6 months",
+   "shot": "shots/os-r2.png",
+   "at": "2026-08-28T08:26:30.780Z"
+  },
+  {
+   "piece": "editor",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "6/6 click benchmarks met (wall 3, line 3, door 2, material 3, move 5/4, measure 3) but axis-lock + typed length builds the wall 180 deg opposite to the live preview, and Parallel/Perpendicular outrank the axis inferences so every orthogonal building draws in magenta instead of red/green",
+   "shot": "shots/crit-editor-15-axislock-sign-bug.png",
+   "at": "2026-08-28T08:27:04.235Z"
+  },
+  {
+   "piece": "editor",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "6/6 click benchmarks met — With an axis locked, a typed length ignores the sign the cursor established: the live preview and the Measurements box show the wall running one way, Enter builds it the opp",
+   "at": "2026-08-28T08:28:50.678Z"
+  },
+  {
+   "piece": "audio-levels",
+   "role": "builder",
+   "round": 2,
+   "status": "pass",
+   "headline": "One id, one reviewed level, now unforgeable: lobby mix copy deleted, handle setVolume and opts.bus removed, checks 10a-10d added, 9 dead assets wired or dropped; 22/22 checks, 78 paths measured on the live nodes, 0 divergences",
+   "shot": "shots/audio-levels-r2.png",
+   "at": "2026-08-28T08:38:51.554Z"
   }
  ],
- "updated": "2026-08-28T07:59:52.848Z"
+ "updated": "2026-08-28T08:38:51.554Z"
 }

@@ -146,6 +146,7 @@ export class Inference {
 
     if (best) {
       best.guides = best.guides || [];
+      quantizeAlong(best, grid);
       this.last = best;
       return best;
     }
@@ -232,7 +233,10 @@ export class Inference {
       if (!a || !b) continue;
       const p = closestOnSegment(ctx, a, b, y);
       if (!p) continue;
-      push({ point: p, ...INFERENCE.ON_EDGE, kind: 'onEdge', wallId: id, guides: [] });
+      push({
+        point: p, ...INFERENCE.ON_EDGE, kind: 'onEdge', wallId: id, guides: [],
+        along: alongOf(a.x, y, a.z, b.x - a.x, 0, b.z - a.z),
+      });
     }
   }
 
@@ -247,7 +251,12 @@ export class Inference {
       });
       const p = closestOnSegment(ctx,
         { x: gd.a.x, z: gd.a.z }, { x: gd.b.x, z: gd.b.z }, gd.a.y);
-      if (p) push({ point: p, ...INFERENCE.ON_LINE, kind: 'onLine', guides: [] });
+      if (p) {
+        push({
+          point: p, ...INFERENCE.ON_LINE, kind: 'onLine', guides: [],
+          along: alongOf(gd.a.x, gd.a.y, gd.a.z, gd.b.x - gd.a.x, 0, gd.b.z - gd.a.z),
+        });
+      }
     }
   }
 
@@ -315,6 +324,7 @@ export class Inference {
       if (p.y < (ctx.height ?? 0) - 1e-3) continue;           // never start a plan below the floor
       push({
         point: p, ...INFERENCE.FROM_POINT, kind: 'fromPoint', axis: key,
+        along: { o: p0.clone(), d: AXIS[key].dir.clone() },
         guides: [{ a: p0.clone(), b: p.clone(), color: AXIS[key].color, dotted: true }],
       });
     }
@@ -330,21 +340,35 @@ export class Inference {
       if (!p) continue;
       const def = key === 'x' ? INFERENCE.AXIS_X : key === 'y' ? INFERENCE.AXIS_Y : INFERENCE.AXIS_Z;
       push({
-        point: p, ...def, kind: 'axis', axis: key, guides: [{ a: from.clone(), b: p.clone(), color: ax.color, dotted: true }],
+        point: p, ...def, kind: 'axis', axis: key,
+        along: { o: from.clone(), d: ax.dir.clone() },
+        guides: [{ a: from.clone(), b: p.clone(), color: ax.color, dotted: true }],
       });
     }
   }
 
+  /**
+   * Parallel and Perpendicular — magenta, and ONLY ever magenta.
+   *
+   * When the reference edge is itself a world axis these two inferences are
+   * geometrically identical to the red and green axes, so emitting them would
+   * do nothing but rename the red axis "Perpendicular" and repaint it magenta
+   * for every wall after the first in an orthogonal building. SketchUp keeps
+   * magenta for a reference that is NOT a world axis, and so do we: an
+   * axis-aligned reference is dropped here and the axis inference speaks.
+   */
   _parPerp(ctx, push) {
     const { from, refDir } = ctx;
     if (!refDir) return;
     const par = new Vector3(refDir.x, 0, refDir.z).normalize();
     if (par.lengthSq() < 1e-9) return;
+    if (isWorldAxis(par)) return;
     const perp = new Vector3(-par.z, 0, par.x);
     const pp = closestOnLine(ctx, from, par);
     if (pp) {
       push({
         point: pp, ...INFERENCE.PARALLEL, kind: 'parallel',
+        along: { o: from.clone(), d: par.clone() },
         guides: [{ a: from.clone(), b: pp.clone(), color: INFERENCE.PARALLEL.color, dotted: true }],
       });
     }
@@ -352,6 +376,7 @@ export class Inference {
     if (pq) {
       push({
         point: pq, ...INFERENCE.PERPENDICULAR, kind: 'perpendicular',
+        along: { o: from.clone(), d: perp.clone() },
         guides: [{ a: from.clone(), b: pq.clone(), color: INFERENCE.PERPENDICULAR.color, dotted: true }],
       });
     }
@@ -449,6 +474,46 @@ function closestOnLine(ctx, from, dir, tol = SNAP_PX) {
     if (_s.distanceTo(ctx.pixel) > tol) return null;
   }
   return out;
+}
+
+/** Within a fifth of a degree of the red or the green axis. */
+function isWorldAxis(dir) {
+  return Math.abs(dir.x) < 3e-3 || Math.abs(dir.z) < 3e-3;
+}
+
+/** The line a free candidate slides along, for quantizeAlong(). */
+function alongOf(ox, oy, oz, dx, dy, dz) {
+  const len = Math.hypot(dx, dy, dz);
+  if (len < 1e-9) return null;
+  return { o: new Vector3(ox, oy, oz), d: new Vector3(dx / len, dy / len, dz / len) };
+}
+
+/**
+ * QUANTIZE THE FREE PARAMETER, and only the free parameter.
+ *
+ * A point inferred onto a LINE — a wall edge, a setting-out line, one of the
+ * axes off the anchor — is free to slide anywhere along that line, so without
+ * this it lands wherever the cursor ray happened to cross: a wall click-drawn
+ * along the red axis came out 5.9873 m, and a partition landing on the far wall
+ * split it at 5.5006, which the plan then faithfully dimensioned as 5501 + 5499
+ * under an overall of 11000. An architect reads that as a bug, because it is
+ * one.
+ *
+ * So the DISTANCE ALONG THE LINE is rounded to the working grid (100 mm, or
+ * 10 mm with Ctrl held) — never the raw x/z, which on a diagonal would push the
+ * point off the very line the inference just promised it was on. Point
+ * inferences (Endpoint, Midpoint, Center, Intersection) carry no `along` and are
+ * never touched: they are exact model geometry and rounding them would be the
+ * same bug from the other side.
+ */
+function quantizeAlong(snap, grid) {
+  const a = snap.along;
+  if (!a) return snap;
+  const t = _p.copy(snap.point).sub(a.o).dot(a.d);
+  const rounded = Math.round(t / grid) * grid;
+  snap.point.copy(a.o).addScaledVector(a.d, rounded);
+  if (snap.guides?.length) for (const g of snap.guides) g.b.copy(snap.point);
+  return snap;
 }
 
 /** Keep a plan line only if it passes near the cursor's point on the plane. */

@@ -93,6 +93,15 @@ export class MailApp {
       : sampleInbox(st?.get?.('commission'));
     if (this.list.sel >= this.messages.length) this.list.sel = Math.max(0, this.messages.length - 1);
     this.lines = null;
+
+    // A message that has just landed announces itself. The client's revision
+    // arrives while you are looking at the model, not at the inbox, so this is
+    // the only moment the player is told. `_unread` is undefined on the first
+    // refresh (the constructor), so opening Mail never chimes at its own backlog
+    // — only a RISE in the unread count does.
+    const unread = this.messages.filter((m) => m.unread).length;
+    if (this._unread !== undefined && unread > this._unread) this.os.play('ui.mail-notify');
+    this._unread = unread;
   }
 
   get current() { return this.messages[this.list.sel] ?? null; }

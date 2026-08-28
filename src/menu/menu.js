@@ -30,16 +30,16 @@
 // not ours to edit.
 
 import {
-  Scene, Group, Color, Fog, Mesh, PerspectiveCamera, OrthographicCamera, PlaneGeometry,
+  Scene, Group, Color, Fog, Mesh, PerspectiveCamera, PlaneGeometry,
   BoxGeometry, CylinderGeometry, SphereGeometry, ConeGeometry, MeshStandardMaterial,
   MeshBasicMaterial, BufferAttribute, PointLight, DirectionalLight, MathUtils, Matrix4,
   Vector2, Vector3, Box3, Raycaster, CanvasTexture, DoubleSide, RingGeometry, SRGBColorSpace,
-  WebGLRenderTarget, HalfFloatType, LinearSRGBColorSpace, LinearFilter, AdditiveBlending,
+  AdditiveBlending,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Mode } from '../core/mode.js';
 import { makeLightRig, skyFor, COLORS } from '../core/palette.js';
-import { menuMaterial, gradeTint, bakeVertexAO } from './grade.js';
+import { menuMaterial, gradeTint, bakeVertexAO, gradedSlab, gradedBox } from './grade.js';
 import { InstancePool } from '../core/instancing.js';
 import { buildBadBuilding, B, COLONNADE } from './bad-building.js';
 import { loadLetteringFont, buildText, measureText, hitBox } from './lettering.js';
@@ -61,25 +61,57 @@ const GREENS = [0x6f8f4a, 0x86a659, 0x7d9a52, 0x5f7f45].map((c) => gradeTint(c, 
 /** Mid-morning, sun in the south-east. Both visible elevations get light. */
 export const SUN = { azimuth: 129, elevation: 21 };
 
-/** Surveyor's-tag opacity: resting, awake (pointing at the building), hovered. */
-const TAG_DIM = 0.20;
-const TAG_AWAKE = 0.88;
-
 /**
- * The menu's own resolution cap. See render().
+ * The surveyor's tags — colour and opacity.
  *
- * The round-1 profile is unambiguous: this scene is 100 % fill-rate bound and
- * frame time is linear in shaded samples and nothing else (dpr 0.50 -> 20.4 ms,
- * 1.00 -> 43.4 ms, 1.75 -> 127.3 ms, with draw calls fixed at 66 and triangles at
- * 24 546 throughout). The engine's renderer is built with antialias:true and runs
- * at up to dpr 1.75, which is 4.07 MP x 4 MSAA samples = 16.3 M shaded samples a
- * frame for a 24k-triangle scene. antialias is a construction-time flag on a
- * renderer this file does not own (ARCHITECTURE.md rule 8), so the menu caps its
- * own sample budget instead, through the Mode contract's render() override: it
- * draws into a 4x multisampled render target at an effective 1.35 dpr and blits.
- * 2.42 MP x 4 = 9.7 M samples, MSAA kept, everything else identical.
+ * THE ACCENT IS NOT THEIRS. Round 2 drew all twelve discs in COLORS.accent, the
+ * same #d4763a as the hover feedback, the flag, the cones and the hazard tape,
+ * and then woke all twelve to 0.88 whenever the ray hit the building's bounding
+ * box — which is most of the frame, and is the state every screenshot of that
+ * round is in. The critic counted eighteen accents against a checklist asking for
+ * two to four, and observed correctly that when everything is the highlight
+ * colour, hovering stops meaning anything.
+ *
+ * So the tags get their own role and their own hue: a cool survey blue disc with
+ * a pale numeral, which is what an annotation over a photograph looks like and is
+ * nothing else in this scene. #d4763a is now reserved for the hovered sign line,
+ * the flag, the three cones and the hazard X — four accents in the resting frame.
+ *
+ * And they stay down. `awake` is no longer "the ray hits the building": a tag
+ * lifts when the pointer is within TAG_WAKE_PX of it on screen, or when the
+ * surveyor's-report chip is hot. Point at the building and the two or three tags
+ * under your cursor come up; the hero frame carries twelve quiet chips.
  */
-const MENU_DPR_CAP = 1.35;
+const TAG_DIM = 0.18;
+const TAG_AWAKE = 0.85;
+const TAG_WAKE_PX = 130;
+const TAG_FACE = '#3f6a86';     // survey blue
+const TAG_RULE = '#1c2b35';
+const TAG_INK = '#eef2f4';
+
+// WHERE THE FRAME TIME ACTUALLY GOES — measured, round 2, and it is not where
+// the round-1 comment that used to sit here said it was.
+//
+// That comment asserted the scene was "100 % fill-rate bound", quoted dpr 0.50 ->
+// 20.4 ms / 1.00 -> 43.4 / 1.75 -> 127.3, and on the strength of it this file
+// rendered into a 4x multisampled half-float target at a capped 1.35 dpr and
+// blitted the result. None of it reproduces. Interleaved in one call, six
+// alternating rounds, gl.finish-bounded, at 1600x900: straight to the canvas at
+// dpr 1.75 = 6.70 ms, through the render target at dpr 1.75 = 6.52 ms, straight
+// to the canvas at dpr 0.35 = 6.61 ms. Twenty-five times the pixels for 1.3 %
+// more time. The cost is CPU, inside renderer.render, and it is linear in DRAW
+// CALLS: 0 / 22 / 41 / 59 / 77 calls -> 0.17 / 4.29 / 13.6 / 20.9 / 30.6 ms.
+//
+// So the render target was 80 MB of VRAM, an MSAA resolve and a second render
+// pass bought with a measurement that does not exist, and it also broke the debug
+// overlay: renderer.info resets per render() call (engine.js:152), so two calls a
+// frame meant the overlay reported the two triangles of the blit quad instead of
+// the scene. It is gone. render() is the base Mode implementation again.
+//
+// The lever that IS real is draw calls, so this file now merges the one-off
+// street dressing instead of giving each piece its own InstancedMesh — see
+// _buildDressing(). Anything added here should be added to a merge or to an
+// existing pool kind, never as a new mesh.
 
 const CAM = {
   eye: new Vector3(17.5, 5.6, 21.5),
@@ -102,7 +134,7 @@ export class MenuMode extends Mode {
     this.blocked = false;   // a lobby panel is over the scene
     this.tagAlpha = [];     // per-tag opacity, tweened
     this.tagsHot = false;   // the report chip is hovered / the report is open
-    this._rt = null;        // see render(): the menu's own resolution cap
+    this.tagNear = -1;      // the tag the pointer is closest to, in pixels
   }
 
   // -------------------------------------------------------------------------
@@ -947,41 +979,13 @@ export class MenuMode extends Mode {
   }
 
   /**
-   * Draw the scene into the menu's own multisampled target and blit it.
-   *
-   * The target is HalfFloat and linear: three.js applies tone mapping and the
-   * output colour-space conversion only when the destination is the canvas, so
-   * doing them on the blit — a MeshBasicMaterial sampling a linear texture,
-   * straight to the default framebuffer — reproduces the engine's pipeline
-   * exactly rather than approximating it. When the engine is already at or below
-   * the cap (any non-retina display, or after the adaptive controller has stepped
-   * down) the target is skipped entirely and this is a plain renderer.render().
+   * One render() call per frame, straight to the canvas. See the note at the top
+   * of this file: the render target this used to draw through measured no faster,
+   * cost 80 MB, and made renderer.info report the blit quad instead of the scene.
    */
   render(renderer) {
     if (!this.scene || !this.camera) return;
-    const dpr = renderer.getPixelRatio();
-    if (dpr <= MENU_DPR_CAP + 1e-3) { renderer.render(this.scene, this.camera); return; }
-    const w = Math.max(1, Math.round(this.viewW * MENU_DPR_CAP));
-    const h = Math.max(1, Math.round(this.viewH * MENU_DPR_CAP));
-    if (!this._rt) {
-      this._rt = new WebGLRenderTarget(w, h, {
-        type: HalfFloatType, samples: 4,
-        minFilter: LinearFilter, magFilter: LinearFilter, depthBuffer: true,
-      });
-      this._rt.texture.colorSpace = LinearSRGBColorSpace;
-      this._blitScene = new Scene();
-      this._blitCam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
-      this._blitMat = new MeshBasicMaterial({ map: this._rt.texture, depthTest: false, depthWrite: false });
-      const quad = new Mesh(new PlaneGeometry(2, 2), this._blitMat);
-      quad.frustumCulled = false;
-      this._blitScene.add(quad);
-    } else if (this._rt.width !== w || this._rt.height !== h) {
-      this._rt.setSize(w, h);
-    }
-    renderer.setRenderTarget(this._rt);
     renderer.render(this.scene, this.camera);
-    renderer.setRenderTarget(null);
-    renderer.render(this._blitScene, this._blitCam);
   }
 
   _project(v) {
@@ -1031,8 +1035,6 @@ export class MenuMode extends Mode {
   }
 
   dispose() {
-    this._rt?.dispose();
-    this._blitMat?.dispose();
     this.lobby?.dispose();
     this.poolStatic?.dispose();
     this.poolLive?.dispose();
@@ -1080,12 +1082,12 @@ function numberAtlas(labels) {
     const cy = Math.floor(i / 4) * 128 + 64;
     g.beginPath();
     g.arc(cx, cy, 50, 0, Math.PI * 2);
-    g.fillStyle = '#d4763a';
+    g.fillStyle = TAG_FACE;
     g.fill();
     g.lineWidth = 7;
-    g.strokeStyle = '#2b2825';
+    g.strokeStyle = TAG_RULE;
     g.stroke();
-    g.fillStyle = '#20201e';
+    g.fillStyle = TAG_INK;
     g.font = 'bold 62px "Helvetica Neue", Helvetica, Arial, sans-serif';
     g.textAlign = 'center';
     g.textBaseline = 'middle';

@@ -406,11 +406,41 @@ export const I16 = {
     '................',
     '................',
   ].join('/')),
+  // Find: a magnifier over a manila folder. Round 1 pointed the Start menu's
+  // "Find" at the plain document glyph, so Documents and Find were the same
+  // white page — the one thing that gave the menu away in a blind A/B.
+  find: art16([
+    '..........kkk...',
+    '.........kwwwk..',
+    '........kwcccwk.',
+    '........kwcccwk.',
+    '.kkkk...kwcccwk.',
+    '.kyyk....kwwwk..',
+    'kkkkkkkkk.kkkk..',
+    'kyyyyyyyyykkkkk.',
+    'kywwwwwwwwykkk..',
+    'kyyyyyyyyyyyk...',
+    'kywwwwwwwwyyk...',
+    'kyyyyyyyyyyyk...',
+    'kyyyyyyyyyyyk...',
+    'koooooooooook...',
+    '.kkkkkkkkkkk....',
+    '................',
+  ].join('/')),
 };
 
 // --- 32x32 -----------------------------------------------------------------
 // Built from hard-pixel primitives: 1 px black outline, flat body, a 1-pixel
 // checkerboard highlight patch where a real icon would have a hand dither.
+
+/** A hard-edged filled disc: integer half-widths from x^2 + y^2 = r^2, so every
+ *  edge pixel is fully on or fully off (checklist 1 and 3 — no anti-aliasing). */
+function disc(g, cx, cy, r, color) {
+  for (let dy = -r; dy <= r; dy++) {
+    const half = Math.round(Math.sqrt(r * r - dy * dy));
+    if (half > 0) fill(g, cx - half, cy + dy, half * 2, 1, color);
+  }
+}
 
 function outlineBox(g, x, y, w, h, body, hi, sh) {
   fill(g, x, y, w, h, VGA.black);
@@ -489,30 +519,111 @@ const ICON32 = {
   doc(g, x, y) {
     fill(g, x + 6, y + 2, 20, 28, VGA.black);
     fill(g, x + 7, y + 3, 18, 26, VGA.white);
-    // the folded corner: a staircase, then the fold in shadow
+    // the folded corner: a staircase, the fold in shadow, dithered where the
+    // paper curls — a Win95 icon never has a flat triangle there
     for (let i = 0; i < 7; i++) {
       fill(g, x + 19 + i, y + 3 + i, 7 - i, 1, i === 6 ? VGA.black : GREY.s);
       fill(g, x + 18 + i, y + 3 + i, 1, 1, VGA.black);
     }
+    checker(g, x + 21, y + 5, 4, 3, GREY.l, GREY.s);
+    fill(g, x + 9, y + 9, 8, 2, VGA.navy);                  // heading
     g.fillStyle = GREY.g;
-    for (let i = 0; i < 6; i++) g.fillRect(x + 9, y + 13 + i * 3, 14, 1);
-    g.fillRect(x + 9, y + 10, 8, 1);
+    for (let i = 0; i < 5; i++) g.fillRect(x + 9, y + 14 + i * 3, 14, 1);
+    g.fillStyle = GREY.l;
+    for (let i = 0; i < 5; i++) g.fillRect(x + 9, y + 15 + i * 3, 14, 1);
+    fill(g, x + 7, y + 3, 1, 26, GREY.l);                   // sheet highlight
+    fill(g, x + 24, y + 10, 1, 19, GREY.s);                 // sheet shadow
+    fill(g, x + 8, y + 28, 17, 1, GREY.s);
+  },
+  /**
+   * Documents, 32x32: two typed sheets standing in a manila folder. Round 1
+   * gave "Documents" and "Find" the identical `doc` glyph; Windows gives every
+   * Start-menu row its own art, and that reuse is what a reviewer spots first.
+   */
+  docs(g, x, y) {
+    for (const [dx, dy] of [[5, 0], [11, 3]]) {
+      fill(g, x + dx, y + dy, 16, 18, VGA.black);
+      fill(g, x + dx + 1, y + dy + 1, 14, 16, VGA.white);
+      fill(g, x + dx + 1, y + dy + 1, 14, 1, GREY.l);
+      fill(g, x + dx + 3, y + dy + 3, 8, 2, VGA.navy);
+      g.fillStyle = GREY.g;
+      for (let i = 0; i < 4; i++) g.fillRect(x + dx + 3, y + dy + 7 + i * 3, 10, 1);
+      g.fillStyle = GREY.l;
+      for (let i = 0; i < 4; i++) g.fillRect(x + dx + 3, y + dy + 8 + i * 3, 10, 1);
+      fill(g, x + dx + 14, y + dy + 2, 1, 15, GREY.s);
+    }
+    fill(g, x + 1, y + 8, 12, 4, VGA.black);                // tab
+    fill(g, x + 2, y + 9, 10, 3, VGA.yellow);
+    outlineBox(g, x + 1, y + 11, 30, 18, VGA.yellow, null, VGA.olive);
+    checker(g, x + 2, y + 12, 28, 1, VGA.white, VGA.yellow);
+    checker(g, x + 2, y + 12, 1, 16, VGA.white, VGA.yellow);
+    checker(g, x + 4, y + 14, 12, 4, VGA.white, VGA.yellow);
+    fill(g, x + 2, y + 27, 28, 1, VGA.olive);
+    checker(g, x + 2, y + 26, 28, 1, VGA.olive, VGA.yellow);
+  },
+  /**
+   * Find, 32x32: a chrome magnifier lying across a manila folder. Eight colours
+   * with a dithered chrome ring and a dithered glare on the glass, because the
+   * Win95 originals never sit on two flat fills.
+   */
+  find(g, x, y) {
+    fill(g, x + 1, y + 2, 12, 4, VGA.black);                // folder tab
+    fill(g, x + 2, y + 3, 10, 3, VGA.yellow);
+    outlineBox(g, x + 1, y + 5, 26, 20, VGA.yellow, null, VGA.olive);
+    checker(g, x + 2, y + 6, 24, 1, VGA.white, VGA.yellow);
+    checker(g, x + 2, y + 6, 1, 18, VGA.white, VGA.yellow);
+    checker(g, x + 4, y + 8, 10, 4, VGA.white, VGA.yellow);
+    fill(g, x + 2, y + 23, 24, 1, VGA.olive);
+
+    // the handle first, so the barrel's outline closes over its top end
+    for (let i = 0; i < 7; i++) {
+      fill(g, x + 24 + i, y + 20 + i, 5, 1, VGA.black);
+      fill(g, x + 25 + i, y + 21 + i, 3, 1, GREY.s);
+      fill(g, x + 25 + i, y + 20 + i, 2, 1, GREY.l);
+    }
+    const cx = x + 19, cy = y + 14;
+    disc(g, cx, cy, 9, VGA.black);                          // 1 px hard outline
+    disc(g, cx, cy, 8, GREY.l);                             // chrome ring, lit
+    for (let dy = -8; dy <= 8; dy++) {                      // ring shaded lower-right
+      const half = Math.round(Math.sqrt(64 - dy * dy));
+      if (dy >= -3 && half > 2) fill(g, cx + half - 2, cy + dy, 2, 1, GREY.g);
+    }
+    for (let dy = -8; dy <= -5; dy++) {                     // dither where lit meets ground
+      const half = Math.round(Math.sqrt(64 - dy * dy));
+      if (half > 1) checker(g, cx - half + 1, cy + dy, half, 1, VGA.white, GREY.l);
+    }
+    disc(g, cx, cy, 6, VGA.black);
+    disc(g, cx, cy, 5, VGA.aqua);                           // glass
+    checker(g, cx - 4, cy - 4, 4, 3, VGA.white, VGA.aqua);  // hand-dithered glare
+    fill(g, cx - 4, cy - 4, 3, 1, VGA.white);
   },
   /**
    * Control panel, 32x32: a box of sliders. Checklist 18 — Win95 means
    * "settings" with a control panel, never with a gear.
    */
   settings(g, x, y) {
-    outlineBox(g, x + 2, y + 5, 28, 22, GREY.s, GREY.l, GREY.g);
+    outlineBox(g, x + 2, y + 3, 28, 26, GREY.s, GREY.l, GREY.g);
+    checker(g, x + 4, y + 5, 10, 3, GREY.l, GREY.s);        // dithered case highlight
+    fill(g, x + 4, y + 5, 24, 4, VGA.navy);                 // the panel's label plate
+    fill(g, x + 5, y + 6, 22, 1, VGA.blue);
+    fill(g, x + 6, y + 7, 12, 1, GREY.l);
+    fill(g, x + 4, y + 10, 24, 1, GREY.g);                  // etched rule under it
+    fill(g, x + 4, y + 11, 24, 1, VGA.white);
     for (let i = 0; i < 3; i++) {
-      const sy = y + 10 + i * 6;
-      fill(g, x + 6, sy, 20, 1, VGA.black);
-      fill(g, x + 6, sy + 1, 20, 1, VGA.white);
-      const kx = x + 8 + i * 6;
+      const sy = y + 15 + i * 5;
+      fill(g, x + 6, sy, 16, 1, VGA.black);                 // sunken slot
+      fill(g, x + 6, sy + 1, 16, 1, VGA.white);
+      const kx = x + 8 + i * 5;                             // the knob, bevelled
       fill(g, kx, sy - 3, 4, 7, VGA.black);
       fill(g, kx + 1, sy - 2, 2, 5, GREY.s);
       fill(g, kx + 1, sy - 2, 1, 5, VGA.white);
+      fill(g, kx + 2, sy + 2, 1, 1, GREY.g);
     }
+    fill(g, x + 24, y + 14, 4, 4, VGA.black);               // two indicator lamps
+    fill(g, x + 25, y + 15, 2, 2, VGA.lime);
+    fill(g, x + 24, y + 20, 4, 4, VGA.black);
+    fill(g, x + 25, y + 21, 2, 2, VGA.red);
+    fill(g, x + 4, y + 27, 24, 1, GREY.g);
   },
   /**
    * A circled lower-case i — the Win95 information icon at 32 px. The disc is

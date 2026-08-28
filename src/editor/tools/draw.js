@@ -15,7 +15,7 @@
 import { Vector3 } from 'three';
 import { Tool, TwoPointTool, fmt } from './base.js';
 import { DEFAULT_WALL } from '../../model/building.js';
-import { COLOR, AXIS } from '../constants.js';
+import { COLOR } from '../constants.js';
 
 // ---------------------------------------------------------------------------
 
@@ -32,6 +32,9 @@ export class WallTool extends TwoPointTool {
     this.wallType = 'exterior';
     this.thickness = DEFAULT_WALL.exterior;
   }
+
+  // A pier of less than 100 mm is not a wall in any building anywhere.
+  get minLength() { return 0.10; }
 
   activate(_params, again) {
     // Pressing the tool key again cycles the wall type — one key, no panel trip.
@@ -76,13 +79,22 @@ export class WallTool extends TwoPointTool {
     return this._byLength(v.value);
   }
 
+  /**
+   * A typed length, in the direction the drawing is ALREADY showing.
+   *
+   * `len` may be negative: that is the explicit flip, the same one SketchUp
+   * takes. Everything else about the direction comes from the cursor, including
+   * which way along a locked axis the wall runs — see Tool.lockedDir().
+   */
   _byLength(len) {
-    if (!(len > 0)) return false;
+    if (!Number.isFinite(len) || Math.abs(len) < 1e-9) return this.refuse('A wall needs a length');
+    const sign = len < 0 ? -1 : 1;
+    const L0 = Math.abs(len);
+    if (L0 < this.minLength) return this.refuse(`Too short — walls start at ${Math.round(this.minLength * 1000)} mm`);
     if (this.from) {
-      const dir = this.ed.lockAxis && this.ed.lockAxis !== 'ref'
-        ? AXIS[this.ed.lockAxis].dir.clone()
-        : this.direction();
-      const b = this.from.clone().addScaledVector(dir, len);
+      const aim = this.direction();
+      const dir = this.lockedDir(aim, sign) || aim.multiplyScalar(sign);
+      const b = this.from.clone().addScaledVector(dir, L0);
       this._commit(this.from.clone(), b);
       return true;
     }
@@ -90,16 +102,16 @@ export class WallTool extends TwoPointTool {
     if (!this.last) return false;
     const L = this.last;
     const a = new Vector3(L.a.x, this.elevation, L.a.z);
-    const b = a.clone().addScaledVector(L.dir, len);
+    const b = a.clone().addScaledVector(L.dir, L0 * sign);
     this.apply({ t: 'wall.delete', id: L.wallId });
     const op = this.apply({
       t: 'wall.add',
       ax: r(a.x), az: r(a.z), bx: r(b.x), bz: r(b.z),
       wallType: this.wallType, thickness: this.thickness, levelId: this.ed.levelId,
     });
-    if (op) { L.wallId = op.id; L.length = len; }
+    if (op) { L.wallId = op.id; L.length = L0; }
     this.from = null;
-    this.flash(`Wall re-set to ${fmt(len)}`);
+    this.flash(`Wall re-set to ${fmt(L0)}`);
     return true;
   }
 
@@ -146,18 +158,23 @@ export class LineTool extends TwoPointTool {
     return b;
   }
 
+  get minLength() { return 0.05; }
+
   onValue(v) {
-    if (v.kind !== 'length' || !(v.value > 0)) return false;
+    if (v.kind !== 'length' || !Number.isFinite(v.value) || Math.abs(v.value) < 1e-9) return false;
+    const sign = v.value < 0 ? -1 : 1;
+    const len = Math.abs(v.value);
     if (this.from) {
-      const dir = this.ed.lockAxis && this.ed.lockAxis !== 'ref' ? AXIS[this.ed.lockAxis].dir.clone() : this.direction();
-      this._commit(this.from.clone(), this.from.clone().addScaledVector(dir, v.value));
+      const aim = this.direction();
+      const dir = this.lockedDir(aim, sign) || aim.multiplyScalar(sign);
+      this._commit(this.from.clone(), this.from.clone().addScaledVector(dir, len));
       return true;
     }
     if (!this.last) return false;
     const gd = this.ed.guides[this.last.index];
     if (!gd) return false;
-    gd.b.copy(this.last.a).addScaledVector(this.last.dir, v.value);
-    this.flash(`Line re-set to ${fmt(v.value)}`);
+    gd.b.copy(this.last.a).addScaledVector(this.last.dir, len * sign);
+    this.flash(`Line re-set to ${fmt(len)}`);
     return true;
   }
 

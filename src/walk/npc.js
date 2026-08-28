@@ -24,7 +24,7 @@ import {
 } from 'three';
 import { materialFor, tintedMaterial, COLORS } from '../core/palette.js';
 import { GOALS, nextGoal, dwellFor } from './roles.js';
-import { PASSING_WIDTH, PERSON_WIDTH } from './navmesh.js';
+import { PASSING_WIDTH, PERSON_WIDTH, WALL_CLEARANCE } from './navmesh.js';
 
 /** Radius of a person for crowd separation. Half the shoulder width. */
 export const PERSON_RADIUS = PERSON_WIDTH / 2;
@@ -47,6 +47,10 @@ export const STUCK_SECONDS = 2.5;
 export const MAX_REPLANS = 3;
 /** How far ahead on the current segment a walker aims. Metres. */
 const LOOKAHEAD = 0.55;
+/** Most goal markers drawn in one frame, nearest and most annoyed first. */
+const MAX_ICONS = 8;
+/** Closest two markers may come on screen, in NDC (2 = the whole viewport). */
+const ICON_SEPARATION = 0.14;
 /**
  * The shortest visit the walkthrough can portray. The clock runs at five
  * simulated minutes per real second while people walk at their real speed, so a
@@ -66,6 +70,7 @@ const _s = new Vector3();
 const _dir = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const AXIS_X = new Vector3(1, 0, 0);
+const _push = { x: 0, z: 0, moved: false };
 
 // ---------------------------------------------------------------------------
 // 1. the icon atlas — the only pictures in the walkthrough
@@ -329,10 +334,14 @@ export class Crowd {
    *   audio      AudioBus (optional)
    *   rng        () => 0..1
    */
-  constructor({ nav, stats, heat, population, audio = null, rng = Math.random }) {
+  constructor({ nav, stats, heat, occupancy = null, population, audio = null, rng = Math.random }) {
     this.nav = nav;
     this.stats = stats;
+    // `heat` records metres walked; `occupancy` records seconds stood still.
+    // Mixing them makes the busiest corridor in the building read as its
+    // coldest floor — see the note in walk.js `_buildPeople`.
     this.heat = heat;
+    this.occupancy = occupancy ?? heat;
     this.audio = audio;
     this.rng = rng;
     this.doors = new Doors(nav, audio);
@@ -440,15 +449,30 @@ export class Crowd {
   }
 
   /**
-   * The reachable cell closest to a room nobody can get into.
+   * WHERE THE MISSING DOOR SHOULD HAVE BEEN.
    *
    * DESIGN-DECISIONS: "an NPC with no route stops and visibly gets annoyed".
    * Stopping wherever they happened to be standing — six metres away, outside
    * a different room's door — tells the player nothing, and in a house with one
    * sealed study it reads as the bathroom being sealed. So the person walks as
-   * far as the plan lets them and gives up AT THE OBSTRUCTION. One Dijkstra
-   * from the person finds their own island; the answer is cached per room,
-   * because everybody stuck on the same side of the same wall shares it.
+   * far as the plan lets them and gives up AT THE OBSTRUCTION.
+   *
+   * "At the obstruction" is not the same as "nearest the room". Every wall of a
+   * sealed study is equally close to it, and the plain nearest-cell answer put
+   * everybody in the entrance hall against the study's party wall, 2.7 m
+   * sideways from the wall the door plainly belongs in. The architect looking at
+   * them is being shown the wrong wall.
+   *
+   * So the wall is chosen first, by the length of frontage the room shares with
+   * space people can actually reach — the missing door belongs in the longest
+   * wall between the sealed room and the circulation — and the person stands at
+   * the middle of that frontage. Ties go to a corridor, then a hall, because
+   * that is where a door would have been drawn. Nearest-cell remains the
+   * fallback for a room with no usable frontage at all.
+   *
+   * One Dijkstra from the person finds their own island; the answer is cached
+   * per room, because everybody stuck on the same side of the same wall shares
+   * it.
    */
   _approachCell(a, roomId) {
     const nav = this.nav;
@@ -463,6 +487,10 @@ export class Crowd {
     const mine = nav.field(`from:${from}`, [from]);
     const cells = nav.roomCells(roomId);
     const goalCells = new Set(cells);
+
+    const frontage = this._bestFrontage(roomId, mine, goalCells);
+    if (frontage >= 0) { this._approach.set(roomId, frontage); return frontage; }
+
     // The point to get close to is the ROOM, not its centre: somebody who
     // cannot reach a study stops against the wall that seals it, not two metres
     // short of it because that happens to be nearer the middle of the room.
@@ -489,6 +517,70 @@ export class Crowd {
     }
     this._approach.set(roomId, best);
     return best;
+  }
+
+  /**
+   * The middle of the longest stretch of `roomId`'s perimeter that has
+   * reachable floor on the other side of it. -1 when there is none.
+   *
+   * Walks each of the room's own walls at 0.20 m and asks, on both faces,
+   * whether the cell just off the wall is floor this person can get to. The
+   * wall with the most such samples is the one a door is missing from; the
+   * standing point is the median sample along it, so the person is centred on
+   * the frontage rather than jammed into its corner.
+   */
+  _bestFrontage(roomId, mine, goalCells) {
+    const nav = this.nav;
+    const room = nav.roomById.get(roomId);
+    if (!room?.wallIds?.length) return -1;
+    const li = nav.levels.findIndex((L) => L.levelId === room.levelId);
+    if (li < 0) return -1;
+    const RANK = { corridor: 0, hall: 1, stair: 2, reception: 3 };
+    let bestCells = null, bestScore = -1, bestRank = 99;
+    for (const wid of room.wallIds) {
+      const w = nav.model.walls[wid];
+      if (!w) continue;
+      const a = nav.model.nodes[w.a], b = nav.model.nodes[w.b];
+      if (!a || !b) continue;
+      const len = Math.hypot(b.x - a.x, b.z - a.z);
+      if (len < 0.4) continue;
+      const ux = (b.x - a.x) / len, uz = (b.z - a.z) / len;
+      const half = (w.thickness ?? 0.12) / 2;
+      for (const side of [1, -1]) {
+        let found = [];
+        let kinds = new Map();
+        // A cell only counts as floor once it is PERSON_WIDTH clear of
+        // everything, so the first sample line has to stand a shoulder off the
+        // face, not a grid cell — at 0.20 m every sample beside a 1.20 m
+        // corridor wall read as impassable and no wall had any frontage at all.
+        // Furniture pushed against a wall moves the line further out again.
+        for (const stand of [PERSON_WIDTH, PERSON_WIDTH * 1.7, PERSON_WIDTH * 2.5]) {
+          const off = half + stand;
+          found = [];
+          kinds = new Map();
+          for (let t = nav.cell; t <= len - nav.cell; t += nav.cell) {
+            const x = a.x + ux * t - uz * off * side;
+            const z = a.z + uz * t + ux * off * side;
+            const k = nav.indexAt(x, z, li);
+            if (k < 0 || !nav.pass[k] || goalCells.has(k)) continue;
+            if (!(mine.dist[k] < Infinity)) continue;
+            found.push(k);
+            const rk = nav.roomIdx[k] >= 0 ? nav.kindOf(nav.roomIds[nav.roomIdx[k]]) : null;
+            if (rk) kinds.set(rk, (kinds.get(rk) ?? 0) + 1);
+          }
+          if (found.length >= 2) break;
+        }
+        if (found.length < 2) continue;
+        let rank = 99;
+        for (const kind of kinds.keys()) rank = Math.min(rank, RANK[kind] ?? 9);
+        // longest reachable frontage first; a tie goes to the circulation side
+        if (found.length > bestScore || (found.length === bestScore && rank < bestRank)) {
+          bestScore = found.length; bestRank = rank; bestCells = found;
+        }
+      }
+    }
+    if (!bestCells) return -1;
+    return bestCells[Math.floor(bestCells.length / 2)];
   }
 
   /** Walk as far towards an unreachable room as the plan allows, then give up. */
@@ -764,7 +856,8 @@ export class Crowd {
         const room = nav.roomAt(a.x, a.z, a.level);
         a.roomId = room;
         if (room) this.stats.occupy(room, dtSim);
-        this.heat.add(a.x, a.z, a.level, dtSim * (a.walking ? 0.010 : 0.0016));
+        if (a.walking) this.heat.add(a.x, a.z, a.level, dtSim * 0.010);
+        else this.occupancy.add(a.x, a.z, a.level, dtSim * 0.0016);
       }
     }
     this.visible = visible;
@@ -830,6 +923,7 @@ export class Crowd {
     }
     if (!sx && !sz) return;
     const nx = a.x + sx * dt * 2.4, nz = a.z + sz * dt * 2.4;
+    if (this.nav.crossesWall(a.x, a.z, nx, nz, a.level)) return;
     if (this.nav.passable(this.nav.indexAt(nx, nz, a.level))) { a.x = nx; a.z = nz; }
   }
 
@@ -976,18 +1070,33 @@ export class Crowd {
     mx /= ml; mz /= ml;
 
     const step = speed * dt;
-    // Never let separation shove somebody through a wall — but only once they
-    // are ON the mesh. Arriving and leaving happens OUTSIDE the building, where
-    // there is no navmesh at all, and clamping to it there pinned everyone who
-    // had just appeared on the pavement to the spot.
-    // The clamp also has to be off when the WAYPOINT is off the mesh: the last
-    // leg of going home ends seven metres out on the pavement, and a leaver
-    // standing on the threshold — which is on the mesh — had every step towards
-    // it rejected and stood in his own doorway until the day ended.
+    // Two separate questions, and conflating them is what put four people
+    // inside the front wall.
+    //
+    // "Is this cell floor?" is a question about the NAVMESH, and the navmesh
+    // only describes the inside of the building. Arriving and leaving happen
+    // out on the site, where there is no mesh at all, so that test has to be
+    // off there — clamping to it pinned everyone who had just appeared on the
+    // pavement to the spot, and it has to be off when the WAYPOINT is off the
+    // mesh too, or a leaver standing on his own threshold has every step
+    // towards the street rejected and never goes home.
+    //
+    // "Is there a wall in the way?" is a question about the BUILDING, and the
+    // answer never depends on which side of the front door you are standing on.
+    // It is asked on every step, in every state. Before it was, separation
+    // pushed the arrival crowd sideways off the approach path and straight
+    // through the 240 mm masonry beside the door reveal.
     const onMesh = nav.passable(nav.indexAt(a.x, a.z, a.level))
       && nav.passable(nav.indexAt(target.x, target.z, target.level ?? a.level));
     const tryStep = (ux, uz) => {
-      const px = a.x + ux * step, pz = a.z + uz * step;
+      // The wall answer is a PUSH, not a veto: the step is taken and then slid
+      // out of any masonry it landed in. Vetoing it instead pinned people
+      // against door jambs until the watchdog wrote "no route" into the report
+      // about a doorway that works — a collision model must never invent a
+      // finding about the drawing.
+      const hit = nav.pushOutOfWalls(a.x + ux * step, a.z + uz * step, a.level, WALL_CLEARANCE, _push);
+      const px = hit.x, pz = hit.z;
+      if (hit.moved && Math.hypot(px - a.x, pz - a.z) < step * 0.12) return null;
       if (!onMesh || nav.passable(nav.indexAt(px, pz, a.level))) return [px, pz];
       return null;
     };
@@ -1104,6 +1213,8 @@ export class Crowd {
   render(pool, camera) {
     const camPos = camera.position;
     this.doors.render(pool);
+    const marks = (this._marks ??= []);
+    marks.length = 0;
 
     for (const a of this.agents) {
       if (!a.active) continue;
@@ -1175,6 +1286,10 @@ export class Crowd {
       pool.place('npc.hair', _m, p.hair);
 
       // -- the marker over the head ---------------------------------------
+      // Collected, not drawn: see _placeIcons. A dozen of these billboards
+      // overlapping in a crowded entrance hall hid the room they were meant to
+      // annotate, and several of them hung over the lawn with their person on
+      // the far side of a wall.
       let icon = null, colour = null;
       if (a.state === STATE.BLOCKED) {
         icon = 'alert';
@@ -1185,13 +1300,71 @@ export class Crowd {
       }
       if (icon && pool.has(`icon.${icon}`)) {
         const bounce = a.state === STATE.BLOCKED ? Math.abs(Math.sin(a.lookAbout * 4)) * 0.06 : 0;
-        _p.set(a.x, headY + headS * 0.9 + 0.20 + bounce, a.z);
-        _q.copy(camera.quaternion);
-        _s.set(1, 1, 1);
-        _m.compose(_p, _q, _s);
-        pool.place(`icon.${icon}`, _m, colour);
+        marks.push({
+          icon, colour, agent: a, distSq,
+          x: a.x, y: headY + headS * 0.9 + 0.20 + bounce, z: a.z,
+        });
       }
     }
+    this._placeIcons(pool, camera, marks);
+  }
+
+  /**
+   * The markers, thinned to the ones a person could actually read.
+   *
+   * Three rules, in this order:
+   *   1. A marker whose person is behind a wall is not drawn. The wall spans
+   *      the walkers collide against are the same ones that block the sight
+   *      line, so this costs one segment test per candidate.
+   *   2. No two markers within ICON_SEPARATION of each other on screen. The
+   *      nearer one wins, so the crowd in front reads and the crowd behind it
+   *      does not smear into one white mass.
+   *   3. At most MAX_ICONS a frame, nearest first, with the people who have
+   *      GIVEN UP always ahead of the people who are merely going somewhere —
+   *      the failures are the whole point of the walkthrough.
+   */
+  _placeIcons(pool, camera, marks) {
+    if (!marks.length) return;
+    const camLevel = this._levelAtY(camera.position.y);
+    marks.sort((m, n) => {
+      const bm = m.agent.state === STATE.BLOCKED ? 0 : 1;
+      const bn = n.agent.state === STATE.BLOCKED ? 0 : 1;
+      return bm - bn || m.distSq - n.distSq;
+    });
+    const taken = (this._iconScreen ??= []);
+    taken.length = 0;
+    let drawn = 0;
+    for (const m of marks) {
+      if (drawn >= MAX_ICONS) break;
+      // 1. line of sight, through the real masonry
+      if (m.agent.level === camLevel
+        && this.nav.crossesWall(camera.position.x, camera.position.z, m.x, m.z, m.agent.level, 0)) continue;
+      // 2. screen-space separation
+      _p.set(m.x, m.y, m.z).project(camera);
+      if (_p.z <= -1 || _p.z >= 1) continue;
+      if (_p.x < -1.15 || _p.x > 1.15 || _p.y < -1.15 || _p.y > 1.15) continue;
+      let clash = false;
+      for (let i = 0; i < taken.length; i += 2) {
+        if (Math.hypot(_p.x - taken[i], _p.y - taken[i + 1]) < ICON_SEPARATION) { clash = true; break; }
+      }
+      if (clash) continue;
+      taken.push(_p.x, _p.y);
+      _p.set(m.x, m.y, m.z);
+      _q.copy(camera.quaternion);
+      _s.set(1, 1, 1);
+      _m.compose(_p, _q, _s);
+      pool.place(`icon.${m.icon}`, _m, m.colour);
+      drawn++;
+    }
+  }
+
+  /** Which storey a world height belongs to. */
+  _levelAtY(y) {
+    let best = 0;
+    for (let i = 0; i < this.nav.levels.length; i++) {
+      if (y >= this.nav.levels[i].elevation - 0.1) best = i;
+    }
+    return best;
   }
 
   /** The person the crosshair is on, for the HUD read-out. */

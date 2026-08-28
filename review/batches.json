@@ -272,38 +272,6 @@
           }
         },
         {
-          "id": "ui.snap",
-          "name": "Snap",
-          "why": "A wall endpoint snapping to the grid or to another node. This one has to be felt more than heard — it is the tactile core of drawing.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/ui/snap.ogg",
-            "m4a": "../assets/audio/ui/snap.m4a"
-          },
-          "mix": {
-            "kind": "ui",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.85,
-            "effective": 0.5355,
-            "positional": false
-          },
-          "meta": {
-            "duration": "0.11 s",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://freesound.org/people/Philip_Berger/sounds/788643/",
-            "author": "Philip_Berger",
-            "origTitle": "Light Switch on — the toggle clack, trimmed to 113 ms"
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Jest już w za dużej ilości moich gier.",
-            "applied": "REPLACED — you have the Kenney set in too many games. This is a real toggle light switch (freesound CC0, Philip_Berger). Nothing from Kenney."
-          }
-        },
-        {
           "id": "ui.submit",
           "name": "Submit",
           "why": "Sending a design to the client. The one UI sound allowed to feel like a small ceremony, because it commits you to the single revision round.",

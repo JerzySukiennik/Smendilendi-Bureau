@@ -2,18 +2,45 @@
 //
 // It is deliberately, professionally bad. Not cartoon bad: every defect below is
 // one a practising architect has actually had to write up, and each is dimensioned
-// so the diagnosis on the surveyor's tag quotes a real number against a real rule.
-// Every one of them is legible in silhouette from the menu camera — that was the
-// selection criterion. Things that are only funny in plan (a rooflight over a
-// wardrobe, a serving hatch through a load-bearing wall) were left out.
+// so the diagnosis on the surveyor's tag quotes a real number against real
+// physics. Things that are only funny in plan (a rooflight over a wardrobe, a
+// serving hatch through a load-bearing wall) were left out.
 //
-// THE RULE THIS FILE LIVES BY, after round 1 got it wrong twice: THE TAG QUOTES
-// THE GEOMETRY. Round 1 shipped a tag claiming 175 mm risers over a stair built
-// at 300 mm, and a tag describing a four-column colonnade over two columns. The
-// target player is the one man alive who checks. Every number in CRIMES below is
-// now derived from, or asserted by, the constants immediately beside the geometry
-// that draws it, and tools-free arithmetic is written out in the comments so the
-// next person can check it without a calculator.
+// THE RULE THIS FILE LIVES BY, after three rounds of getting it wrong: THE TAG
+// QUOTES THE GEOMETRY. Round 1 shipped a tag claiming 175 mm risers over a stair
+// built at 300 mm, and a four-column colonnade described over two columns. Round 2
+// shipped a scupper "2.4 m directly above the main entrance" over a 9.32 m drop,
+// a balcony tagged "no window" with 1.20 m of glazing behind it, and 48.6 m² of
+// glass that measures 50.22. The target player is the one man alive who checks.
+// Every number in CRIMES is now derived from the constants beside the geometry
+// that draws it, tagFacts() recomputes each one, and src/menu/self-check.mjs
+// fails under Node if a tag and its model disagree. That check exists because a
+// module nothing runs outside a browser is a module nothing checks: the same
+// round shipped a bare ReferenceError in menu.js that took the whole game down
+// to a "Boot failed" panel, and no test in this repo could have caught it.
+//
+// HOW LEGIBLE EACH CRIME IS, honestly, at the menu camera's 27 m. Round 2's
+// header claimed "every one of them is legible in silhouette — that was the
+// selection criterion", and the critic went and counted: five. The claim is
+// deleted and replaced with the real list, because the next person to work on
+// this deserves to know which ones are carrying the joke.
+//
+//   SILHOUETTE, readable without hovering anything:
+//     2  the caged top landing of the escape stair, against blank brick
+//     3  the ramp, as a dark 1:3 wedge on pale paving
+//     5  the short column, its 3.00 m of daylight against the dark curtain wall
+//     6  the balcony, blank brick between two glazed bays
+//     7  the downpipe down two window centrelines
+//     8  the four first-floor heads out of line with each other
+//    10  a red-brick chimney on a grey-brick building
+//    11  the parapet notch, the stain and the cones under it
+//    12  the glass box with no shading in front of it
+//   CLOSE READS, which need the tag or a look at the model:
+//     1  the 900 x 900 pad (the hazard X carries it at distance, not the pad)
+//     4  a 400 mm handrail — you can see the rail, not that it is 400
+//     9  150 mm of window frame behind a slab band: 3 px at this distance
+//
+// Nine of twelve is where this stops being a caption and starts being a building.
 //
 // SETTING OUT (metres; the whole game is metric)
 //   footprint          14.40 (E-W) x 9.60 (N-S), external face to external face
@@ -46,7 +73,7 @@ import {
   BufferAttribute, MeshBasicMaterial, DoubleSide,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { menuMaterial, Occupancy, bakeVertexAO } from './grade.js';
+import { menuMaterial, Occupancy, bakeVertexAO, gradedBox } from './grade.js';
 
 // --- setting out ------------------------------------------------------------
 
@@ -87,64 +114,101 @@ export const STAIR = {
 };
 
 /**
- * The colonnade, crime 5. Four columns at 2.40 m centres; C3 is the one that
- * stops a storey short, so the beam spans C2 -> C4 = 4.80 m with nothing under
- * its midpoint. Beam soffit at 7.20, which is what C1, C2 and C4 rise to.
+ * The colonnade, crime 5. Four columns at 2.40 m centres; one of them stops a
+ * storey short, so the beam spans 4.80 m with nothing under its midpoint. Beam
+ * soffit at 7.20, which is what the other three rise to.
+ *
+ * WHICH column is short, and where the run sits, are a legibility decision, not
+ * a whim. Round 2 made C3 short at x 9.60, and from the menu camera the 3.00 m
+ * of daylight under the beam falls against the east elevation — pale concrete
+ * stub, pale brick behind, nothing to see, and the critic could not pick the
+ * column out of the frame. The run has moved 600 mm west and the short one is now
+ * the SECOND column, at x 6.60, which puts its gap against the dark glass of the
+ * curtain wall. Same crime, same numbers, and now it is a silhouette.
  */
 export const COLONNADE = {
   z: 6.90,
-  x: [4.80, 7.20, 9.60, 12.00],   // C1 C2 C3 C4
-  shortIndex: 2,                   // C3
+  x: [4.20, 6.60, 9.00, 11.40],   // C1 C2 C3 C4
+  shortIndex: 1,                   // C2 — the one against the glazing
   shortTop: 4.20,
   soffit: 7.20,
   depth: 0.52,
   overhang: 0.60,
 };
 
+/**
+ * The balcony, crime 6. u is z; `out` is how far it projects past the east face.
+ *
+ * It sits in the ONE bay of the second floor that has no window, between two that
+ * do. Round 2 put it over HOLE.s3 — 1.20 m of glazing behind a balustrade whose
+ * top rail cut across the sill by 200 mm — while its tag said "you can see the
+ * brickwork straight through the balustrade". The bay is blank brick now and the
+ * flanking bays are glazed, which is the only arrangement in which the joke is
+ * visible rather than merely asserted.
+ */
+export const BALCONY = { u0: 0.0, u1: 2.4, out: 1.20 };
+
+/** The four first-floor window heads of crime 8, and W-07's, which is crime 9. */
+export const HEADS = { b1: 6.30, b3: 6.55, w07: 7.05, b5: 6.30 };
+
 // --- the surveyor's schedule -------------------------------------------------
 // Each entry is one hoverable tag. `at` is where the pin goes, in world metres.
+//
+// NO JURISDICTION. Round 2 tagged these with English Approved Document clauses
+// ("Part K 3.2", "Part M 1.26"), which is a mistake with a specific victim: the
+// player this game was made for practises in Poland, where several of those
+// numbers are simply different, and one of the tags quoted 1:12 as "the maximum
+// permitted", which is the England and Wales figure and not his. The physics and
+// the millimetres are universal and they stay; the rulebook is gone. `code` is now
+// the class of defect, which is what a condition report calls it anyway.
+//
+// The numbers below are derived from the constants beside the geometry that draws
+// them. Where a tag quotes a dimension, `tagFacts()` at the bottom of this file
+// recomputes it from the same constants, and tools/menu-check.mjs fails if they
+// disagree — because round 2 shipped a tag reading "2.4 m directly above the main
+// entrance" over a 6.95 m drop, and one reading "no window" over a window.
 
 export const CRIMES = [
   {
     n: 1, id: 'door-to-nowhere',
-    at: new Vector3(8.15, 5.6, 0.45),
+    at: new Vector3(8.20, 5.55, 0.45),
     title: 'D-04 — external door, first floor',
-    text: 'Threshold 4.20 m above external ground level, opening onto a 900 x 900 mm pad with no stair, no ladder and no guarding of any kind. Guarding is required at any level change over 600 mm. Somebody has taped an X across the opening and called that a solution.',
-    code: 'Part K 3.2',
+    text: 'Threshold 4.20 m above external ground level, opening onto a 900 x 900 mm pad with no stair, no ladder and no guarding of any kind. Anything a person can walk out of and fall off is guarded; this is a first-floor door with a doormat-sized landing and a four-metre drop off three sides of it. Somebody has taped an X across the opening and called that a solution.',
+    code: 'Guarding — none provided',
   },
   {
     n: 2, id: 'fire-escape',
-    at: new Vector3(9.8, 8.25, -3.2),
+    at: new Vector3(9.90, 8.45, -4.20),
     title: 'External escape stair',
-    text: 'Forty-four steps at a uniform 150 mm rise and 300 mm going, flights of twelve and ten risers, 900 mm guarding to the flights and 1 100 mm to the landings — every dimension of it correct, and all of it arriving at second-floor level against blank brickwork. There is no door. The escape route is itself a dead end.',
-    code: 'Part B1 2.23',
+    text: 'Forty-four steps at a uniform 150 mm rise and 300 mm going, flights of twelve and ten risers, 900 mm guarding to the flights and 1 100 mm to the landings — every dimension of it correct, and all of it arriving at second-floor level against blank brickwork. There is no door. The top landing is guarded on all four sides, including the side that was supposed to be the way in, so the escape route is a cage at the end of a dead end.',
+    code: 'Escape route — no exit',
   },
   {
     n: 3, id: 'ramp',
     at: new Vector3(2.25, 1.15, 6.2),
     title: 'Approach ramp',
-    text: 'Rise 600 mm over a going of 1 800 mm — a gradient of 1:3. The maximum permitted on an accessible approach is 1:12, and 1:20 is preferred. There is no kerb upstand on either side, so a wheel can simply leave it.',
-    code: 'Part M 1.26, Table 1',
+    text: 'Rise 600 mm over a going of 1 800 mm — a gradient of 1:3. That is not a shallow ramp, it is a loading dock: 1:12 is about the steepest anyone will accept for an approach and 1:20 is what you draw. There is no kerb upstand on either side either, so a wheel can simply leave it sideways.',
+    code: 'Accessible approach — gradient',
   },
   {
     n: 4, id: 'handrail',
-    at: new Vector3(3.3, 0.62, 5.05),
+    at: new Vector3(3.35, 0.58, 6.62),
     title: 'Ramp handrail',
-    text: 'Set 400 mm above the ramp surface. The required range is 900–1 000 mm. At 400 mm it is not a handrail, it is a trip rail, and it is on the side of a 1:3 slope.',
-    code: 'Part M 1.37',
+    text: 'Set 400 mm above the ramp surface, held there for its whole length. A hand falls at roughly 900 to 1 000 mm; at 400 mm this is not a handrail, it is a trip rail, and it is on the open side of a 1:3 slope.',
+    code: 'Handrail height',
   },
   {
     n: 5, id: 'short-column',
-    at: new Vector3(9.6, 5.75, 6.9),
-    title: 'Colonnade — column C3',
-    text: 'Four columns at 2.40 m centres. C1, C2 and C4 rise the full 7.20 m to the beam soffit. C3 stops at 4.20 m, a whole storey short, leaving a 3.00 m gap of daylight under the beam and a 4.80 m span carrying nothing at its midpoint. The structural drawing and the elevation were never reconciled.',
+    at: new Vector3(6.60, 5.85, 6.90),
+    title: 'Colonnade — column C2',
+    text: 'Four columns at 2.40 m centres. C1, C3 and C4 rise the full 7.20 m to the beam soffit. C2 stops at 4.20 m, a whole storey short, and it has been given the same capital as the others so that it can stop in mid-air politely — 3.00 m of daylight under the beam and a 4.80 m span with nothing at its midpoint. The structural drawing and the elevation were never reconciled.',
     code: 'Structural coordination',
   },
   {
     n: 6, id: 'balcony',
     at: new Vector3(8.6, 8.8, 1.2),
     title: 'Second-floor balcony',
-    text: '2.40 m of balcony projecting 1.20 m from a blank wall. No door, no window, no hatch — you can see the brickwork straight through the balustrade. The only way onto it is a ladder from the pad of door D-04, one floor below, which is itself unreachable.',
+    text: '2.40 m of balcony projecting 1.20 m from a blank wall. No door, no window, no hatch: the bays either side of it are glazed and this one is not, so you can see the brickwork straight through the balustrade. The only way onto it is a ladder from the pad of door D-04, one floor below, which is itself unreachable.',
     code: 'Access — none provided',
   },
   {
@@ -156,40 +220,74 @@ export const CRIMES = [
   },
   {
     n: 8, id: 'window-heads',
-    at: new Vector3(7.55, 6.80, 2.55),
+    at: new Vector3(7.62, 6.32, -0.90),
     title: 'First-floor window heads',
-    text: 'Four windows on one elevation with heads at 6.30, 6.55, 7.05 and 6.30 m. No datum, no rhythm, no reason. Two of them are 250 mm apart, which reads as a mistake rather than as a decision.',
+    text: 'Four windows on one elevation with heads at 6.30, 6.55, 7.05 and 6.30 m. No datum, no rhythm, no reason. Two of them are 250 mm apart, which reads as a mistake rather than as a decision — a big move can be argued for, 250 mm can only be explained.',
     code: 'Elevational discipline',
   },
   {
     n: 9, id: 'head-into-slab',
-    at: new Vector3(7.6, 7.05, 3.15),
+    at: new Vector3(7.62, 7.16, 3.15),
     title: 'Window W-07 head',
-    text: 'Head set at 7.05 m into a floor slab whose soffit is at 6.90 m. The top 150 mm of the opening is behind concrete — you can see the frame run up behind the slab band and stop. Internally this is not a window, it is a window with a beam across it.',
+    text: 'Head set at 7.05 m into a floor slab whose soffit is at 6.90 m. The top 150 mm of the opening is behind concrete — from the street you can see the frame run up behind the slab band and stop. Internally this is not a window, it is a window with a beam across it. (A close read: stand at the model and follow the frame up.)',
     code: 'Section / elevation clash',
   },
   {
     n: 10, id: 'chimney',
-    at: new Vector3(5.3, 12.65, -3.6),
+    at: new Vector3(5.30, 11.20, -3.15),
     title: 'Chimney stack',
-    text: '1 500 x 900 mm of brickwork standing 2.10 m above the flat roof of a naturally ventilated office with no solid-fuel appliance, no gas appliance and no flue. Solid capped. It is a plinth for weather.',
-    code: 'Part J — not applicable, which is the point',
+    text: '1 500 x 900 mm of brickwork standing 2.10 m above the flat roof of a naturally ventilated office with no solid-fuel appliance, no gas appliance and no flue. Solid capped, and in a red brick nothing else on the building is built in. It is a plinth for weather.',
+    code: 'Redundant construction',
   },
   {
     n: 11, id: 'scupper',
-    at: new Vector3(0.3, 10.9, 5.4),
+    at: new Vector3(0.30, 9.95, 5.35),
     title: 'Roof outlet RO-1',
-    text: 'The entire 138 m² roof falls to one 300 mm scupper, notched straight through the parapet and spouting 300 mm clear of the face, 2.4 m directly above the main entrance. No downpipe, no shoe, no gully, no channel. The stain down the render is three winters old and the cones underneath are somebody else\'s answer.',
-    code: 'Part H3 / BS EN 12056-3',
+    text: 'The entire 138 m² roof falls to one 300 mm scupper, notched straight through the parapet and spouting 300 mm clear of the face — 9.32 m above the entrance threshold and dead on its centreline. No downpipe, no shoe, no gully, no channel. The stain down the render is three winters old and the cones underneath are somebody else\'s answer.',
+    code: 'Rainwater disposal',
   },
   {
     n: 12, id: 'south-glass',
     at: new Vector3(4.5, 6.6, 5.1),
     title: 'South curtain wall',
-    text: '48.6 m² of unshaded single-aspect glazing facing due south — no overhang, no fin, no brise-soleil, no blind, no coating specified. There is a colonnade standing 2.10 m in front of it that could have carried the shading and does not. The north elevation, where the steady light is, is 14.4 m of solid brick with nothing in it at all.',
-    code: 'Part O / CIBSE TM52',
+    text: '50.2 m² of unshaded single-aspect glazing facing due south — no overhang, no fin, no brise-soleil, no blind, no coating specified. There is a colonnade standing 2.10 m in front of it that could have carried the shading and does not. The north elevation, where the steady light is, is 14.4 m of solid brick with nothing in it at all.',
+    code: 'Solar gain — no shading',
   },
 ];
+
+/**
+ * Every dimension the tags quote, recomputed from the constants that draw the
+ * geometry. src/menu/self-check.mjs asserts each of these appears in the text of
+ * its crime, under Node, with no browser — which is the check that would have
+ * caught round 2's "2.4 m directly above the main entrance" over a 6.95 m drop.
+ */
+export function tagFacts() {
+  const { x0, x1, z0, z1, ffl, roof, lvl, band, curtain: cw, door: d } = B;
+  const spoutInvert = roof + 0.02;
+  return {
+    1:  [`${lvl[1].toFixed(2)} m`, '900 x 900 mm'],
+    2:  ['150 mm', '300 mm', '900 mm', '1 100 mm'],
+    3:  ['600 mm', '1 800 mm', '1:3'],
+    4:  ['400 mm'],
+    5:  [`${(COLONNADE.x[1] - COLONNADE.x[0]).toFixed(2)} m`,
+      `${COLONNADE.soffit.toFixed(2)} m`,
+      `${COLONNADE.shortTop.toFixed(2)} m`,
+      `${(COLONNADE.soffit - COLONNADE.shortTop).toFixed(2)} m`,
+      `${(COLONNADE.x[COLONNADE.shortIndex + 1] - COLONNADE.x[COLONNADE.shortIndex - 1]).toFixed(2)} m`],
+    6:  [`${(BALCONY.u1 - BALCONY.u0).toFixed(2)} m`, `${BALCONY.out.toFixed(2)} m`],
+    7:  ['110 mm', '170 mm'],
+    8:  ['6.30', '6.55', '7.05', '250 mm'],
+    9:  [`${HEADS.w07.toFixed(2)} m`, `${(lvl[2] - band).toFixed(2)} m`,
+      `${Math.round((HEADS.w07 - (lvl[2] - band)) * 1000)} mm`],
+    10: ['1 500 x 900 mm', '2.10 m'],
+    11: [`${Math.round((x1 - x0) * (z1 - z0))} m²`, '300 mm',
+      `${(spoutInvert - ffl).toFixed(2)} m`],
+    12: [`${((cw.u1 - cw.u0) * (roof - ffl)).toFixed(1)} m²`,
+      `${(COLONNADE.z - z1).toFixed(2)} m`,
+      `${(x1 - x0).toFixed(1)} m`],
+    _door: d.head,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // A geometry accumulator. Everything is pushed into a bin per material and merged
@@ -198,17 +296,29 @@ export const CRIMES = [
 //
 // Two things happen here that did not in round 1:
 //
-//  * boxes are SUBDIVIDED on a ~0.45 m grid. Vertex AO on a single 14 m quad is
-//    four corner samples and a linear ramp across the whole facade, which is not
-//    an occlusion band, it is a gradient. Subdividing puts a vertex ring within
-//    half a metre of every junction. Triangles are free here and were measured to
-//    be free: the round-1 profile showed the menu 100 % fill-rate bound at 24.5k
-//    triangles, with frame time scaling with pixel count and nothing else.
+//  * boxes are RAKED rather than uniformly subdivided — see gradedBox() in
+//    grade.js. Round 1 used a single quad per face, whose four corner samples
+//    give a ramp across the whole facade instead of a band in the corner. Round 2
+//    used a uniform 0.45 m grid, which the round-2 critic measured at 3.2 luma of
+//    contrast over the 20 px where the checklist asks for 12: the nearest vertex
+//    ring can be 225 mm from the soffit, and the dark sample is averaged away
+//    before it ever reaches the corner. The rake puts rings at 50, 120, 240, 450
+//    and 800 mm from every edge and thins out across the middle, so the band
+//    lands where the eye looks and the triangle count barely moves.
 //
 //  * every box is stamped into an occupancy grid, which the AO sweep then reads.
+//
+// NOTE ON COST, corrected. Earlier revisions of this comment asserted that
+// "triangles are free here and were measured to be free" on the strength of a
+// round-1 profile that claimed the menu was 100 % fill-rate bound. That profile
+// does not reproduce. Round 2's critic measured the frame CPU-bound inside
+// renderer.render and linear in DRAW CALLS (0/22/41/59/77 calls -> 0.17/4.29/
+// 13.6/20.9/30.6 ms) while 25x the pixel count cost 1.3 % more time. So:
+// triangles are close to free, but for the opposite reason to the one recorded,
+// and the thing to be careful with in this file is the number of MATERIAL BINS,
+// because each bin is one draw call.
 
-const AO_CELL = 0.45;
-const seg = (len) => Math.max(1, Math.min(20, Math.round(len / AO_CELL)));
+const AO_STEP = 1.25;      // the coarse spacing between the raked ends of a face
 
 class Builder {
   constructor() {
@@ -234,14 +344,14 @@ class Builder {
   box(mat, x0, y0, z0, x1, y1, z1) {
     const w = Math.abs(x1 - x0), h = Math.abs(y1 - y0), d = Math.abs(z1 - z0);
     if (w < 1e-4 || h < 1e-4 || d < 1e-4) return;
-    const g = new BoxGeometry(w, h, d, seg(w), seg(h), seg(d));
+    const g = gradedBox(w, h, d, AO_STEP);
     g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
     this.add(mat, g);
   }
 
   /** Centre + size + Euler rotations, applied X then Z then Y. */
   boxAt(mat, c, size, rot = {}) {
-    const g = new BoxGeometry(size[0], size[1], size[2], seg(size[0]), seg(size[1]), seg(size[2]));
+    const g = gradedBox(size[0], size[1], size[2], AO_STEP);
     if (rot.rx) g.rotateX(rot.rx);
     if (rot.rz) g.rotateZ(rot.rz);
     if (rot.ry) g.rotateY(rot.ry);
@@ -254,7 +364,7 @@ class Builder {
     const dy = y1 - y0, dz = z1 - z0;
     const len = Math.hypot(dy, dz);
     if (len < 1e-4) return;
-    const g = new BoxGeometry(w, t, len, 1, 1, seg(len));
+    const g = gradedBox(w, t, len, AO_STEP);
     g.rotateX(Math.atan2(-dy, dz));
     g.translate(cx, (y0 + y1) / 2, (z0 + z1) / 2);
     this.add(mat, g);
@@ -265,14 +375,14 @@ class Builder {
     const dx = x1 - x0, dy = y1 - y0;
     const len = Math.hypot(dx, dy);
     if (len < 1e-4) return;
-    const g = new BoxGeometry(len, t, w, seg(len), 1, 1);
+    const g = gradedBox(len, t, w, AO_STEP);
     g.rotateZ(Math.atan2(dy, dx));
     g.translate((x0 + x1) / 2, (y0 + y1) / 2, cz);
     this.add(mat, g);
   }
 
   cyl(mat, cx, cy, cz, r, h, segs = 12) {
-    const g = new CylinderGeometry(r, r, h, segs, seg(h));
+    const g = new CylinderGeometry(r, r, h, segs, Math.max(1, Math.min(12, Math.round(h / 0.7))));
     g.translate(cx, cy, cz);
     this.add(mat, g);
   }
@@ -291,7 +401,11 @@ class Builder {
    * go muddy where it should be reflecting sky).
    */
   build(parent, opts = {}) {
-    const occ = new Occupancy(this.bounds.min, this.bounds.max, AO_CELL * 0.55);
+    // 0.10 m, not 0.25. The grid has to resolve a 300 mm wall and a 60 mm
+    // projection or the AO march reads its own surface as an occluder, which is
+    // what put mould on the brick. Over this building's ~20 x 13 x 15 m envelope
+    // that is 3.9 M cells = 3.9 MB of Uint8, built once at load.
+    const occ = new Occupancy(this.bounds.min, this.bounds.max, 0.10);
     occ.groundY = 0.0;
     for (const bb of this.boxes) occ.addBox(bb);
 
@@ -401,7 +515,9 @@ export function buildBadBuilding() {
   b.box('lobby-glow', d.u0 - 0.4, ffl, z1 - d.reveal - 1.60, d.u1 + 0.4, ffl + 2.90, z1 - d.reveal - 1.54);
   b.box('paving', d.u0 - 0.4, ffl - 0.03, z1 - d.reveal - 1.60, d.u1 + 0.4, ffl, z1 - d.reveal);
 
-  // crime 12 — 5.4 x 9.0 m of unshaded south glazing, and not one shading device
+  // crime 12 — 5.40 x 9.30 m = 50.22 m² of unshaded south glazing, and not one
+  // shading device. The tag quotes 50.2; round 2's quoted 48.6, which is
+  // 5.4 x 9.0, which is a storey height somebody remembered rather than measured.
   b.box('glass', cw.u0, ffl, z1 - 0.11, cw.u1, roof, z1 - 0.05);
   b.box('metal', cw.u0, ffl - 0.10, z1 - 0.15, cw.u0 + 0.12, roof, z1);
   b.box('metal', cw.u1 - 0.12, ffl - 0.10, z1 - 0.15, cw.u1, roof, z1);
@@ -429,26 +545,35 @@ export function buildBadBuilding() {
   // ================= EAST ELEVATION (x = x1) ===============================
   // W(v0, v1, u0, u1): v is height, u is z. See the bay schedule at the top.
   const W = (v0, v1, u0, u1) => ({ u0, u1, v0, v1 });
+  //
+  // THE SECOND-FLOOR SCHEDULE IS WHERE TWO CRIMES ARE WON OR LOST, and round 2
+  // lost both. It had a window in every bay, so (a) the balcony of crime 6 was
+  // hung over glass and its tag lied, and (b) the escape stair of crime 2 died
+  // against a wall that had windows either side of it and read as ordinary.
+  // Second-floor glazing now exists in exactly two bays, B1 and B4, which flank
+  // the balcony bay; everything from the stair to the balcony is unbroken brick.
+  // Blankness is only legible next to something that is not blank.
+  //
   const HOLE = {
-    // north end, read through the escape stair — depth, not crimes
+    // north end, read through the escape stair. NO second-floor opening here:
+    // this is the wall the stair arrives at, and it has to be seen to be blank.
     gN:  W(1.50, 2.70, -4.2, -3.0),
-    sN:  W(8.10, 9.30, -4.2, -3.0),
     // B1
     g1:  W(1.50, 2.70, -1.5, -0.3),
-    f1:  W(5.10, 6.30, -1.5, -0.3),     // crime 8, head 6.30
-    s1:  W(8.10, 9.05, -1.5, -0.3),
+    f1:  W(5.10, HEADS.b1, -1.5, -0.3),   // crime 8, head 6.30
+    s1:  W(8.10, 9.30, -1.5, -0.3),       // flanks the balcony bay to the north
     // B2 — D-04, crime 1. 900 x 2050 leaf, threshold on the first-floor slab.
     d04: W(L1, L1 + 2.05, 0.0, 0.9),
-    // B3
+    // B3 — the balcony bay. Ground and first floor only; second floor is brick.
     g3:  W(1.80, 2.85, 1.2, 2.4),
-    f3:  W(5.10, 6.55, 1.2, 2.4),       // crime 8, head 6.55 — 250 mm off f1
-    s3:  W(8.10, 9.30, 1.2, 2.4),
+    f3:  W(5.10, HEADS.b3, 1.2, 2.4),     // crime 8, head 6.55 — 250 mm off f1
     // B4 — W-07, crime 9. Head 7.05 against a slab soffit at 6.90.
     g4:  W(1.50, 2.70, 2.7, 3.6),
-    f4:  W(5.10, 7.05, 2.7, 3.6),
+    f4:  W(5.10, HEADS.w07, 2.7, 3.6),
+    s4:  W(8.10, 9.30, 2.7, 3.6),         // flanks the balcony bay to the south
     // B5 — the two windows RWP-2 runs down the centreline of, at z = 4.35
     g5:  W(1.50, 2.70, 3.9, 4.8),
-    f5:  W(5.10, 6.30, 3.9, 4.8),       // crime 8, head 6.30
+    f5:  W(5.10, HEADS.b5, 3.9, 4.8),     // crime 8, head 6.30
   };
   const eastHoles = Object.values(HOLE);
   for (const p of punch(z0, z1, 0, parapet, eastHoles)) {
@@ -483,13 +608,15 @@ export function buildBadBuilding() {
   b.box('concrete-dark', x1 + 0.02, L1 - 0.26, pd.u0 + 0.02, x1 + 0.92, L1 - 0.20, pd.u1 + 0.02);
   for (const dir of [1, -1]) {
     b.rakeZ('accent', x1 - 0.06, L1 + (dir > 0 ? 0.15 : 1.95), pd.u0 + 0.03,
-      L1 + (dir > 0 ? 1.95 : 0.15), pd.u1 - 0.03, 0.05, 0.09);
+      L1 + (dir > 0 ? 1.95 : 0.15), pd.u1 - 0.03, 0.08, 0.12);
   }
 
   // crime 6 — the balcony with no way onto it. The whole joke is the blank wall
   // BEHIND it, so there is no infill panel: a top rail, a bottom rail and seven
-  // 40 mm balusters, and you look straight through at unbroken brickwork.
-  const bal = { u0: 0.0, u1: 2.4, out: 1.20 };
+  // 40 mm balusters, and you look straight through at unbroken brickwork. The
+  // bays either side (HOLE.s1 and HOLE.s4) are glazed so that the blankness has
+  // something to be blank against.
+  const bal = BALCONY;
   b.box('concrete', x1, L2 - 0.15, bal.u0, x1 + bal.out, L2, bal.u1);
   b.box('concrete-dark', x1 + 0.02, L2 - 0.21, bal.u0 + 0.02, x1 + bal.out + 0.02, L2 - 0.15, bal.u1 + 0.02);
   for (const [a, c] of [[bal.u0, bal.u0 + 0.06], [bal.u1 - 0.06, bal.u1]]) {   // returns
@@ -532,8 +659,12 @@ export function buildBadBuilding() {
   b.box('concrete', x0, roof, z1 - 0.25, sc.u0, parapet, z1);
   b.box('concrete', sc.u1, roof, z1 - 0.25, x1, parapet, z1);
 
-  // crime 10 — a chimney with no flue on a flat-roofed office
-  b.box('brick', 4.55, roof, -4.05, 6.05, roof + 2.10, -3.15);
+  // crime 10 — a chimney with no flue on a flat-roofed office. It is built in
+  // 'brick-stack', the warm red the whole elevation used to be before round 2
+  // regraded the building to a grey-buff engineering brick; that one change is
+  // what turns this from "a chimney on an old building" into "somebody else's
+  // chimney on a new one", which is the crime.
+  b.box('brick-stack', 4.55, roof, -4.05, 6.05, roof + 2.10, -3.15);
   b.box('concrete', 4.40, roof + 2.10, -4.20, 6.20, roof + 2.24, -3.00);
 
   // crime 11 — 138 m² of roof, one 300 mm scupper, straight over the front door.
@@ -551,18 +682,36 @@ export function buildBadBuilding() {
   b.box('concrete-dark', -0.96, 0, z1, -0.90, ffl, z1 + 1.96);
   b.box('concrete-dark', -0.96, 0, z1 + 1.90, 1.41, ffl, z1 + 1.96);
 
-  // crime 3 — 600 mm rise over 1 800 mm going
+  // crime 3 — 600 mm rise over 1 800 mm going.
+  //
+  // The gradient is the joke and the gradient has to be SEEN, which round 2's it
+  // was not: a pale concrete wedge lying on pale paving, foreshortened, read as
+  // "steps and cones". It is finished in dark bonded anti-slip now (a real thing
+  // to do to a ramp, and the only reason it is here) and the void under the deck
+  // is closed with cheeks that stop flush with the surface — so it is a solid
+  // dark triangle against light paving, and 1:3 is a shape rather than a claim.
+  // The cheeks stop AT the surface deliberately: an upstand would be a kerb, and
+  // the tag says there is no kerb.
   const rTop = 1.35, rBot = 3.15, rz = z1 + 1.05;
   const rSlope = Math.atan2(-ffl, rBot - rTop);
   const rLen = Math.hypot(rBot - rTop, ffl);
-  b.boxAt('concrete', [(rTop + rBot) / 2, ffl / 2 - 0.09, rz], [rLen + 0.26, 0.18, 1.55], { rz: rSlope });
-  // crime 4 — and its handrail is at 400 mm
+  b.boxAt('asphalt', [(rTop + rBot) / 2, ffl / 2 - 0.045, rz], [rLen + 0.26, 0.09, 1.55], { rz: rSlope });
+  for (const off of [-0.775, 0.775]) {
+    for (let i = 0; i < 6; i++) {
+      const t0 = i / 6, t1 = (i + 1) / 6;
+      const x0 = rTop + (rBot - rTop) * t0, x1c = rTop + (rBot - rTop) * t1;
+      const yTop = ffl * (1 - t1) + 0.02;
+      b.box('concrete-dark', x0, 0, rz + off - 0.03, x1c, yTop, rz + off + 0.03);
+    }
+  }
+  // crime 4 — and its handrail is at 400 mm. Pale galvanised steel over the dark
+  // deck, so the one dimension that is wrong is the one thing you can see.
   for (const off of [-0.74, 0.74]) {
-    b.rakeX('metal', rz + off, rTop - 0.1, ffl + 0.40, rBot + 0.1, 0.40, 0.05, 0.05);
+    b.rakeX('metal', rz + off, rTop - 0.1, ffl + 0.40, rBot + 0.1, 0.40, 0.06, 0.06);
     for (const t of [0.05, 0.5, 0.95]) {
       const px = rTop + (rBot - rTop) * t;
       const py = ffl * (1 - t);
-      b.box('metal', px - 0.025, py - 0.05, rz + off - 0.025, px + 0.025, py + 0.40, rz + off + 0.025);
+      b.box('metal', px - 0.03, py - 0.05, rz + off - 0.03, px + 0.03, py + 0.40, rz + off + 0.03);
     }
   }
   // four 150 mm risers on the other side of the door, which are fine
@@ -645,8 +794,15 @@ function buildEscapeStair(b) {
     return zEnd;
   };
 
-  // a landing, with 1 100 mm guarding to every edge that is not the building
-  const landing = (y, za, zb) => {
+  // A landing, with 1 100 mm guarding to every edge that is not the building.
+  //
+  // `sealed` closes the FOURTH side — the one against the wall — and only the top
+  // landing gets it. That single rail is what makes crime 2 a silhouette instead
+  // of a caption: a fire escape whose last landing is fenced on all four sides,
+  // against three hundred millimetres of blank brick, is legible at 27 m in a way
+  // that "there is no door here" never was. It is also exactly what gets built
+  // when the stair is coordinated and the door is not.
+  const landing = (y, za, zb, sealed = false) => {
     const x0 = xIn;
     b.box('metal', x0, y - 0.06, Math.min(za, zb), xOut, y, Math.max(za, zb));
     const a = Math.min(za, zb), c = Math.max(za, zb);
@@ -655,6 +811,7 @@ function buildEscapeStair(b) {
       [x0, a, xOut, a + 0.05],                         // north edge
       [x0, c - 0.05, xOut, c],                         // south edge
     ];
+    if (sealed) rails.push([x0, a, x0 + 0.05, c]);     // and the way in
     for (const [ax, az, cx, cz] of rails) {
       b.box('metal', ax, y + S.guardLanding - 0.05, az, cx, y + S.guardLanding, cz);
       b.box('metal', ax, y + S.guardLanding * 0.5, az, cx, y + S.guardLanding * 0.5 + 0.03, cz);
@@ -686,7 +843,7 @@ function buildEscapeStair(b) {
   const zTop3 = flight(A, 10, B.lvl[1], zTop2 - 1.20, 1); // -> 5.70 at z -2.30
   landing(5.70, zTop3, zTop3 + 1.20);           // half landing -2.30 .. -1.10
   const zTop4 = flight(Bx, 10, 5.70, zTop3 + 1.20, -1);   // -> 7.20 at z -3.80
-  landing(B.lvl[2], zTop4, zTop4 - 1.20); // second floor, at the blank wall
+  landing(B.lvl[2], zTop4, zTop4 - 1.20, true); // second floor, at the blank wall
 
   // two columns carrying the outer stringers
   for (const zz of [zFoot + 0.9, -1.4]) {

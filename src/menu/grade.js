@@ -18,8 +18,31 @@
 //    vertex-colour attribute once, at load, against a voxel occupancy grid built
 //    from the very boxes the building is made of. It costs one attribute and
 //    nothing per frame.
+//
+//    ROUND 2 REBUILT ALL OF IT, because round 2's critic measured the result and
+//    it failed: 3.2 luma over 20 px at the sign wall / parapet junction against a
+//    required 12, one dark pixel and then flat under the colonnade beam, and
+//    nothing at all above the plinth — while the same bake put mould-like
+//    blotches on the brick and cut the underside of every concrete band into a
+//    row of teeth. Three separate causes, all fixed here:
+//
+//      a. VERTICES IN THE WRONG PLACES. A uniform 0.45 m grid puts the nearest
+//         vertex ring up to 225 mm from a soffit, so the dark sample is averaged
+//         away across the quad before it ever reaches the corner. gradedBox()
+//         below rakes the subdivision instead: rings at 50, 120, 240, 450 and
+//         800 mm from every edge, coarse in the middle. Same triangle budget,
+//         the resolution moved to where occlusion actually varies.
+//      b. THE SURFACE OCCLUDING ITSELF. The march started 20 mm off the face,
+//         which at a 0.25 m voxel is still inside the face's own cell, so a flat
+//         wall randomly reported itself solid. That is the blotching, and the
+//         teeth are the same error sampled on alternate vertices. The ray now
+//         starts a full cell clear of the surface and the grid is 0.10 m.
+//      c. ALL THE SAMPLES IN THE FAR FIELD. Six linear steps out to 1.5 m put the
+//         first sample at 200 mm and only two inside half a metre. Spacing is
+//         geometric now, so half the samples land in the first 300 mm, which is
+//         the band the checklist measures.
 
-import { Box3, Vector3, BufferAttribute, MeshStandardMaterial, Color } from 'three';
+import { Box3, Vector3, BufferAttribute, BufferGeometry, MeshStandardMaterial, Color } from 'three';
 import { materialFor } from '../core/palette.js';
 
 // ---------------------------------------------------------------------------
@@ -55,7 +78,15 @@ export function desat(hex, s, v = 1) {
 const GRADE = {
   'metal':         { sat: 0.10, val: 1.24, metalness: 0.20, roughness: 0.52 },
   'metal-warm':    { sat: 0.30, val: 1.10, metalness: 0.26, roughness: 0.46 },
-  'brick':         { sat: 0.36, val: 1.02 },
+  // BRICK, round 2. It was at 0.36 saturation, which is a Victorian red, and the
+  // critic's reading of the frame was "a converted Victorian brick block". That
+  // costs us crime 10 outright: a chimney is only a joke on a building that is
+  // obviously NEW, and it was reading as the one honest thing on an old one. A
+  // grey-buff engineering brick reads as 2010s commercial, keeps the elevation a
+  // different mass from the warm render bay, and takes the largest saturated
+  // area in the frame down with it (checklist item 10). The chimney keeps the
+  // old red — see 'brick-stack' in SYNTH, which is where the joke went.
+  'brick':         { sat: 0.16, val: 1.10 },
   'brick-pale':    { sat: 0.28, val: 1.00 },
   'grass':         { sat: 0.22, val: 0.98 },
   'wood-mid':      { sat: 0.34, val: 1.00 },
@@ -85,6 +116,11 @@ export function gradeTint(hex, kind = 'green') {
  */
 const SYNTH = {
   'lobby-glow': { color: 0xf0e2cc, emissive: 0xffc98a, emissiveIntensity: 0.55, roughness: 0.95 },
+  // The chimney, and only the chimney. It is the old warm red the whole building
+  // used to be, so on the grey-buff elevation it reads as a piece of somebody
+  // else's building left standing on this one's roof — which is crime 10 told by
+  // the model instead of by its tag.
+  'brick-stack': { color: desat(0xa9573f, 0.44, 0.96), emissive: 0x000000, emissiveIntensity: 0, roughness: 0.9 },
 };
 
 const _mats = new Map();
@@ -178,16 +214,26 @@ export class Occupancy {
   }
 }
 
-// 13 directions on the unit sphere: the 6 axes plus the 8 corners, normalised.
-// Cheap, deterministic, and enough for a low-poly scene where every junction is
-// a right angle.
+/**
+ * 25 directions: the 6 axes, the 8 corners and the 12 edge midpoints, all
+ * normalised. Thirteen was too few — with only three usable directions per
+ * hemisphere face the estimate quantises into visible steps along a wall, which
+ * is the second half of the blotching. Deterministic, and still nothing per frame.
+ */
 const DIRS = (() => {
-  const d = [
-    [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
-  ];
-  const k = 1 / Math.sqrt(3);
-  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) d.push([sx * k, sy * k, sz * k]);
-  return d;
+  const d = [];
+  const k2 = 1 / Math.sqrt(2), k3 = 1 / Math.sqrt(3);
+  for (const a of [-1, 0, 1]) {
+    for (const b of [-1, 0, 1]) {
+      for (const c of [-1, 0, 1]) {
+        const n = Math.abs(a) + Math.abs(b) + Math.abs(c);
+        if (n === 0) continue;
+        const k = n === 1 ? 1 : n === 2 ? k2 : k3;
+        d.push([a * k, b * k, c * k]);
+      }
+    }
+  }
+  return d;    // 26 axes/edges/corners
 })();
 
 /**
@@ -199,45 +245,174 @@ const DIRS = (() => {
  * it meets the floor, the ground darkens where it meets the plinth, and a
  * balcony soffit darkens under the slab — which is checklist items 5 and 6.
  *
+ * Sample spacing is GEOMETRIC, not linear: with a 0.10 m grid and a 1.6 m reach
+ * that puts samples at 100, 152, 231, 351, 533, 810, 1231 and 1600 mm, so four of
+ * the eight land inside the 350 mm the checklist actually measures. Linear
+ * spacing spent five of six samples past half a metre, where nothing is.
+ *
  * Returns the mean AO, so the caller can log a number rather than a hope.
  */
 export function bakeVertexAO(geometry, occ, opts = {}) {
-  const strength = opts.strength ?? 0.72;
-  const floor = opts.floor ?? 0.38;
-  const steps = opts.steps ?? 6;
-  const reach = opts.reach ?? 1.5;
+  const strength = opts.strength ?? 0.78;
+  const floor = opts.floor ?? 0.34;
+  const steps = opts.steps ?? 8;
+  const reach = opts.reach ?? 1.6;
   const pos = geometry.getAttribute('position');
   const nor = geometry.getAttribute('normal');
   if (!pos || !nor) return 1;
   const n = pos.count;
   const col = new Float32Array(n * 3);
-  const start = occ.cell * 0.8;
-  const dt = (reach - start) / (steps - 1);
+  // Start a whole cell clear of the surface. At 0.02 m the sample was still
+  // inside the vertex's own voxel and every flat wall occluded itself in
+  // patches — the mould the critic measured on the brick.
+  const start = occ.cell * 1.05;
+  const ratio = Math.pow(reach / start, 1 / (steps - 1));
+  const ts = [];
+  for (let s = 0, t = start; s < steps; s++, t *= ratio) ts.push(t);
+  const lift = occ.cell * 1.05;
   let sum = 0;
   for (let v = 0; v < n; v++) {
-    const px = pos.getX(v), py = pos.getY(v), pz = pos.getZ(v);
+    const px = pos.getX(v) + nor.getX(v) * lift;
+    const py = pos.getY(v) + nor.getY(v) * lift;
+    const pz = pos.getZ(v) + nor.getZ(v) * lift;
     const nx = nor.getX(v), ny = nor.getY(v), nz = nor.getZ(v);
     let occl = 0, wsum = 0;
     for (let d = 0; d < DIRS.length; d++) {
-      const [dx, dy, dz] = DIRS[d];
-      const w = nx * dx + ny * dy + nz * dz;
+      const dir = DIRS[d];
+      const w = nx * dir[0] + ny * dir[1] + nz * dir[2];
       if (w <= 0.08) continue;
       wsum += w;
       // walk outward; the first hit closes the ray, near hits count for more
       for (let s = 0; s < steps; s++) {
-        const t = start + s * dt;
-        if (occ.solid(px + dx * t + nx * 0.02, py + dy * t + ny * 0.02, pz + dz * t + nz * 0.02)) {
+        const t = ts[s];
+        if (occ.solid(px + dir[0] * t, py + dir[1] * t, pz + dir[2] * t)) {
           occl += w * (1 - t / reach);
           break;
         }
       }
     }
     const ao = wsum > 0 ? Math.max(floor, 1 - strength * (occl / wsum)) : 1;
-    sum += ao;
     col[v * 3] = ao; col[v * 3 + 1] = ao; col[v * 3 + 2] = ao;
   }
+  // One relaxation pass over the index graph. It only ever averages vertices
+  // that share a triangle, and a merged box's faces do not share vertices, so
+  // this smooths ALONG a face — killing the last of the voxel stair-stepping —
+  // without bleeding light around a corner and softening the band itself.
+  smoothAlongFaces(geometry, col);
+  for (let v = 0; v < n; v++) sum += col[v * 3];
   geometry.setAttribute('color', new BufferAttribute(col, 3));
   return sum / n;
+}
+
+function smoothAlongFaces(geometry, col, keep = 0.55) {
+  const index = geometry.getIndex();
+  if (!index) return;
+  const n = col.length / 3;
+  const acc = new Float32Array(n);
+  const cnt = new Uint16Array(n);
+  const ix = index.array;
+  for (let i = 0; i < ix.length; i += 3) {
+    const a = ix[i], b = ix[i + 1], c = ix[i + 2];
+    acc[a] += col[b * 3] + col[c * 3]; cnt[a] += 2;
+    acc[b] += col[a * 3] + col[c * 3]; cnt[b] += 2;
+    acc[c] += col[a * 3] + col[b * 3]; cnt[c] += 2;
+  }
+  for (let v = 0; v < n; v++) {
+    if (!cnt[v]) continue;
+    const s = keep * col[v * 3] + (1 - keep) * (acc[v] / cnt[v]);
+    col[v * 3] = s; col[v * 3 + 1] = s; col[v * 3 + 2] = s;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// graded tessellation
+//
+// A box or a slab subdivided so that vertices cluster where occlusion changes —
+// against the edges — and thin out across the middle, where it does not. This is
+// the geometric half of the AO fix, and it is why a 14.4 m elevation can hold a
+// 350 mm contact band without being cut into a 32 x 32 grid.
+
+const NEAR = [0.05, 0.12, 0.24, 0.45, 0.80];
+
+/**
+ * Ascending parameter list from 0 to `len`: the NEAR rake in from each end, a
+ * coarse uniform run between them. Never fewer than the two ends.
+ */
+export function rake(len, step = 1.25) {
+  if (!(len > 0)) return [0, 0];
+  if (len <= 0.11) return [0, len];
+  const half = len * 0.5 - 1e-6;
+  const head = NEAR.filter((d) => d < half);
+  const out = [0, ...head];
+  const a = out[out.length - 1];
+  const b = len - a;
+  const nMid = Math.max(1, Math.min(20, Math.round((b - a) / step)));
+  for (let i = 1; i < nMid; i++) out.push(a + (b - a) * (i / nMid));
+  for (let i = head.length - 1; i >= 0; i--) out.push(len - head[i]);
+  out.push(len);
+  return out;
+}
+
+/** One planar grid of an axis-aligned face, appended to the running buffers. */
+function pushFace(buf, as, bs, o, u, v, nrm) {
+  const base = buf.pos.length / 3;
+  const na = as.length, nb = bs.length;
+  const la = as[na - 1] || 1, lb = bs[nb - 1] || 1;
+  for (let j = 0; j < nb; j++) {
+    for (let i = 0; i < na; i++) {
+      const s = as[i], t = bs[j];
+      buf.pos.push(o[0] + u[0] * s + v[0] * t, o[1] + u[1] * s + v[1] * t, o[2] + u[2] * s + v[2] * t);
+      buf.nor.push(nrm[0], nrm[1], nrm[2]);
+      buf.uv.push(s / la, t / lb);
+    }
+  }
+  // u x v tells us which way this grid winds; flip when it faces inward
+  const cx = u[1] * v[2] - u[2] * v[1];
+  const cy = u[2] * v[0] - u[0] * v[2];
+  const cz = u[0] * v[1] - u[1] * v[0];
+  const rev = (cx * nrm[0] + cy * nrm[1] + cz * nrm[2]) < 0;
+  for (let j = 0; j < nb - 1; j++) {
+    for (let i = 0; i < na - 1; i++) {
+      const a = base + j * na + i, b = a + 1, c = a + na, e = c + 1;
+      if (rev) buf.idx.push(a, c, b, b, c, e);
+      else buf.idx.push(a, b, c, b, e, c);
+    }
+  }
+}
+
+/**
+ * A box centred on the origin, like BoxGeometry, but raked. Indexed, with
+ * position / normal / uv, so it merges with everything else in the scene.
+ */
+export function gradedBox(w, h, d, step = 1.25) {
+  const xs = rake(w, step), ys = rake(h, step), zs = rake(d, step);
+  const hw = w / 2, hh = h / 2, hd = d / 2;
+  const buf = { pos: [], nor: [], uv: [], idx: [] };
+  const X = [1, 0, 0], Y = [0, 1, 0], Z = [0, 0, 1];
+  pushFace(buf, zs, ys, [hw, -hh, -hd], Z, Y, [1, 0, 0]);
+  pushFace(buf, zs, ys, [-hw, -hh, -hd], Z, Y, [-1, 0, 0]);
+  pushFace(buf, xs, zs, [-hw, hh, -hd], X, Z, [0, 1, 0]);
+  pushFace(buf, xs, zs, [-hw, -hh, -hd], X, Z, [0, -1, 0]);
+  pushFace(buf, xs, ys, [-hw, -hh, hd], X, Y, [0, 0, 1]);
+  pushFace(buf, xs, ys, [-hw, -hh, -hd], X, Y, [0, 0, -1]);
+  return finish(buf);
+}
+
+/** A horizontal, upward-facing slab of ground, raked toward its own edges. */
+export function gradedSlab(w, d, step = 1.25) {
+  const xs = rake(w, step), zs = rake(d, step);
+  const buf = { pos: [], nor: [], uv: [], idx: [] };
+  pushFace(buf, xs, zs, [-w / 2, 0, -d / 2], [1, 0, 0], [0, 0, 1], [0, 1, 0]);
+  return finish(buf);
+}
+
+function finish(buf) {
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(buf.pos), 3));
+  g.setAttribute('normal', new BufferAttribute(new Float32Array(buf.nor), 3));
+  g.setAttribute('uv', new BufferAttribute(new Float32Array(buf.uv), 2));
+  g.setIndex(buf.idx);
+  return g;
 }
 
 /** Convenience: the AABB of a geometry, in the geometry's own (already baked) space. */

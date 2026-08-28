@@ -453,7 +453,7 @@ export class WindowManager {
   }
 
   /** Modal dialog helper used by every app. */
-  dialog({ title, message, icon = 'info', buttons = ['&OK'], onResult = null, w = 320, h = 130 }) {
+  dialog({ title, message, icon = 'info', buttons = ['OK'], onResult = null, w = 320, h = 130 }) {
     const th = this.theme;
     const x = (th.w - w) >> 1, y = (th.h - h) >> 1;
     const self = this;

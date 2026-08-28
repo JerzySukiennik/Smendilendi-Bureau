@@ -182,20 +182,70 @@ class OpeningTool extends Tool {
     else if (v.kind === 'pair') { width = v.a; height = v.b; }
     else return false;
 
-    if (this.last) {
-      this.apply({
-        t: 'opening.resize', id: this.last.id,
-        width: width ? r(width) : undefined,
-        height: height ? r(height) : undefined,
-      });
-      this.flash(`Resized to ${width ? Math.round(width * 1000) : '—'}${height ? ` × ${Math.round(height * 1000)}` : ''} mm`);
-      return true;
+    if (this.last) return this._resize(width, height);
+    if (width != null) {
+      const max = this._maxWidthHere();
+      if (max != null && width > max + 1e-9) {
+        return this.refuse(`Too wide — that wall is only ${Math.round((max + MIN_PIER * 2) * 1000)} mm`);
+      }
+      this._widthOverride = width;
     }
-    if (width) this._widthOverride = width;
-    if (height) this._heightOverride = height;
+    if (height != null) this._heightOverride = height;
     this.flash(`Next ${this.kind}: ${Math.round((this._widthOverride ?? this.spec.width) * 1000)}`
       + ` × ${Math.round((this._heightOverride ?? this.spec.height) * 1000)} mm`);
     return true;
+  }
+
+  /**
+   * Resize the opening just cut — and REFUSE a size the wall cannot hold.
+   *
+   * A 5000 mm door typed into a 4000 mm wall used to be accepted in silence: the
+   * mesh still built, so the model looked plausible while being nonsense, and the
+   * analysis engine then went and measured it. The end-of-wall case was already
+   * guarded on the clicked path; this is the same guard on the typed one, and it
+   * says the number the player needs rather than just refusing.
+   */
+  _resize(width, height) {
+    const o = this.model.openings[this.last.id];
+    const w = o ? this.model.walls[o.wallId] : null;
+    if (!o || !w) { this.last = null; return this.refuse('That opening is gone'); }
+    const len = wallLength(this.model, w);
+    const maxW = len - MIN_PIER * 2;
+    const maxH = this.ed.storeyHeight - (o.sill || 0) - 0.05;
+
+    if (width != null) {
+      if (width < 0.2) return this.refuse('Too narrow — an opening starts at 200 mm');
+      if (width > maxW + 1e-9) {
+        return this.refuse(`Too wide — the wall is ${Math.round(len * 1000)} mm,`
+          + ` the widest that fits is ${Math.round(maxW * 1000)} mm`);
+      }
+    }
+    if (height != null && height > maxH + 1e-9) {
+      return this.refuse(`Too tall — the head would be above the ceiling;`
+        + ` ${Math.round(maxH * 1000)} mm is the most`);
+    }
+
+    // The width may no longer fit where the opening sits: slide it back inside
+    // the wall rather than letting it hang over the end.
+    const nextW = width ?? o.width;
+    const offset = clamp(o.offset, nextW / 2 + MIN_PIER, len - nextW / 2 - MIN_PIER);
+    const ops = [{
+      t: 'opening.resize', id: this.last.id,
+      width: width != null ? r(width) : undefined,
+      height: height != null ? r(height) : undefined,
+    }];
+    if (Math.abs(offset - o.offset) > 1e-6) ops.push({ t: 'opening.move', id: this.last.id, offset: r(offset) });
+    this.ed.applyMany(ops);
+    this.flash(`Resized to ${width != null ? Math.round(width * 1000) : '—'}`
+      + `${height != null ? ` × ${Math.round(height * 1000)}` : ''} mm`);
+    return true;
+  }
+
+  /** The widest opening the wall under the cursor could take, or null. */
+  _maxWidthHere() {
+    const w = this.pending?.wall;
+    if (!w) return null;
+    return wallLength(this.model, w) - MIN_PIER * 2;
   }
 
 
@@ -257,4 +307,10 @@ export class WindowTool extends OpeningTool {
 
 const r = (v) => (v == null ? v : Math.round(v * 1000) / 1000);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+function wallLength(model, w) {
+  const a = model.nodes[w.a], b = model.nodes[w.b];
+  if (!a || !b) return 0;
+  return Math.hypot(b.x - a.x, b.z - a.z);
+}
 export { tryEntry };

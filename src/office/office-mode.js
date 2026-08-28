@@ -48,6 +48,11 @@ export class OfficeMode extends Mode {
     super.enter(params);
     const { audio, input } = this.ctx;
     audio?.loop('amb.office-room-tone');
+    // 17 Ambition Road is a street, and the office's long elevation is glass (the
+    // window bay with the blinds, office.js). The traffic bed sits under the room
+    // tone at roughly half its level — see assets/audio/manifest.json, which is
+    // the only place either number is written down.
+    audio?.loop('amb.street-outside');
     // Both office tracks were levelled by hand in the sign-off, but only the
     // first one had a call site. The playlist alternates them, so the second is
     // heard at the level it was approved at instead of never at all.
@@ -88,6 +93,7 @@ export class OfficeMode extends Mode {
   exit() {
     super.exit();
     this.ctx.audio?.stopLoop('amb.office-room-tone');
+    this.ctx.audio?.stopLoop('amb.street-outside');
     this.ctx.input?.exitLock();
     this.office?.hudEl?.classList.add('hidden');
     if (this._onCanvasClick) {

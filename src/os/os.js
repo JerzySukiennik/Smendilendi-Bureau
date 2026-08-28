@@ -28,6 +28,10 @@ import { SettingsApp } from './apps/settings.js';
 
 export { TIERS, grantsFor };
 
+// The office monitor adapter. desks.js probes for exactly this name on
+// src/os/os.js and falls back to a placeholder desktop when it is absent.
+export { createOsSurface } from './surface.js';
+
 const DBL_MS = 380;
 
 export class OS {
@@ -61,6 +65,7 @@ export class OS {
     this.pressed = null;
     this.focused = false;
     this.dirty = true;
+    this.frame = 0;
     this.time = 0;
     this.phase = 'boot';           // 'boot' | 'desktop' | 'off'
     this.bootT = 0;
@@ -120,7 +125,9 @@ export class OS {
     const a = this.audio;
     if (!a?.load) return;
     const names = ['ui.click', 'ui.click-soft', 'ui.window-open', 'ui.window-close',
-      'ui.error', 'ui.mail-notify', 'sfx.mouse-click', ...TIERS.map((t) => t.sound)];
+      'ui.error', 'ui.mail-notify', 'sfx.mouse-click',
+      'sfx.keyboard-type-1', 'sfx.keyboard-type-2', 'sfx.keyboard-type-3', 'sfx.keyboard-type-4',
+      ...TIERS.map((t) => t.sound)];
     Promise.resolve(a.manifest ? null : a.loadManifest?.())
       .then(() => { for (const n of names) { a.buffers?.delete(n); a.load(n); } })
       .catch(() => {});
@@ -343,12 +350,12 @@ export class OS {
     const apps = [...this.apps.values()].filter((a) => a.desktop !== false);
     const items = [
       { label: '&Programs', icon: 'folder', submenu: apps.map((a) => ({ label: a.title, icon: a.icon, action: () => this.openApp(a.id) })) },
-      { label: '&Documents', icon: 'doc', submenu: [
+      { label: '&Documents', icon: 'docs', submenu: [
         { label: 'Brief.txt', icon: 'doc', action: () => this.openApp('mail') },
         { label: 'Cost sheet', icon: 'cost', action: () => this.openApp('cost') },
       ] },
       { label: '&Settings', icon: 'settings', action: () => this.openApp('settings') },
-      { label: '&Find', icon: 'doc', action: () => this.wm.dialog({ title: 'Find', message: 'Nothing here is lost.\nThe office is only three rooms.', icon: 'info' }) },
+      { label: '&Find', icon: 'find', action: () => this.wm.dialog({ title: 'Find', message: 'Nothing here is lost.\nThe office is only three rooms.', icon: 'info' }) },
       { label: '&Help', icon: 'info', action: () => this.help() },
       { sep: true },
       { label: 'S&hut Down...', icon: 'computer', action: () => this.shutdownDialog() },
@@ -418,6 +425,9 @@ export class OS {
   // --- painting ------------------------------------------------------------
 
   paint() {
+    // Repaint counter. The office monitor uploads its texture to the GPU only
+    // on frames where this actually moved — see src/os/surface.js.
+    this.frame++;
     const g = this.g;
     g.imageSmoothingEnabled = false;
     const th = this.theme;
@@ -609,7 +619,21 @@ export class OS {
   key(ev) {
     if (this.phase === 'boot') { this.bootT = BOOT[this.tier].duration; return true; }
     if (this.startOpen && ev.key === 'Escape') { this.startOpen = false; this.invalidate(); return true; }
-    return this.wm.key(ev);
+    const handled = this.wm.key(ev);
+    // You are sitting at a desk in front of a keyboard, so the keyboard makes a
+    // noise. Only when the keystroke went somewhere (an app consumed it) and only
+    // for the keys that actually move text — arrowing around a file list is not
+    // typing. Four samples, picked at random, each one a little quieter than the
+    // last press so a sentence does not come out as a machine gun.
+    if (handled && (ev.char || ev.key === 'Backspace' || ev.key === 'Enter')) this.typeSound();
+    return handled;
+  }
+
+  /** One keystroke. `dynamic` may only attenuate, so this is never louder than
+   *  the level assets/audio/manifest.json declares for the sample. */
+  typeSound() {
+    const n = 1 + Math.floor(Math.random() * 4);
+    this.play(`sfx.keyboard-type-${n}`, { dynamic: 0.75 + Math.random() * 0.25, rate: 0.96 + Math.random() * 0.08 });
   }
 
   toggleStart() {

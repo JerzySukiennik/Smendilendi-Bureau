@@ -1,0 +1,2122 @@
+{
+ "note": "sha256 per exported GLB, with the measurements taken at the same moment. `approved` is set by hand when a model has been signed off, and pins that approval to THIS hash. Rewrite with `node tools/blender/verify.mjs --manifest`.",
+ "written": "2026-08-28",
+ "models": {
+  "chair-dining": {
+   "sha256": "26433302b9fed084b9ff942ecddb1cb6c9cd264f99c6ea61b9ddc34f84ad96e4",
+   "bbox": [
+    0.45,
+    0.86,
+    0.52
+   ],
+   "tris": 484,
+   "parts": 11,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "tint"
+   ],
+   "approved": null
+  },
+  "chair-stacking": {
+   "sha256": "a1bcd23daf4cd4be0d3041f184a31f7456138b5c3dcaa1ff9f4ebb333b4ce8b9",
+   "bbox": [
+    0.44,
+    0.8,
+    0.5
+   ],
+   "tris": 308,
+   "parts": 7,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "tint"
+   ],
+   "approved": null
+  },
+  "chair-task": {
+   "sha256": "c843d3427b7eb7ab5f8bf5ec8f9a39f65d59d4583fe53e61475bbde940277046",
+   "bbox": [
+    0.65,
+    1.1,
+    0.65
+   ],
+   "tris": 1320,
+   "parts": 30,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "rubber",
+    "chrome",
+    "tint"
+   ],
+   "approved": null
+  },
+  "chair-visitor": {
+   "sha256": "c5e6eb99dabaef1b135b052f529b66b9b6b56e02230cdeee33bb56a62fd65550",
+   "bbox": [
+    0.55,
+    0.82,
+    0.58
+   ],
+   "tris": 308,
+   "parts": 7,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "tint"
+   ],
+   "approved": null
+  },
+  "armchair-lounge": {
+   "sha256": "1d4bc2bcd8d662e52e3cc5e66b260887350fb61e456a3fcc347b49dedb313254",
+   "bbox": [
+    0.8,
+    0.78,
+    0.82
+   ],
+   "tris": 632,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "fabric",
+    "tint",
+    "woodDark"
+   ],
+   "approved": null
+  },
+  "sofa-2seat": {
+   "sha256": "2b156a2208ac8e7cbbbb38921685a6880650f7b0416b6991b3711cd3dc6224f3",
+   "bbox": [
+    1.6,
+    0.82,
+    0.9
+   ],
+   "tris": 720,
+   "parts": 12,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "fabric",
+    "tint",
+    "woodDark"
+   ],
+   "approved": null
+  },
+  "sofa-3seat": {
+   "sha256": "d36267a5e5c20976b4c2b83f4e4245c8ee8c540032bc4e1b37de0124dc64b5a5",
+   "bbox": [
+    2.1,
+    0.82,
+    0.92
+   ],
+   "tris": 808,
+   "parts": 14,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "fabric",
+    "tint",
+    "woodDark"
+   ],
+   "approved": null
+  },
+  "sofa-corner": {
+   "sha256": "9deb4d1a5676283741a3e6d2ee6056e0a0bfd17ff22d252cd19d83cba8f921c5",
+   "bbox": [
+    2.6,
+    0.82,
+    1.9
+   ],
+   "tris": 1076,
+   "parts": 18,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "fabric",
+    "tint",
+    "woodDark"
+   ],
+   "approved": null
+  },
+  "stool-bar": {
+   "sha256": "0f191f65c250153107be76146a71f5af9f30b12fc34f68a366afd5c58e0b054b",
+   "bbox": [
+    0.38,
+    0.78,
+    0.38
+   ],
+   "tris": 472,
+   "parts": 7,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "wood",
+    "metal"
+   ],
+   "approved": null
+  },
+  "bench-waiting-3": {
+   "sha256": "60101f3efadcd5d4187a8c0ea08b3ce3231a4b699908a77e87cd20cb3911d542",
+   "bbox": [
+    1.8,
+    0.82,
+    0.6
+   ],
+   "tris": 484,
+   "parts": 11,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "tint"
+   ],
+   "approved": null
+  },
+  "table-dining-4": {
+   "sha256": "d9906ecd6bea579c76af7eee2d02732bd77b58fc07f41cc545d14be4b0c170dc",
+   "bbox": [
+    1.4,
+    0.75,
+    0.8
+   ],
+   "tris": 396,
+   "parts": 9,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "wood"
+   ],
+   "approved": null
+  },
+  "table-dining-6": {
+   "sha256": "bb882867efbdc4a043c51de68ba03f04846517861ae87215c3ce8b863a81493a",
+   "bbox": [
+    1.8,
+    0.75,
+    0.9
+   ],
+   "tris": 396,
+   "parts": 9,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "wood"
+   ],
+   "approved": null
+  },
+  "table-dining-round-4": {
+   "sha256": "e4ba7a2b5c2efdcc21dfe0aa15809162c58f4d66d9b5f841038b4d293c0e6be9",
+   "bbox": [
+    1.2,
+    0.75,
+    1.2
+   ],
+   "tris": 564,
+   "parts": 7,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal"
+   ],
+   "approved": null
+  },
+  "table-cafe-2": {
+   "sha256": "bfb92fb9d7c81e2c17bd4ebf90028611532a8a469fea393a16fb7a7d521f78f8",
+   "bbox": [
+    0.7,
+    0.75,
+    0.7
+   ],
+   "tris": 532,
+   "parts": 7,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal"
+   ],
+   "approved": null
+  },
+  "table-coffee": {
+   "sha256": "a0b33631b58d52407923f8613620339dc68d378042e6ca89c98e20a0ec1813bd",
+   "bbox": [
+    1.1,
+    0.4,
+    0.6
+   ],
+   "tris": 396,
+   "parts": 9,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "wood"
+   ],
+   "approved": null
+  },
+  "table-bar-high": {
+   "sha256": "df40d253d3342918c27fe7cfbcff74a58dcd3ea0118bc9f58799d2856d0162cc",
+   "bbox": [
+    1.2,
+    1.05,
+    0.7
+   ],
+   "tris": 484,
+   "parts": 11,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "wood",
+    "metal"
+   ],
+   "approved": null
+  },
+  "desk-1600": {
+   "sha256": "6df37315a954bfe965ef2ac08b63f9a4b936424a8572b99ea6e47ba7ed4850cc",
+   "bbox": [
+    1.6,
+    0.74,
+    0.8
+   ],
+   "tris": 604,
+   "parts": 14,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal",
+    "rubber",
+    "graphite"
+   ],
+   "approved": null
+  },
+  "desk-corner": {
+   "sha256": "c2204a1ce7ccd17740e5e42ef5fdf67aa74c76155ccfa415bc2ef319ac0cf0cb",
+   "bbox": [
+    1.8,
+    0.74,
+    1.6
+   ],
+   "tris": 836,
+   "parts": 20,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal",
+    "rubber",
+    "graphite"
+   ],
+   "approved": null
+  },
+  "table-meeting-8": {
+   "sha256": "f4b241fa60003f169916bc5fc94a532de1ab4fd7deb796941806b9f5b3102eaa",
+   "bbox": [
+    2.4,
+    0.74,
+    1.2
+   ],
+   "tris": 396,
+   "parts": 9,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "wood"
+   ],
+   "approved": null
+  },
+  "wardrobe-hinged-1000": {
+   "sha256": "7a1f1c9e91b057a900576a5caf09933d9a7ef83cb8a3e15730aa698b620a1d32",
+   "bbox": [
+    1,
+    2.1,
+    0.6
+   ],
+   "tris": 308,
+   "parts": 7,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "metal"
+   ],
+   "approved": null
+  },
+  "wardrobe-sliding-1800": {
+   "sha256": "38691ffff8dcbfc1efe94cfdbcb5048b834622b3c839392c62a32626444d6e68",
+   "bbox": [
+    1.8,
+    2.4,
+    0.65
+   ],
+   "tris": 520,
+   "parts": 14,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "accent",
+    "metal",
+    "glass"
+   ],
+   "approved": null
+  },
+  "chest-drawers-800": {
+   "sha256": "8d31f497a056f3300a74cf14a7b2d8a1597966aa102f5b30521904ef8c93dea3",
+   "bbox": [
+    0.8,
+    0.85,
+    0.45
+   ],
+   "tris": 440,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "metal"
+   ],
+   "approved": null
+  },
+  "bookshelf-800": {
+   "sha256": "68733fdc81857c5b4081e96194caabc29d0ed9e6245552616c25befcdd06b5ca",
+   "bbox": [
+    0.8,
+    1.9,
+    0.32
+   ],
+   "tris": 440,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint"
+   ],
+   "approved": null
+  },
+  "sideboard-1600": {
+   "sha256": "77da08f4293543669277eb0d1318022007a21f5c8f27a3b83b830c2f6886bdc3",
+   "bbox": [
+    1.6,
+    0.8,
+    0.45
+   ],
+   "tris": 352,
+   "parts": 8,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "metal"
+   ],
+   "approved": null
+  },
+  "filing-cabinet-4": {
+   "sha256": "cb2a956c8ae868514cf273f8dece30e73c7984288a5ef0a513fb10767c5e6ec6",
+   "bbox": [
+    0.47,
+    1.32,
+    0.62
+   ],
+   "tris": 488,
+   "parts": 14,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "metal",
+    "paper"
+   ],
+   "approved": null
+  },
+  "lockers-4": {
+   "sha256": "9af2005219100e67634e3f85a69b9264e53090190908a224752c0e3394dfe73b",
+   "bbox": [
+    0.9,
+    1.8,
+    0.5
+   ],
+   "tris": 632,
+   "parts": 26,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "metal",
+    "paper"
+   ],
+   "approved": null
+  },
+  "bed-single-900": {
+   "sha256": "87250d5f25430df25bf9c0bc4b89b64200c836cecd4a43086fcd19c79d39fc64",
+   "bbox": [
+    0.9,
+    0.55,
+    2
+   ],
+   "tris": 440,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "tint",
+    "woodDark",
+    "fabric"
+   ],
+   "approved": null
+  },
+  "bed-double-1600": {
+   "sha256": "84b68fc8789c911a523bda9a62de0e428c8f1fb4c74efb62944a8f9d67ac0afc",
+   "bbox": [
+    1.6,
+    0.55,
+    2
+   ],
+   "tris": 440,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "tint",
+    "woodDark",
+    "fabric"
+   ],
+   "approved": null
+  },
+  "bed-king-1800": {
+   "sha256": "aebc6278f8d28f29820289939dd24a4454b7d15b4ccaf24a054494f583dec8ad",
+   "bbox": [
+    1.8,
+    0.55,
+    2
+   ],
+   "tris": 440,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "tint",
+    "woodDark",
+    "fabric"
+   ],
+   "approved": null
+  },
+  "bed-bunk-900": {
+   "sha256": "619b479c370c55cd5827f5c7198a369ea4086b9ebdf6e06e02b842b0c7ba83dd",
+   "bbox": [
+    0.9,
+    1.65,
+    2
+   ],
+   "tris": 816,
+   "parts": 20,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "tint"
+   ],
+   "approved": null
+  },
+  "cot-child": {
+   "sha256": "3695a49f12c03163717ca7cddc00e1352539377b29315b56ebdaf550983bb0ea",
+   "bbox": [
+    0.7,
+    0.95,
+    1.4
+   ],
+   "tris": 1176,
+   "parts": 42,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "tint"
+   ],
+   "approved": null
+  },
+  "bedside-table": {
+   "sha256": "7aecd7e17a583e9776fc10f1353e4cf4ea262a5fc306e0d14f81ce8227732eda",
+   "bbox": [
+    0.45,
+    0.55,
+    0.4
+   ],
+   "tris": 264,
+   "parts": 6,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "metal"
+   ],
+   "approved": null
+  },
+  "wc-floor": {
+   "sha256": "885a47ac81ed0e780e842f75e84236e31b16f9c37f68559be0cf7c1006f0c8be",
+   "bbox": [
+    0.38,
+    0.79,
+    0.7
+   ],
+   "tris": 1220,
+   "parts": 11,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "wc-wall-hung": {
+   "sha256": "793e6f5571c42fefd47c632135c3ddcfb4e5eb5429a11cef6664fc6f63adda56",
+   "bbox": [
+    0.36,
+    0.4,
+    0.54
+   ],
+   "tris": 872,
+   "parts": 8,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "wc-accessible": {
+   "sha256": "64bbd2b166545378c51f3637e07885cdffe04437246adcf7ad55e650a8eaee87",
+   "bbox": [
+    0.38,
+    0.82,
+    0.75
+   ],
+   "tris": 1360,
+   "parts": 14,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "basin-560": {
+   "sha256": "c3db300d045a65ab1c11ebf711e8ae95bd73138f85ee67f9b18545b74ed64a24",
+   "bbox": [
+    0.56,
+    1.03,
+    0.46
+   ],
+   "tris": 1004,
+   "parts": 11,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome",
+    "graphite"
+   ],
+   "approved": null
+  },
+  "basin-vanity-800": {
+   "sha256": "d0067dd55d265ca9cda2fe4b21f3742aa85c0fc2357768801b2fb611206fde9e",
+   "bbox": [
+    0.8,
+    1.07,
+    0.48
+   ],
+   "tris": 860,
+   "parts": 14,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "ceramic",
+    "metal",
+    "chrome",
+    "accent"
+   ],
+   "approved": null
+  },
+  "basin-cloak-400": {
+   "sha256": "cf87ac5b063a9038c63be4a28dd5465632fc2de5f214b355de0610b04acc9da5",
+   "bbox": [
+    0.4,
+    1.03,
+    0.3
+   ],
+   "tris": 1204,
+   "parts": 13,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome",
+    "graphite"
+   ],
+   "approved": null
+  },
+  "shower-900": {
+   "sha256": "4b40343e25ecd58d5b71b98401c6ebc822295a99926d07b57b011709009789c3",
+   "bbox": [
+    0.9,
+    2,
+    0.9
+   ],
+   "tris": 1040,
+   "parts": 14,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome",
+    "metal",
+    "glass"
+   ],
+   "approved": null
+  },
+  "shower-walkin-1200": {
+   "sha256": "9bb115361e7c166e2940858537e0b674d8c6942fabac9ecf3413ab9656b356ad",
+   "bbox": [
+    1.2,
+    2,
+    0.9
+   ],
+   "tris": 1108,
+   "parts": 17,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome",
+    "metal",
+    "glass"
+   ],
+   "approved": null
+  },
+  "bath-1700": {
+   "sha256": "832bc17838a12fdc5a571ed3441ab1d246db7ed0e3cc95ba9df7985bec6f641b",
+   "bbox": [
+    1.7,
+    0.74,
+    0.75
+   ],
+   "tris": 1152,
+   "parts": 12,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "urinal": {
+   "sha256": "2d69b04c55b623938c07754c0fccdc871fa5a9256820a027441a0150228c6125",
+   "bbox": [
+    0.36,
+    0.65,
+    0.34
+   ],
+   "tris": 616,
+   "parts": 6,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome",
+    "graphite"
+   ],
+   "approved": null
+  },
+  "washing-machine": {
+   "sha256": "ce50ff402ba133544945c3682de3010a4b6a31cc9887dca1528a8315676cf2d8",
+   "bbox": [
+    0.6,
+    0.85,
+    0.6
+   ],
+   "tris": 652,
+   "parts": 8,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "graphite",
+    "metal",
+    "glass"
+   ],
+   "approved": null
+  },
+  "radiator-towel": {
+   "sha256": "8c2a390a7e6070c15db6420ebe1d7bab78c175ad66d6a3aefcb6c050c35ec8a7",
+   "bbox": [
+    0.5,
+    1.2,
+    0.1
+   ],
+   "tris": 528,
+   "parts": 16,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "kitchen-base-600": {
+   "sha256": "debaa8064cc46b9b8e3a3dfeda3de7d7dfeb1666581e96354baa08d6400b635c",
+   "bbox": [
+    0.6,
+    0.9,
+    0.6
+   ],
+   "tris": 352,
+   "parts": 8,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "accent",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "kitchen-base-sink-800": {
+   "sha256": "971228a27e27bfa15373f99bcdef32cb7c36e0532fcab341b085d3ab73bc126b",
+   "bbox": [
+    0.8,
+    1.12,
+    0.6
+   ],
+   "tris": 860,
+   "parts": 14,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "metal",
+    "chrome",
+    "accent"
+   ],
+   "approved": null
+  },
+  "kitchen-base-corner": {
+   "sha256": "84c4a0aaa52b4526d2aca834836abb8c407db225383aaa15c19c7f3d1b5e371d",
+   "bbox": [
+    0.9,
+    0.9,
+    0.9
+   ],
+   "tris": 352,
+   "parts": 8,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "accent",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "kitchen-wall-600": {
+   "sha256": "e84bbd31288219a93e656e853dcddee6c31eab993e11e223f9326deceec8e3ad",
+   "bbox": [
+    0.6,
+    0.72,
+    0.35
+   ],
+   "tris": 264,
+   "parts": 6,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "chrome",
+    "metal"
+   ],
+   "approved": null
+  },
+  "kitchen-tall-oven": {
+   "sha256": "b006064a5b0d4c13fe3566a51c4696d3174f36e1c1f458beda676a11962f0ba3",
+   "bbox": [
+    0.6,
+    2.15,
+    0.6
+   ],
+   "tris": 732,
+   "parts": 13,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "graphite",
+    "glass",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "hob-induction-600": {
+   "sha256": "1b636bc81f4c4b6aea46236051a99e93b33927dc16494642bb3792acda7ca78c",
+   "bbox": [
+    0.6,
+    0.05,
+    0.52
+   ],
+   "tris": 612,
+   "parts": 7,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "graphite",
+    "ceramic"
+   ],
+   "approved": null
+  },
+  "extractor-hood-600": {
+   "sha256": "aed15f3a8712c98e554d61d32c876ec6cb7fdbd93f1a02227ef9db03ab9c5437",
+   "bbox": [
+    0.6,
+    0.55,
+    0.5
+   ],
+   "tris": 188,
+   "parts": 5,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "graphite"
+   ],
+   "approved": null
+  },
+  "fridge-freezer-tall": {
+   "sha256": "d4f88debea037a92c38548d041d1d306d25f4713fe739fccd74cca1daf404c27",
+   "bbox": [
+    0.6,
+    2,
+    0.65
+   ],
+   "tris": 308,
+   "parts": 7,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "graphite",
+    "metal",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "dishwasher-600": {
+   "sha256": "f3941e07e3d87553b1bc45ea55ab899d07ec602a0f0409047c9e6e5e5287dc63",
+   "bbox": [
+    0.6,
+    0.82,
+    0.57
+   ],
+   "tris": 188,
+   "parts": 5,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "graphite",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "kitchen-island-1800": {
+   "sha256": "f886a3c4c7ee26ab9709e12aff0f9dfd8a6f3363d67851184ec4c8e3887b4c52",
+   "bbox": [
+    1.8,
+    0.9,
+    0.9
+   ],
+   "tris": 440,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "accent",
+    "chrome",
+    "metal"
+   ],
+   "approved": null
+  },
+  "door-internal-800": {
+   "sha256": "496531ae25206c199ff0d78826d8e279c54631e2ae04362fef1dba7c68e22c10",
+   "bbox": [
+    0.8,
+    2.05,
+    0.15
+   ],
+   "tris": 600,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "door-internal-900": {
+   "sha256": "9a27a863626e2620b4a0f3027f5df8d2b34e222ac27a3caf11941686420bf5df",
+   "bbox": [
+    0.9,
+    2.05,
+    0.15
+   ],
+   "tris": 600,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "door-internal-1000": {
+   "sha256": "583a27db6c33068039f7a755c8c4f8dfef799555f002a3baee876bc11c7b982f",
+   "bbox": [
+    1,
+    2.05,
+    0.15
+   ],
+   "tris": 600,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "door-glazed-900": {
+   "sha256": "318c5a0c3076941675a5fe70ab8ec884e48f1a1eca567b77d65c8da44f67f7e8",
+   "bbox": [
+    0.9,
+    2.05,
+    0.15
+   ],
+   "tris": 764,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "door-double-1600": {
+   "sha256": "662f69ee7f178382ad5440ec319c17529c3ba550092b54fc1635cb51998c88d0",
+   "bbox": [
+    1.6,
+    2.1,
+    0.15
+   ],
+   "tris": 1242,
+   "parts": 20,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "door-sliding-900": {
+   "sha256": "d67743f16cc4c66853cd17c1077811fc6c50f25f283fd407e076e21caaa4c813",
+   "bbox": [
+    0.9,
+    2.05,
+    0.1
+   ],
+   "tris": 256,
+   "parts": 8,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "chrome",
+    "graphite",
+    "metal"
+   ],
+   "approved": null
+  },
+  "door-fire-ei30-900": {
+   "sha256": "baad0cbee43856ca7023c5016bacce013c9a149b2f21e6360d10a400f3b1971b",
+   "bbox": [
+    0.9,
+    2.05,
+    0.17
+   ],
+   "tris": 732,
+   "parts": 13,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "chrome",
+    "metal",
+    "accent"
+   ],
+   "approved": null
+  },
+  "door-entrance-1000": {
+   "sha256": "ac8a73ff75b6cb5e7fbfb2b45c53f9c4e596bea4b86d5c69452b6a82da61909e",
+   "bbox": [
+    1,
+    2.1,
+    0.18
+   ],
+   "tris": 852,
+   "parts": 12,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "window-600x600": {
+   "sha256": "a4a12ecc08f3235e6c5a1881363974e2b31d208affea235590c31d93671702e4",
+   "bbox": [
+    0.6,
+    0.6,
+    0.12
+   ],
+   "tris": 536,
+   "parts": 6,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "accent",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "window-900x1400": {
+   "sha256": "69434491928d287e300d9257e057e98669bb4a7d72c8bf019ddff3eaab99d7c0",
+   "bbox": [
+    0.9,
+    1.4,
+    0.12
+   ],
+   "tris": 536,
+   "parts": 6,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "accent",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "window-1200x1400": {
+   "sha256": "bfcccb5ae625055af6c7927adddb6a6575b9e6b4cb664a170a158c39d6829613",
+   "bbox": [
+    1.2,
+    1.4,
+    0.12
+   ],
+   "tris": 536,
+   "parts": 6,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "accent",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "window-1500x1400": {
+   "sha256": "ba1b64228e7ce9984bb50ed5313faad888848bb21b57f282fac5d6c18017940d",
+   "bbox": [
+    1.5,
+    1.4,
+    0.12
+   ],
+   "tris": 536,
+   "parts": 6,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "accent",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "window-escape-1000x1200": {
+   "sha256": "b0453ad6b2b2279db4c4093f3313d14c65f1fa846da46671663b9c04f3f958e7",
+   "bbox": [
+    1,
+    1.2,
+    0.12
+   ],
+   "tris": 536,
+   "parts": 6,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "accent",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "window-full-height-1200": {
+   "sha256": "3ea93bed5b83556589c0c187201c9fedfe154fbfa2474dbe0ec0c8098637c833",
+   "bbox": [
+    1.2,
+    2.1,
+    0.12
+   ],
+   "tris": 752,
+   "parts": 9,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "accent",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "window-patio-2400": {
+   "sha256": "61ea48320afc821a752c063c758ef141d83c5fccd0ffb5979cc3451856a835fc",
+   "bbox": [
+    2.4,
+    2.1,
+    0.16
+   ],
+   "tris": 536,
+   "parts": 6,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "accent",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "window-strip-3000x900": {
+   "sha256": "b0b53943857468f89f8c7070a2cc87733793a553c99dff38f3f8b4a4965d66d5",
+   "bbox": [
+    3,
+    0.9,
+    0.14
+   ],
+   "tris": 968,
+   "parts": 12,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "accent",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "rooflight-1000": {
+   "sha256": "389f3e071182424e31c37b931e6c0e70c6a4159776cace462a8b1c697b3c7198",
+   "bbox": [
+    1,
+    1,
+    0.2
+   ],
+   "tris": 376,
+   "parts": 4,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "accent"
+   ],
+   "approved": null
+  },
+  "window-shopfront-3000": {
+   "sha256": "9ede112bd5401fe64c7102f03ce584a733d1bb2beda3e6d0905e2c893796be20",
+   "bbox": [
+    3,
+    2.4,
+    0.16
+   ],
+   "tris": 752,
+   "parts": 9,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "glass",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "pendant-lamp": {
+   "sha256": "2a29a057e2ca2251886b320d3bb9ca0fa5719b60054206cc25da04d4d00daa14",
+   "bbox": [
+    0.4,
+    0.24,
+    0.4
+   ],
+   "tris": 236,
+   "parts": 3,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint",
+    "glass"
+   ],
+   "approved": null
+  },
+  "downlight": {
+   "sha256": "ad876bb4242d2a39ff59c33aa2823e81634f4a071c17fce96161b7283865e9e7",
+   "bbox": [
+    0.09,
+    0.02,
+    0.09
+   ],
+   "tris": 164,
+   "parts": 2,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "glass"
+   ],
+   "approved": null
+  },
+  "luminaire-linear-1200": {
+   "sha256": "55ac615891ae21c4bf1fdee4b321e86bd44e7c4e6ae50ae5fe2fbe2a2496390e",
+   "bbox": [
+    1.2,
+    0.07,
+    0.08
+   ],
+   "tris": 144,
+   "parts": 4,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "glass"
+   ],
+   "approved": null
+  },
+  "lamp-floor": {
+   "sha256": "349cf99a7f81094c14406428589b5a1211c29f2c5b2fe4c8bb823e6d6815a809",
+   "bbox": [
+    0.4,
+    1.6,
+    0.4
+   ],
+   "tris": 380,
+   "parts": 5,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "tint",
+    "glass"
+   ],
+   "approved": null
+  },
+  "lamp-desk": {
+   "sha256": "d85da81ef0dda78e2c710e7704a17765a0e59952f72b1079f7d2c3f67d74bbf6",
+   "bbox": [
+    0.2,
+    0.55,
+    0.2
+   ],
+   "tris": 384,
+   "parts": 4,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "tint",
+    "glass"
+   ],
+   "approved": null
+  },
+  "sconce-wall": {
+   "sha256": "268ee51b3c4eb0b1b1287153dda4315afc47cd4b5b049e3382ddd363d13708d7",
+   "bbox": [
+    0.2,
+    0.3,
+    0.12
+   ],
+   "tris": 128,
+   "parts": 4,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "tint",
+    "glass"
+   ],
+   "approved": null
+  },
+  "track-light-2000": {
+   "sha256": "ede7090522b3fe6de4e16d7c0e952d2d931dfb5548c12cbc4193ef794b0f5ac6",
+   "bbox": [
+    2,
+    0.1,
+    0.06
+   ],
+   "tris": 584,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "glass"
+   ],
+   "approved": null
+  },
+  "plant-ficus-large": {
+   "sha256": "eb05d07e037a5bf3a15eaac1725e2882dd5b8e1120ad40ea161357fd387a95d1",
+   "bbox": [
+    0.8,
+    1.8,
+    0.8
+   ],
+   "tris": 1224,
+   "parts": 157,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "soil",
+    "stem",
+    "foliage",
+    "foliage2",
+    "foliage3"
+   ],
+   "approved": null
+  },
+  "plant-monstera": {
+   "sha256": "e9d1454f5eacb35dc44b183638d0937fe7cfae9a33652aa243e537f2a57cdb49",
+   "bbox": [
+    0.7,
+    1.2,
+    0.7
+   ],
+   "tris": 906,
+   "parts": 70,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "soil",
+    "stem",
+    "foliage",
+    "foliage2",
+    "foliage3"
+   ],
+   "approved": null
+  },
+  "plant-pot-small": {
+   "sha256": "fe6c83e4fc5e1f9f42b27241132ae5c15af9a685887c81f190ae0fe546b57da3",
+   "bbox": [
+    0.25,
+    0.4,
+    0.25
+   ],
+   "tris": 796,
+   "parts": 37,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "soil",
+    "stem",
+    "foliage",
+    "foliage2",
+    "foliage3"
+   ],
+   "approved": null
+  },
+  "planter-trough-1200": {
+   "sha256": "58cb3629d75a89a60d1be46b898f21f5454c3740c8ba29c0b67b3053a5560fb6",
+   "bbox": [
+    1.2,
+    0.6,
+    0.4
+   ],
+   "tris": 676,
+   "parts": 58,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "soil",
+    "stem",
+    "foliage",
+    "foliage2",
+    "foliage3"
+   ],
+   "approved": null
+  },
+  "workstation-bench-2": {
+   "sha256": "8d8a2c592180eb67e0db7d2e2eb66da3814a26405ecbb27fe75d06aec6a02c8f",
+   "bbox": [
+    3.2,
+    0.74,
+    1.6
+   ],
+   "tris": 836,
+   "parts": 20,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal",
+    "rubber",
+    "graphite"
+   ],
+   "approved": null
+  },
+  "desk-reception": {
+   "sha256": "db669ddbe9bff7aa9ce79bbdb22f9dbaf3c3142b913c52a2af8b31b43ae4c870",
+   "bbox": [
+    2.2,
+    1.1,
+    0.8
+   ],
+   "tris": 1332,
+   "parts": 26,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "accent",
+    "graphite",
+    "wood",
+    "glass",
+    "paper"
+   ],
+   "approved": null
+  },
+  "monitor-24": {
+   "sha256": "bca7aea11e9a8c3a30f1315c5c589e7a76ad7044735d954717d81eb23574cb3d",
+   "bbox": [
+    0.55,
+    0.45,
+    0.2
+   ],
+   "tris": 156,
+   "parts": 5,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "glass",
+    "metal"
+   ],
+   "approved": null
+  },
+  "whiteboard-2000": {
+   "sha256": "93008f3f78eb8384de78f1f9870fbb4c50780be7d738d4fba602203baf005926",
+   "bbox": [
+    2,
+    1.2,
+    0.05
+   ],
+   "tris": 140,
+   "parts": 5,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "tint",
+    "accent",
+    "graphite"
+   ],
+   "approved": null
+  },
+  "screen-meeting-65": {
+   "sha256": "27f0e5f0972f777cd9032343747fcc05bbeec65d6ae05e7e3f241257beb2c5da",
+   "bbox": [
+    1.45,
+    0.85,
+    0.08
+   ],
+   "tris": 80,
+   "parts": 4,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "graphite",
+    "glass",
+    "metal"
+   ],
+   "approved": null
+  },
+  "printer-mfp": {
+   "sha256": "4c168537d89f9d337622c743a6ab4b0ac780aaaaff07cb09ecf28ef11d19f8ec",
+   "bbox": [
+    0.6,
+    1.1,
+    0.65
+   ],
+   "tris": 544,
+   "parts": 12,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "metal",
+    "glass"
+   ],
+   "approved": null
+  },
+  "water-cooler": {
+   "sha256": "2a13982bb349d4437455cdd216e8a7245656c009f7cf67b536ca73ce18c76e97",
+   "bbox": [
+    0.35,
+    1.3,
+    0.35
+   ],
+   "tris": 468,
+   "parts": 7,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "graphite",
+    "glass",
+    "metal"
+   ],
+   "approved": null
+  },
+  "counter-till": {
+   "sha256": "09e24ba923bbc2afafdf9d51e9d4a65f5807c20332d7a1d55086966292b843eb",
+   "bbox": [
+    1.6,
+    1.05,
+    0.7
+   ],
+   "tris": 740,
+   "parts": 18,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "accent",
+    "graphite",
+    "wood",
+    "glass"
+   ],
+   "approved": null
+  },
+  "counter-cafe-3000": {
+   "sha256": "7561f7fa227a7e471815262cbfe7f763af08aca50f9f12131f0987d41c43e2c7",
+   "bbox": [
+    3,
+    1.1,
+    0.8
+   ],
+   "tris": 988,
+   "parts": 18,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "accent",
+    "graphite",
+    "wood",
+    "ceramic",
+    "metal"
+   ],
+   "approved": null
+  },
+  "espresso-machine": {
+   "sha256": "11289a95be4522e76b60ce0834f611cf737eddf818b7d6b4e7a0f94a7edfcb0e",
+   "bbox": [
+    0.75,
+    0.55,
+    0.55
+   ],
+   "tris": 1392,
+   "parts": 37,
+   "bodies": 1,
+   "materials": [
+    "chrome",
+    "graphite",
+    "paper",
+    "accent",
+    "ceramic"
+   ],
+   "approved": null
+  },
+  "display-fridge-glass": {
+   "sha256": "9c981cdde69ed856ca1a59e2bb77e29711ecf5642f64dd331079bd30ec332f97",
+   "bbox": [
+    0.9,
+    2,
+    0.7
+   ],
+   "tris": 532,
+   "parts": 11,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "metal",
+    "glass",
+    "chrome",
+    "accent"
+   ],
+   "approved": null
+  },
+  "shelving-gondola": {
+   "sha256": "2f3b148b2aab570ad44a797d851a105d5109bc89982e76f94b178b0a318dfa51",
+   "bbox": [
+    1.25,
+    1.65,
+    0.9
+   ],
+   "tris": 704,
+   "parts": 16,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint"
+   ],
+   "approved": null
+  },
+  "display-table-retail": {
+   "sha256": "7717e42642c2df11d88760c936716dda1ffeb96cf87386be044a4f009d0ebd3a",
+   "bbox": [
+    1.2,
+    0.85,
+    0.8
+   ],
+   "tris": 396,
+   "parts": 9,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "wood"
+   ],
+   "approved": null
+  },
+  "fitting-room-cubicle": {
+   "sha256": "af26c0607cdafb4ec6dce5b4fc59fe95ffdf2635be30b4020f52ac3ad5e91786",
+   "bbox": [
+    1,
+    2.2,
+    1.2
+   ],
+   "tris": 1020,
+   "parts": 21,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal",
+    "fabric",
+    "wood",
+    "glass"
+   ],
+   "approved": null
+  },
+  "kids-chair-sm1": {
+   "sha256": "7989e39ac44326a3534181b71c455c72e51ddb38cebff7f89f08bdbefa39cf8f",
+   "bbox": [
+    0.3,
+    0.55,
+    0.3
+   ],
+   "tris": 484,
+   "parts": 11,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "tint"
+   ],
+   "approved": null
+  },
+  "kids-chair-sm2": {
+   "sha256": "9fce7dc1f88a6bc90bd0c177493b156b8e7b41280f3195188feb1f657ee0db33",
+   "bbox": [
+    0.32,
+    0.62,
+    0.32
+   ],
+   "tris": 484,
+   "parts": 11,
+   "bodies": 1,
+   "materials": [
+    "wood",
+    "tint"
+   ],
+   "approved": null
+  },
+  "kids-table-round-sm1": {
+   "sha256": "d1a0c40d1702d7360f513881c8c4bec4c2e90a291c6dcdd761cf27d19680d4dd",
+   "bbox": [
+    1.2,
+    0.46,
+    1.2
+   ],
+   "tris": 600,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal",
+    "wood"
+   ],
+   "approved": null
+  },
+  "kids-table-rect-sm2": {
+   "sha256": "3f78af870e3d22cb990176403084403a577ba3ef6f0139822e2e934030dab24e",
+   "bbox": [
+    1.2,
+    0.53,
+    0.6
+   ],
+   "tris": 396,
+   "parts": 9,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "wood"
+   ],
+   "approved": null
+  },
+  "nap-mat": {
+   "sha256": "3396a912be856e86b17aac2cf6faa7eb2303fd56516eb5bdfbc7fef0ebee9899",
+   "bbox": [
+    0.6,
+    0.08,
+    1.3
+   ],
+   "tris": 200,
+   "parts": 3,
+   "bodies": 1,
+   "materials": [
+    "tint"
+   ],
+   "approved": null
+  },
+  "toy-storage-unit": {
+   "sha256": "b1acfd952d7716a02e764d42cc9c78f5271075e3f6a57c4032238abadc5231ef",
+   "bbox": [
+    1,
+    0.8,
+    0.4
+   ],
+   "tris": 396,
+   "parts": 9,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "tint"
+   ],
+   "approved": null
+  },
+  "play-rug": {
+   "sha256": "829ac3fb257a0229ec1adb1565efc7972a350b99024274bdaccd2dd59a21d853",
+   "bbox": [
+    2,
+    0.02,
+    2
+   ],
+   "tris": 168,
+   "parts": 3,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "accent"
+   ],
+   "approved": null
+  },
+  "kids-wc": {
+   "sha256": "d704c1c7f1ed780e7bac25e4b84024afd311b9767f44ea90579c48cc0414af4e",
+   "bbox": [
+    0.34,
+    0.6,
+    0.58
+   ],
+   "tris": 1180,
+   "parts": 11,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "kids-basin-row": {
+   "sha256": "8e161a44ff52bae6242d20d2ebf277e3d421a3b44ee29d4e96f34d55ceeb3053",
+   "bbox": [
+    1.2,
+    0.77,
+    0.4
+   ],
+   "tris": 1072,
+   "parts": 17,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "metal",
+    "ceramic",
+    "chrome",
+    "accent"
+   ],
+   "approved": null
+  },
+  "exam-couch": {
+   "sha256": "01058a61c9120426d3406c3aef69130b71d1ed895818936f15acf3335233c856",
+   "bbox": [
+    0.62,
+    0.7,
+    1.9
+   ],
+   "tris": 1094,
+   "parts": 15,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "chrome",
+    "rubber",
+    "tint",
+    "paper"
+   ],
+   "approved": null
+  },
+  "exam-stool": {
+   "sha256": "c72bad2884cd7b4f73a9d0b7aa4acabc81e1182cd424e604dd3c8735cc317b4e",
+   "bbox": [
+    0.45,
+    0.6,
+    0.45
+   ],
+   "tris": 784,
+   "parts": 16,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "rubber",
+    "chrome",
+    "tint"
+   ],
+   "approved": null
+  },
+  "medicine-cabinet": {
+   "sha256": "76f6d91de297b3e436c565fcd6652c497d8c1c7da2ab2f27cc7850518d287a84",
+   "bbox": [
+    0.6,
+    0.9,
+    0.3
+   ],
+   "tris": 144,
+   "parts": 4,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal",
+    "glass"
+   ],
+   "approved": null
+  },
+  "treatment-trolley": {
+   "sha256": "958ffc3861434ab74d1169b86ee3884bb12b716eb0df18e75466467116d19058",
+   "bbox": [
+    0.6,
+    0.9,
+    0.45
+   ],
+   "tris": 808,
+   "parts": 22,
+   "bodies": 1,
+   "materials": [
+    "graphite",
+    "metal",
+    "paper",
+    "rubber"
+   ],
+   "approved": null
+  },
+  "basin-clinical": {
+   "sha256": "21008325cfeaeef403ccb83e10a55df78ecc4e9d5f540a9e138e67f64933bbf5",
+   "bbox": [
+    0.6,
+    1.08,
+    0.5
+   ],
+   "tris": 1204,
+   "parts": 13,
+   "bodies": 1,
+   "materials": [
+    "ceramic",
+    "chrome",
+    "graphite"
+   ],
+   "approved": null
+  },
+  "scales-column": {
+   "sha256": "ca68d2f7d1fb99f17099a770208209a073936739668fe9152c08e9c770125c36",
+   "bbox": [
+    0.4,
+    1.4,
+    0.55
+   ],
+   "tris": 304,
+   "parts": 8,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "graphite",
+    "glass"
+   ],
+   "approved": null
+  },
+  "stair-straight": {
+   "sha256": "cb31a6c57a2c55f5c6f846007c86f3033c830be37ca8ecd4026c0a7768bf8423",
+   "bbox": [
+    1,
+    2.8,
+    4.48
+   ],
+   "tris": 1120,
+   "parts": 40,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "wood",
+    "metal"
+   ],
+   "approved": null
+  },
+  "stair-u-return": {
+   "sha256": "a0bf17e8ae23af8c0cf5fb0d7e9ddffacf25988ab6f079a9c412d259c22c8d3d",
+   "bbox": [
+    2.3,
+    2.8,
+    2.8
+   ],
+   "tris": 1268,
+   "parts": 41,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "wood",
+    "metal"
+   ],
+   "approved": null
+  },
+  "lift-passenger-630": {
+   "sha256": "8848dc22918ab16288dfbb6a9a15166c20eb256ff049e1f1c1d87d28e7bef316",
+   "bbox": [
+    1.6,
+    2.6,
+    2
+   ],
+   "tris": 496,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal",
+    "graphite",
+    "glass"
+   ],
+   "approved": null
+  },
+  "ramp-accessible": {
+   "sha256": "aba0720734d361f66675a3b8a3e1bf1f9b06fd2417ffce78718668466f52f133",
+   "bbox": [
+    1.2,
+    0.4,
+    4.8
+   ],
+   "tris": 116,
+   "parts": 10,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "graphite",
+    "accent"
+   ],
+   "approved": null
+  },
+  "balustrade-1100": {
+   "sha256": "a4a1c8afe494f9f8afe84899cb6853df907d62feadbd22db82ff533d5fd0457a",
+   "bbox": [
+    1,
+    1.1,
+    0.06
+   ],
+   "tris": 436,
+   "parts": 15,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "tint"
+   ],
+   "approved": null
+  },
+  "radiator-panel-1000": {
+   "sha256": "a65f0158144a4820623a6522ded65b7e786f6488a07193021c0ac1a530020940",
+   "bbox": [
+    1,
+    0.6,
+    0.11
+   ],
+   "tris": 368,
+   "parts": 20,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "stove-wood": {
+   "sha256": "0c86fbfdab68a97b4628be640740fac85fc5d52415b0c2d63f58551763f42538",
+   "bbox": [
+    0.6,
+    1.2,
+    0.5
+   ],
+   "tris": 592,
+   "parts": 12,
+   "bodies": 1,
+   "materials": [
+    "metal",
+    "graphite",
+    "glass"
+   ],
+   "approved": null
+  },
+  "tv-wall-55": {
+   "sha256": "ec1cabf4cb6d58cd5461fa87a0b22b8c947458f982825105c8046384482a9263",
+   "bbox": [
+    1.25,
+    0.72,
+    0.07
+   ],
+   "tris": 80,
+   "parts": 4,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "graphite",
+    "glass",
+    "metal"
+   ],
+   "approved": null
+  },
+  "piano-upright": {
+   "sha256": "aed9f09f023cacde6f53b258687560e2d8fa2f5d3c40609073acaf27c8e8f4ce",
+   "bbox": [
+    1.5,
+    1.25,
+    0.62
+   ],
+   "tris": 720,
+   "parts": 28,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "woodDark",
+    "ceramic",
+    "graphite",
+    "chrome"
+   ],
+   "approved": null
+  },
+  "bin-office": {
+   "sha256": "e821d0faa80159e19895ad18724e29006150f17b0f2a2e6e2f66c33e5bea4919",
+   "bbox": [
+    0.3,
+    0.4,
+    0.3
+   ],
+   "tris": 468,
+   "parts": 4,
+   "bodies": 1,
+   "materials": [
+    "tint",
+    "metal",
+    "graphite"
+   ],
+   "approved": null
+  }
+ }
+}

@@ -185,6 +185,32 @@ export function checkerPattern(g, a, b) {
   return p;
 }
 
+/**
+ * An arbitrary hard-pixel tile, cached and repeated. Same mechanism as
+ * checkerPattern — a tiny offscreen canvas turned into a CanvasPattern — so a
+ * whole-screen desktop pattern costs one fillRect, not one per pixel. `draw`
+ * receives the tile's own 2D context and paints it once, ever.
+ */
+export function tilePattern(g, key, w, h, draw) {
+  let p = _patterns.get(key);
+  if (p) return p;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const cg = c.getContext('2d');
+  cg.imageSmoothingEnabled = false;
+  draw(cg);
+  p = g.createPattern(c, 'repeat');
+  _patterns.set(key, p);
+  return p;
+}
+
+/** Fill a rect with a cached tile. Integer coordinates, no resampling. */
+export function tile(g, x, y, w, h, key, tw, th, draw) {
+  if (w <= 0 || h <= 0) return;
+  g.fillStyle = tilePattern(g, key, tw, th, draw);
+  g.fillRect(x | 0, y | 0, w | 0, h | 0);
+}
+
 /** 50 % checkerboard fill. (x+y) even -> a, odd -> b, in absolute pixels. */
 export function checker(g, x, y, w, h, a, b) {
   if (w <= 0 || h <= 0) return;

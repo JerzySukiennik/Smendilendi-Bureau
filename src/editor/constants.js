@@ -49,11 +49,19 @@ export const INFERENCE = {
   CENTER:        { name: 'Center',        color: COLOR.center,       marker: 'ring',   rank: 85 },
   ON_EDGE:       { name: 'On Edge',       color: COLOR.onEdge,       marker: 'dot',    rank: 70 },
   ON_LINE:       { name: 'On Line',       color: COLOR.onEdge,       marker: 'dot',    rank: 65 },
+  // THE AXES OUTRANK PARALLEL AND PERPENDICULAR, and that ordering is not a
+  // preference. An orthogonal building is drawn wall after wall at right angles,
+  // so from the second wall onwards every segment is BOTH on a world axis and
+  // perpendicular to the one before it. Ranking par/perp higher painted a whole
+  // rectangular plan magenta and never once said "On Green Axis" — which throws
+  // away the single most important convention in the program (red/green/blue =
+  // X/Y/Z) in exactly the case it matters most. Magenta is now what SketchUp
+  // reserves it for: a reference that is NOT a world axis.
+  AXIS_X:        { name: 'On Red Axis',   color: COLOR.axisX,        marker: 'dot',    rank: 64 },
+  AXIS_Y:        { name: 'On Green Axis', color: COLOR.axisY,        marker: 'dot',    rank: 64 },
+  AXIS_Z:        { name: 'On Blue Axis',  color: COLOR.axisZ,        marker: 'dot',    rank: 64 },
   PERPENDICULAR: { name: 'Perpendicular', color: COLOR.magenta,      marker: 'dot',    rank: 62 },
   PARALLEL:      { name: 'Parallel',      color: COLOR.magenta,      marker: 'dot',    rank: 60 },
-  AXIS_X:        { name: 'On Red Axis',   color: COLOR.axisX,        marker: 'dot',    rank: 50 },
-  AXIS_Y:        { name: 'On Green Axis', color: COLOR.axisY,        marker: 'dot',    rank: 50 },
-  AXIS_Z:        { name: 'On Blue Axis',  color: COLOR.axisZ,        marker: 'dot',    rank: 50 },
   FROM_POINT:    { name: 'From Point',    color: COLOR.guide,        marker: 'dot',    rank: 45 },
   ON_FACE:       { name: 'On Face',       color: COLOR.onFace,       marker: 'dot',    rank: 20 },
   GRID:          { name: 'On Grid',       color: COLOR.guide,        marker: 'dot',    rank: 10 },

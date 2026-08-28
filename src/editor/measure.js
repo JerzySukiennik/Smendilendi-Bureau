@@ -221,8 +221,22 @@ export class MeasurementsBox {
     this._changed();
   }
 
+  /**
+   * A REFUSAL, in the box the number was typed into.
+   *
+   * When a tool will not do what was asked — a 5000 mm door in a 4000 mm wall,
+   * a wall 2 mm long — the reason belongs on the error line of the Measurements
+   * box and nowhere else: that is where the player is looking, and hud.js
+   * already renders it red. Cleared by the next keystroke, like a typo.
+   */
+  setError(msg) {
+    if (this.error === (msg || '')) return;
+    this.error = msg || '';
+    this._changed();
+  }
+
   clear() {
-    if (!this.typing && !this.text) return;
+    if (!this.typing && !this.text && !this.error) return;
     this.text = '';
     this.typing = false;
     this.error = '';

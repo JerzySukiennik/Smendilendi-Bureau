@@ -8,9 +8,17 @@
 // measured against.
 //
 // The benchmarks used, and where they come from:
-//   corridor / route clear width      1.20 m public, 0.90 m dwelling
-//                                     (the same two constants the access
-//                                     module writes the client's e-mail from)
+//   corridor / route clear width      whatever the CLIENT put in writing, read
+//                                     through briefLimit('access.corridorWidth')
+//                                     — the same call src/analysis/access.js
+//                                     writes his e-mail from. The two constants
+//                                     below are the fallback for a brief that
+//                                     is silent, and nothing else. A report that
+//                                     benchmarks a clinic at 1.20 m while the
+//                                     client's own letter demanded 1.50 m has
+//                                     him contradicting himself in writing,
+//                                     which is the one thing a report to an
+//                                     architect cannot do.
 //   two people passing                1.20 m — below this they turn sideways
 //   travel distance to a WC           75 m in a workplace (WT §84); not
 //                                     applicable in a dwelling
@@ -21,11 +29,29 @@
 // from the routes the simulated people actually walked.
 
 import { PASSING_WIDTH, PERSON_WIDTH } from './navmesh.js';
+import { briefLimit, isDwelling } from '../analysis/brief.js';
 import { GOALS } from './roles.js';
 
 export const WC_TRAVEL_LIMIT = 75.0;      // m, workplace
 export const WIDTH_PUBLIC = 1.20;
 export const WIDTH_DWELLING = 0.90;
+/**
+ * The walking speed every travel TIME on this sheet is stated at. 1.35 m/s is
+ * the adult figure circulation is designed to, and quoting it beside the time
+ * is the point: the walkthrough compresses a whole day into a couple of minutes
+ * of watching, so the only travel times that can honestly be asserted are the
+ * ones computed here, from a measured route length at a named speed.
+ */
+export const REPORT_WALK_SPEED = 1.35;
+
+/** A distance as the time it takes to walk it. */
+function walkTime(metres) {
+  if (!Number.isFinite(metres) || metres <= 0) return '—';
+  const s = metres / REPORT_WALK_SPEED;
+  if (s < 90) return `${Math.round(s)} s`;
+  const m = Math.floor(s / 60);
+  return `${m} min ${String(Math.round(s - m * 60)).padStart(2, '0')} s`;
+}
 
 const DWELLING = new Set(['house', 'apartment']);
 
@@ -37,12 +63,19 @@ function rank(it, score) {
 }
 
 export class Stats {
-  constructor(nav, { typeKey = 'office', years = 30 } = {}) {
+  constructor(nav, { typeKey = 'office', years = 30, brief = null } = {}) {
     this.nav = nav;
     this.typeKey = typeKey;
     this.years = years;
-    this.dwelling = DWELLING.has(typeKey);
-    this.requiredWidth = this.dwelling ? WIDTH_DWELLING : WIDTH_PUBLIC;
+    this.brief = brief ?? nav?.brief ?? null;
+    // A roster key ('house') and a building type ('detached-house') are not the
+    // same vocabulary, so ask the brief first and only fall back to the roster.
+    this.dwelling = this.brief ? isDwelling(this.brief) : DWELLING.has(typeKey);
+    this.requiredWidth = briefLimit(this.brief, 'access.corridorWidth',
+      this.dwelling ? WIDTH_DWELLING : WIDTH_PUBLIC);
+    // The brief has no check id for travel distance to a WC, so this one is
+    // still ours; it is workplace guidance, and it does not apply to a dwelling.
+    this.wcLimit = this.dwelling ? null : WC_TRAVEL_LIMIT;
 
     this.journeys = 0;
     this.completed = 0;
@@ -182,13 +215,40 @@ export class Stats {
     return best ? { id: best, label: this.nav.labelOf(best), value: bv, area: this.nav.areaOf(best), seconds: this.roomSeconds.get(best) ?? 0 } : null;
   }
 
+  /**
+   * Name a place the way a person would say it out loud.
+   *
+   * An opening id is a hash of wall ids. It means something to the model and
+   * nothing at all to the architect reading the sheet, and "Narrowest route
+   * walked — doorway o47" is the single fastest way to tell him this report was
+   * written by a machine that does not know what it is looking at. Openings are
+   * resolved to the rooms they connect: "door between the Corridor and the
+   * Bathroom", or "entrance door" for one that opens to the outside. The phrase
+   * carries no leading article, so a caller can write "at the ..." around it.
+   */
+  _placeOf(p) {
+    const nav = this.nav;
+    const here = p.roomId ? nav.labelOf(p.roomId) : null;
+    if (!p.openingId) return here ?? 'route';
+    const rooms = [...new Set((nav.topo.openingRooms?.[p.openingId] ?? []).filter(Boolean))];
+    const exterior = (nav.topo.exteriorDoors ?? []).includes(p.openingId);
+    const kind = nav.model.openings[p.openingId]?.kind === 'door' ? 'door' : 'opening';
+    if (exterior) {
+      const inside = rooms[0] ? nav.labelOf(rooms[0]) : null;
+      return inside ? `entrance ${kind} into the ${inside}` : `entrance ${kind}`;
+    }
+    if (rooms.length >= 2) {
+      return `${kind} between the ${nav.labelOf(rooms[0])} and the ${nav.labelOf(rooms[1])}`;
+    }
+    if (rooms.length === 1) return `${kind} to the ${nav.labelOf(rooms[0])}`;
+    return here ? `${kind} in the ${here}` : `${kind}`;
+  }
+
   _describePinch(p) {
     if (!p) return null;
     return {
       ...p,
-      label: p.openingId
-        ? `doorway ${p.openingId}`
-        : (p.roomId ? this.nav.labelOf(p.roomId) : 'route'),
+      label: this._placeOf(p),
       required: this.requiredWidth,
       passes: p.width >= this.requiredWidth,
       canPass: p.width >= PASSING_WIDTH,
@@ -220,7 +280,7 @@ export class Stats {
       max: b.maxDist,
       journeys: b.n,
       failed: b.fail,
-      limit: this.dwelling ? null : WC_TRAVEL_LIMIT,
+      limit: this.wcLimit,
     };
   }
 
@@ -229,7 +289,10 @@ export class Stats {
     for (const [oid, n] of this.doorUses) if (n > bn) { bn = n; best = oid; }
     if (!best) return null;
     const o = this.nav.model.openings[best];
-    return { openingId: best, uses: bn, width: o?.width ?? 0 };
+    return {
+      openingId: best, uses: bn, width: o?.width ?? 0,
+      label: this._placeOf({ openingId: best, roomId: null }),
+    };
   }
 
   /** Journeys per simulated year, scaled from the sample that was walked. */
@@ -282,7 +345,9 @@ function row(label, measured, benchmark, verdict) {
  * the money, the measured circulation performance, and the plan with the heat
  * on it. Laid out like a report page, because that is what it is.
  */
-export function renderReport(stats, { analysis = null, commission = null, heatCanvas = null, years = 30 } = {}) {
+export function renderReport(stats, {
+  analysis = null, commission = null, heatCanvas = null, occupancyCanvas = null, years = 30,
+} = {}) {
   const s = stats.summary();
   const root = document.createElement('div');
   root.className = 'walk-report';
@@ -349,7 +414,7 @@ export function renderReport(stats, { analysis = null, commission = null, heatCa
     `${s.completed} arrived · ${s.failed} gave up`,
     s.failed === 0 ? 'good' : (s.failed / Math.max(1, s.journeys) > 0.05 ? 'bad' : 'warn')));
   cards.appendChild(card('Average journey', `${fmt(s.averageDistance)} m`,
-    `${fmt(s.totalDistance / 1000, 2)} km walked in total`));
+    `${walkTime(s.averageDistance)} at ${REPORT_WALK_SPEED} m/s · ${fmt(s.totalDistance / 1000, 2)} km in total`));
   cards.appendChild(card('Narrowest route', `${fmt(s.narrow?.width ?? NaN, 2)} m`,
     s.narrow ? `at the ${s.narrow.label}` : '',
     s.narrow ? (s.narrow.passes ? 'good' : 'bad') : ''));
@@ -379,7 +444,7 @@ export function renderReport(stats, { analysis = null, commission = null, heatCa
 
   if (s.wc) {
     tb.appendChild(row('Average walk to a WC',
-      `${fmt(s.wc.average)} m (worst ${fmt(s.wc.max)} m)`,
+      `${fmt(s.wc.average)} m — ${walkTime(s.wc.average)} (worst ${fmt(s.wc.max)} m, ${walkTime(s.wc.max)})`,
       s.wc.limit ? `${s.wc.limit.toFixed(0)} m max, WT §84` : 'no statutory limit in a dwelling',
       s.wc.limit ? (s.wc.max <= s.wc.limit ? 'good' : 'bad') : null));
   } else {
@@ -416,13 +481,18 @@ export function renderReport(stats, { analysis = null, commission = null, heatCa
       s.dead.value < 0.01 ? 'never entered' : '', s.dead.value < 0.01 ? 'warn' : null));
   }
   if (s.door) {
-    tb.appendChild(row('Busiest door',
+    tb.appendChild(row(`Busiest door — ${s.door.label}`,
       `${(s.door.width * 1000).toFixed(0)} mm leaf, ${s.door.uses} passages`,
       '900 mm for an accessible route',
       s.door.width >= 0.90 ? 'good' : 'warn'));
   }
   tb.appendChild(row('Shoulder width assumed for a passage',
     `${(PERSON_WIDTH * 1000).toFixed(0)} mm`, 'adult in outdoor clothing'));
+  // Travel times on this sheet are computed, not clocked: the walkthrough
+  // compresses a whole day into a couple of minutes, so the in-world day dial
+  // deliberately reports no hh:mm anybody could stopwatch a journey against.
+  tb.appendChild(row('Walking speed used for every time above',
+    `${REPORT_WALK_SPEED.toFixed(2)} m/s`, 'adult on the level'));
 
   root.appendChild(tableWrap);
 
@@ -449,11 +519,13 @@ export function renderReport(stats, { analysis = null, commission = null, heatCa
     root.appendChild(sec);
   }
 
-  // -- the plan ------------------------------------------------------------
-  if (heatCanvas) {
+  // -- the plans -----------------------------------------------------------
+  // Movement first, because it is the one the table above is about.
+  for (const cv of [heatCanvas, occupancyCanvas]) {
+    if (!cv) continue;
     const sec = document.createElement('section');
     sec.className = 'poe-plan';
-    sec.appendChild(heatCanvas);
+    sec.appendChild(cv);
     root.appendChild(sec);
   }
 

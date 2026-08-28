@@ -29,7 +29,6 @@ Audio in Smendiłendi Bureau comes from two places, and they are **not** under t
 | `assets/audio/radio/radio-6-piano.{ogg,m4a}` | `radio.6` | Juni | Kistol | <https://opengameart.org/content/juni> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/ui/click.{ogg,m4a}` | `ui.click` | AA Foley Mouse Click Central.wav — press only, trimmed to 57 ms | Pepe827 | <https://freesound.org/people/Pepe827/sounds/596879/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/ui/click-soft.{ogg,m4a}` | `ui.click-soft` | tick_004.ogg | Kenney (Kenney Vleugels / Kenney.nl) | <https://kenney.nl/assets/interface-sounds> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
-| `assets/audio/ui/snap.{ogg,m4a}` | `ui.snap` | Light Switch on — the toggle clack, trimmed to 113 ms | Philip_Berger | <https://freesound.org/people/Philip_Berger/sounds/788643/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/ui/submit.{ogg,m4a}` | `ui.submit` | 014_throw_paper.wav — sheet gathered and released, trimmed to 440 ms | Lau7 | <https://freesound.org/people/Lau7/sounds/153341/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/ui/tool-select.{ogg,m4a}` | `ui.tool-select` | key-clack1 — one key, down and up, trimmed to 119 ms | chris112233 | <https://freesound.org/people/chris112233/sounds/738440/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/ui/window-close.{ogg,m4a}` | `ui.window-close` | door01_close — the latch catching, trimmed and pitched up 14 % | JohnyTud | <https://freesound.org/people/JohnyTud/sounds/710063/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
@@ -59,11 +58,9 @@ Audio in Smendiłendi Bureau comes from two places, and they are **not** under t
 | `assets/audio/sfx/mug-set-down.{ogg,m4a}` | `sfx.mug-set-down` | Cup set Down | aldenroth2 | <https://freesound.org/people/aldenroth2/sounds/272022/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/sfx/paper-crumple.{ogg,m4a}` | `sfx.paper-crumple` | Paper Crumple 1 | WasabiWielder | <https://freesound.org/people/WasabiWielder/sounds/334201/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/sfx/paper-toss.{ogg,m4a}` | `sfx.paper-toss` | 014_throw_paper.wav | Lau7 | <https://freesound.org/people/Lau7/sounds/153341/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
-| `assets/audio/sfx/pen-scribble.{ogg,m4a}` | `sfx.pen-scribble` | Pen Writing On Paper | 851189 | <https://freesound.org/people/851189/sounds/449504/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/amb/birds-outside.{ogg,m4a}` | `amb.birds-outside` | suburban background atmo with garden and birds | Garuda1982 | <https://freesound.org/people/Garuda1982/sounds/691629/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/amb/crowd-interior.{ogg,m4a}` | `amb.crowd-interior` | Art Gallery Crowd Noise | Ev-Dawg | <https://freesound.org/people/Ev-Dawg/sounds/435515/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/amb/office-room-tone.{ogg,m4a}` | `amb.office-room-tone` | Office_Ambience_Interior_quiet | joseegn | <https://freesound.org/people/joseegn/sounds/752611/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
-| `assets/audio/amb/rain-window.{ogg,m4a}` | `amb.rain-window` | RAIN on glass window.wav | nicoproson | <https://freesound.org/people/nicoproson/sounds/648529/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 | `assets/audio/amb/street-outside.{ogg,m4a}` | `amb.street-outside` | traffic medium street or boulevard2 CA, USA.flac | kyles | <https://freesound.org/people/kyles/sounds/453626/> | CC0 1.0 Universal (Public Domain Dedication) | 2026-08-27 |
 
 Subtotal: **48** CC0 logical sounds.

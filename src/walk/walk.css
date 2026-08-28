@@ -52,9 +52,28 @@
   border-radius: 4px;
   backdrop-filter: blur(4px);
 }
+/* A dial, not a clock face: it says how far through the working day the
+   building is, and deliberately does not offer an hh:mm a player could read a
+   (false) travel time off. See _updateHud in walk.js. */
+.wc-dial {
+  --through: 0deg;
+  position: relative;
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  align-self: center;
+  background:
+    conic-gradient(var(--accent, #d4763a) 0 var(--through), rgba(243, 236, 225, 0.16) var(--through) 360deg);
+}
+.wc-dial i {
+  position: absolute;
+  inset: 3.5px;
+  border-radius: 50%;
+  background: rgba(24, 23, 21, 0.9);
+}
 .wc-time {
-  font: 600 17px/1 var(--font-mono, ui-monospace, Menlo, monospace);
+  font: 600 13px/1 var(--font-mono, ui-monospace, Menlo, monospace);
   letter-spacing: 0.04em;
+  align-self: center;
 }
 .wc-year {
   font: 500 11px/1 var(--font-mono, ui-monospace, Menlo, monospace);

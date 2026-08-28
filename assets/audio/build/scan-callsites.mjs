@@ -24,6 +24,48 @@ import { join, relative, extname } from 'node:path';
 
 const CALL_RE = /\.\s*(play|music|musicPlaylist|loop|stopLoop)\s*\??\.?\s*\(/g;
 
+/**
+ * `file:line` of calls that are provably not audio (a three.js AnimationAction,
+ * a DOM media element). Empty today, and every addition needs a reason in the
+ * commit: this list is the only way a .play() escapes the level table.
+ */
+const NON_AUDIO = new Set([]);
+
+/**
+ * Blank out // and /* *\/ comments, keeping every byte position and newline, so a
+ * line/column computed on the result still points at the real file. A rule about
+ * what the CODE says must not fire on a comment that quotes the thing it forbids
+ * — which is exactly what happened the first time check 10 ran, on the paragraph
+ * in lobby.js explaining why the bus-mix literal was deleted.
+ */
+export function stripComments(text) {
+  let out = '';
+  let i = 0;
+  const keep = (c) => (c === '\n' ? '\n' : ' ');
+  while (i < text.length) {
+    const c = text[i], n = text[i + 1];
+    if (c === '/' && n === '/') { while (i < text.length && text[i] !== '\n') { out += ' '; i++; } continue; }
+    if (c === '/' && n === '*') {
+      const end = text.indexOf('*/', i + 2);
+      const stop = end === -1 ? text.length : end + 2;
+      for (; i < stop; i++) out += keep(text[i]);
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      const q = c; out += c; i++;
+      while (i < text.length) {
+        if (text[i] === '\\') { out += text[i] + (text[i + 1] ?? ''); i += 2; continue; }
+        out += text[i];
+        if (text[i] === q) { i++; break; }
+        i++;
+      }
+      continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+
 /** Files worth scanning: everything under src/ except the audio engine itself. */
 export function sourceFiles(root, skip = ['src/core/audio.js']) {
   const out = [];
@@ -161,12 +203,14 @@ function readOpts(body, afterFirst) {
   const vol = rest.match(/[{,]\s*volume\s*:\s*([^,}]+)/);
   const dyn = rest.match(/[{,]\s*dynamic\s*:\s*([^,}]+)/);
   const bus = rest.match(/[{,]\s*bus\s*:\s*'([^']+)'/);
+  const busExpr = !bus && /[{,]\s*bus\s*:/.test(rest);
   return {
     context: ctx ? (ctx[1] ?? ctx[2]) : null,
     contextExpr: ctxExpr,
     volume: vol ? vol[1].trim() : null,
     dynamic: dyn ? dyn[1].trim() : null,
     bus: bus ? bus[1] : null,
+    busExpr,
   };
 }
 
@@ -187,11 +231,18 @@ export function scanCallSites({ root, manifest }) {
       if (body === null) { errors.push(`${rel}: unbalanced ${m[1]}( call`); continue; }
       const arg = firstArg(body);
       const res = resolveIds(arg, manifestIds);
-      // Not an audio call at all (three.js AnimationAction.play(), a DOM
-      // media element, a custom loop()) — unless it carries audio options.
       const opts = readOpts(body, arg.length);
-      const audioish = /audio|\bos\b|this\.play|\.play\?\./.test(text.slice(Math.max(0, m.index - 40), m.index + 6));
-      if (!res.ids.length && res.form === 'expression' && !opts.volume && !opts.context && !audioish) continue;
+      // ROUND 4: this used to drop any call whose id was a plain variable unless a
+      // 40-character peek behind it smelled of audio. `const h = a.play(name, opts)`
+      // — the OS's own play wrapper, through which every OS sound is routed —
+      // did not smell of audio, so the one place a critic could hide a level
+      // change was the one place the scanner refused to look. Expression-form
+      // calls are now KEPT and listed; the 9f table shows them as runtime ids and
+      // fails them if they carry any override. There are five such calls in src/
+      // today and none of them is a three.js AnimationAction, so the false-positive
+      // cost is zero; if a genuine non-audio .play() ever appears, it belongs in
+      // NON_AUDIO below by name rather than behind a guess.
+      if (NON_AUDIO.has(`${rel}:${text.slice(0, m.index).split('\n').length}`)) continue;
       if (res.form === 'stop' && m[1] !== 'music') continue;
 
       sites.push({
@@ -219,28 +270,112 @@ export function scanCallSites({ root, manifest }) {
  * something, which is the difference between "played indirectly" and "dead".
  */
 export function stringRefs(root, manifestIds) {
-  const refs = new Map();                 // id -> ['file:line', ...]
+  const refs = new Map();                 // id -> [{ at, kind }, ...]
   for (const file of sourceFiles(root)) {
-    const text = readFileSync(file, 'utf8');
-    text.split('\n').forEach((l, i) => {
-      for (const m of l.matchAll(/'([^']+)'|"([^"]+)"/g)) {
+    const text = stripComments(readFileSync(file, 'utf8'));
+    const rel = relative(root, file);
+    // Matched per LINE, because a lone apostrophe inside a double-quoted string
+    // ("the office's") desynchronises quote pairing for the rest of a file-wide
+    // scan and silently loses every id after it. refKind still sees the whole
+    // preceding text, so a wrapped preload list is still read as a list.
+    let offset = 0;
+    for (const line of text.split('\n')) {
+      for (const m of line.matchAll(/'([^']+)'|"([^"]+)"/g)) {
         const id = m[1] ?? m[2];
         if (!manifestIds.has(id)) continue;
         if (!refs.has(id)) refs.set(id, []);
-        refs.get(id).push(`${relative(root, file)}:${i + 1}`);
+        refs.get(id).push({
+          at: `${rel}:${text.slice(0, offset).split('\n').length}`,
+          kind: refKind(text, offset + m.index),
+        });
       }
-    });
+      offset += line.length + 1;
+    }
   }
   return refs;
 }
 
-/** A blunt second net: no raw `volume:` may exist in src/ outside the engine. */
+/**
+ * What a bare id string is DOING where it sits, judged by the character in front
+ * of it. Three outcomes, and only one of them is evidence that anything plays:
+ *
+ *   list     `const names = ['ui.click', 'ui.mail-notify', ...]` — a preload or
+ *            decode list. ROUND 4: verify-signoff counted exactly this as proof
+ *            that ui.mail-notify was reachable and printed it at 53.55% / yes,
+ *            when the only thing that array does is decode the file. A list is
+ *            not a playback path.
+ *   dispatch `sound: 'os.boot-tier1'` — a sound slot on a data object, reached at
+ *            runtime through computerTier(tier).bootSound. That IS a playback
+ *            path; the id resolves and plays at its declared level.
+ *   arg      the argument of some other call (a load()).
+ */
+export function refKind(text, at) {
+  // The whole preceding text, not the line: a preload list wraps, and its second
+  // line starts with the string itself. Judging by the line alone called
+  // 'sfx.keyboard-type-1' — the first entry on a continuation line — "other".
+  const before = text.slice(0, at).replace(/\s+$/, '');
+  if (/[[,]$/.test(before)) return 'list';
+  if (/[:=]$/.test(before)) return 'dispatch';
+  if (/\($/.test(before)) return 'arg';
+  return 'other';
+}
+
+/**
+ * A blunt second net: no key that bends a level may exist in src/ outside the
+ * engine. `volume:` multiplies on top of the reviewed number; `bus:` swaps the
+ * bus gain for another one (ui 0.7 for sfx 0.8 is 1.14x louder), which round 4's
+ * critic used to make menu.js:899 play ui.click at 61.20% while the verifier
+ * printed 53.55% / yes. Both are ignored by the engine now; this makes writing
+ * one a build failure rather than a silent no-op.
+ */
 export function rawVolumeHits(root) {
   const hits = [];
   for (const file of sourceFiles(root)) {
-    const text = readFileSync(file, 'utf8');
+    const text = stripComments(readFileSync(file, 'utf8'));
     text.split('\n').forEach((l, i) => {
-      if (/[{,]\s*volume\s*:/.test(l)) hits.push(`${relative(root, file)}:${i + 1}  ${l.trim()}`);
+      if (/[{,]\s*(volume|bus)\s*:/.test(l)) hits.push(`${relative(root, file)}:${i + 1}  ${l.trim()}`);
+    });
+  }
+  return hits;
+}
+
+/**
+ * Every place outside src/core/audio.js that states a bus LEVEL rather than
+ * reading one. Two shapes, both of which have shipped:
+ *
+ *   a) an object literal keyed by the mix's own bus names with numeric values —
+ *      src/menu/lobby.js held `{ master: 0.9, music: 0.45, ambient: 0.5,
+ *      sfx: 0.8, ui: 0.7 }`, a third copy of mix.json, and pushed it onto the bus
+ *      on menu entry. Nothing checked that it still agreed with mix.json.
+ *   b) a numeric literal handed to setVolume/setBusGain/setMasterGain — the same
+ *      lie in one line instead of five.
+ *
+ * String maps (labels) and variables are fine: a label cannot be a level.
+ */
+export function mixLiteralHits(root, busNames, skip = ['src/core/audio.js']) {
+  const hits = [];
+  const buses = new Set(busNames);
+  const NUM = String.raw`-?\d*\.?\d+`;
+  for (const file of sourceFiles(root, skip)) {
+    const text = stripComments(readFileSync(file, 'utf8'));
+    const rel = relative(root, file);
+    // a) object literals: collect every `key: <number>` pair inside one { ... }
+    for (const m of text.matchAll(/\{([^{}]*)\}/g)) {
+      const named = [...m[1].matchAll(new RegExp(String.raw`([A-Za-z_$][\w$]*)\s*:\s*(${NUM})\s*(?:,|$)`, 'g'))]
+        .map((x) => x[1]).filter((k) => buses.has(k));
+      if (new Set(named).size >= 2) {
+        hits.push(`${rel}:${text.slice(0, m.index).split('\n').length}  bus-mix literal { ${named.join(', ')} } `
+          + '— mix.json is the only place a bus level is written');
+      }
+    }
+    // b) a level pushed straight at the bus
+    text.split('\n').forEach((l, i) => {
+      const m = l.match(new RegExp(String.raw`\.(setVolume|setBusGain|setMasterGain|setUserVolume)\s*\(([^)]*)\)`));
+      if (!m) return;
+      const args = m[2].split(',').map((a) => a.trim());
+      const last = args[args.length - 1] || '';
+      if (new RegExp(`^${NUM}$`).test(last))
+        hits.push(`${rel}:${i + 1}  ${m[1]}(..., ${last}) — a literal bus level outside mix.json`);
     });
   }
   return hits;

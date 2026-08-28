@@ -89,8 +89,8 @@ export class SettingsApp {
     this.okRect = { x: r.x + r.w - 3 * (bw + 6) - 4, y: by, w: bw, h: bh };
     this.cancelRect = { x: r.x + r.w - 2 * (bw + 6) - 4, y: by, w: bw, h: bh };
     this.applyRect = { x: r.x + r.w - (bw + 6) - 4, y: by, w: bw, h: bh };
-    button(g, this.okRect, { label: '&OK', pal, isDefault: true, pressed: this.down === 'ok' });
-    button(g, this.cancelRect, { label: '&Cancel', pal, pressed: this.down === 'cancel' });
+    button(g, this.okRect, { label: 'OK', pal, isDefault: true, pressed: this.down === 'ok' });
+    button(g, this.cancelRect, { label: 'Cancel', pal, pressed: this.down === 'cancel' });
     button(g, this.applyRect, { label: '&Apply', pal, disabled: !applyOn, pressed: this.down === 'apply' });
   }
 

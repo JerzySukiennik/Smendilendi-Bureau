@@ -10,8 +10,17 @@
 // not components a client can buy, so they live here instead.
 //
 // Shape is deliberately identical to a CatalogEntry so build.py, verify.mjs and the
-// contact sheet treat both lists the same way. `assets/models/props.json` is written
-// at build time so the office agent can read sizes without importing this file.
+// contact sheet treat both lists the same way.
+//
+// STATUS: these eleven are SPECIFIED, NOT BUILT. Every one has `proc: null`, so
+// `families.builder_for()` returns None and `make-models.py` skips it; there is
+// no GLB for any of them and no `assets/models/props.json`. Nothing in `src/`
+// references them yet either. They need a family each (a raked drafting top, a
+// five-drawer plan chest, a deep-bodied CRT, four generations of case, a roll
+// plotter, a chipboard massing model, a corkboard, a mug with a handle) and none
+// of that is shared with the catalogue families, which is why it is not folded
+// into `procTallUnit` and pretended to be done. Build them before `src/office/`
+// starts loading them, and give each one a `proc` naming its new family.
 
 const P = (o) => ({
   id: o.id,

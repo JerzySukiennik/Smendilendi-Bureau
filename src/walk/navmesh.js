@@ -47,6 +47,23 @@ export const NAV_CELL = FINE_CELL * 2;      // 0.20 m
 export const STAIR_COST = 4.48;
 /** How far outside the front door people appear and disappear. */
 export const OUTSIDE_STANDOFF = 7.0;
+/**
+ * How far a body centre has to stay off the masonry.
+ *
+ * Not the shoulder half-width: an NPC's widest part at this scale is the
+ * swinging arm, 0.24 m off the spine. Keeping the centre 0.24 m clear of the
+ * wall face therefore keeps the whole body out of the plaster, and it is
+ * exactly consistent with the navmesh's own definition of a passable cell — a
+ * cell needs PERSON_WIDTH (0.55 m) of clear width, so its centre already sits
+ * at least 0.275 m off any obstruction. Nothing that was walkable stops being
+ * walkable because of this number, and a 0.90 m leaf still leaves +-0.21 m of
+ * lateral freedom to walk through.
+ */
+export const WALL_CLEARANCE = 0.24;
+/** Side of the bucket the solid wall spans are filed under. Metres. */
+const SOLID_BUCKET = 1.0;
+/** Bucket coordinates are biased by this many cells so they stay non-negative. */
+const SOLID_BIAS = 16;
 
 const DIRS = [
   [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
@@ -177,6 +194,115 @@ export class Navmesh {
       if (best >= 0) return best;
     }
     return best;
+  }
+
+  // -- masonry -------------------------------------------------------------
+
+  /**
+   * THE WALLS, AS THE PEOPLE MEET THEM.
+   *
+   * The navmesh is a good description of the floor INSIDE the building, but it
+   * stops at the front door and says nothing at all about the site. Arriving
+   * and leaving therefore happen off the mesh, and for as long as "off the
+   * mesh" was allowed to mean "no collision", the arrival crowd walked bodily
+   * through the 240 mm front wall on either side of the door reveal.
+   *
+   * Geometry is not a property of the grid; it is a property of the building.
+   * So `nav.solids` carries every wall centreline cut into the pieces a body
+   * cannot pass — derived from the same `model.walls` and `model.openings` the
+   * visible geometry is extruded from, so what stops a person is exactly the
+   * thing the player can see, down to the 240 mm — and it is consulted on every
+   * step, in every state, inside the building and out.
+   *
+   * Two operations, and the difference between them matters:
+   *
+   *   pushOutOfWalls  the one the walkers use. It never refuses a step; it
+   *                   moves the result to the nearest legal point. REFUSING was
+   *                   tried first and was worse than the bug it fixed: somebody
+   *                   nudged against a door jamb by the person behind them had
+   *                   every direction rejected, stood there until the watchdog
+   *                   gave up, and the post-occupancy report then printed
+   *                   "no route" about a doorway that is perfectly walkable.
+   *                   A collision model must never invent a finding about the
+   *                   drawing. Pushing out slides them off the jamb and through.
+   *   crossesWall     a straight yes/no, for a movement that is not a walk —
+   *                   the idle shuffle, and a tunnelling guard.
+   */
+  crossesWall(x0, z0, x1, z1, levelIdx = 0, clearance = WALL_CLEARANCE) {
+    const level = this.solids?.[levelIdx];
+    if (!level || !level.spans.length) return false;
+    return this._spansNear(level, x0, z0, x1, z1, clearance,
+      (s) => spanBlocks(s, x0, z0, x1, z1, clearance)) === true;
+  }
+
+  /**
+   * Move (x, z) to the nearest point that is `clearance` clear of every wall.
+   * Two passes, so a body wedged into an internal corner leaves it properly.
+   */
+  pushOutOfWalls(x, z, levelIdx = 0, clearance = WALL_CLEARANCE, out = { x: 0, z: 0, moved: false }) {
+    out.x = x; out.z = z; out.moved = false;
+    const level = this.solids?.[levelIdx];
+    if (!level || !level.spans.length) return out;
+    for (let pass = 0; pass < 2; pass++) {
+      let moved = false;
+      this._spansNear(level, out.x, out.z, out.x, out.z, clearance, (s) => {
+        const ax = out.x - s.x, az = out.z - s.z;
+        const t = ax * s.ux + az * s.uz;
+        const p = -ax * s.uz + az * s.ux;
+        const tc = t < 0 ? 0 : (t > s.len ? s.len : t);
+        const pc = p < -s.half ? -s.half : (p > s.half ? s.half : p);
+        let dt = t - tc, dp = p - pc;
+        const d = Math.hypot(dt, dp);
+        if (d >= clearance) return false;
+        let nt, np, want;
+        if (d > 1e-7) {
+          nt = dt / d; np = dp / d; want = clearance - d;
+        } else {
+          // Inside the masonry itself. Leave by the nearest face; a body in a
+          // wall is a body that got there by some other bug, and the cheapest
+          // honest thing to do is to put it back on the floor.
+          const outs = [
+            [-1, 0, t + clearance],                 // back past the near end
+            [1, 0, s.len - t + clearance],          // on past the far end
+            [0, -1, p + s.half + clearance],        // out through one face
+            [0, 1, s.half - p + clearance],         // out through the other
+          ];
+          outs.sort((u, v) => u[2] - v[2]);
+          nt = outs[0][0]; np = outs[0][1]; want = outs[0][2];
+        }
+        out.x += (nt * s.ux - np * s.uz) * want;
+        out.z += (nt * s.uz + np * s.ux) * want;
+        moved = true;
+        return false;
+      });
+      out.moved ||= moved;
+      if (!moved) break;
+    }
+    return out;
+  }
+
+  /** Visit every solid span whose padded footprint meets this query box. */
+  _spansNear(level, x0, z0, x1, z1, clearance, fn) {
+    const pad = level.maxHalf + clearance;
+    const i0 = Math.floor((Math.min(x0, x1) - pad - level.minX) / SOLID_BUCKET);
+    const i1 = Math.floor((Math.max(x0, x1) + pad - level.minX) / SOLID_BUCKET);
+    const j0 = Math.floor((Math.min(z0, z1) - pad - level.minZ) / SOLID_BUCKET);
+    const j1 = Math.floor((Math.max(z0, z1) + pad - level.minZ) / SOLID_BUCKET);
+    const seen = (this._solidSeen ??= new Set());
+    seen.clear();
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const k = bucketKey(level, i, j);
+        const bucket = k < 0 ? null : level.buckets.get(k);
+        if (!bucket) continue;
+        for (const si of bucket) {
+          if (seen.has(si)) continue;
+          seen.add(si);
+          if (fn(level.spans[si])) return true;
+        }
+      }
+    }
+    return false;
   }
 
   // -- neighbours ----------------------------------------------------------
@@ -565,6 +691,148 @@ export class Navmesh {
 }
 
 // ---------------------------------------------------------------------------
+// the masonry, as spans
+
+/**
+ * Distance from a point to a wall span, in the span's own frame.
+ * The span is a RECTANGLE, `len` long and `2*half` thick, not a capsule: the
+ * jamb at the end of a span is a flat reveal, and treating it as a round cap
+ * would narrow every doorway by the wall thickness.
+ */
+function boxDist(t, p, len, half) {
+  const dt = t < 0 ? -t : (t > len ? t - len : 0);
+  const dp = Math.abs(p) - half;
+  const dpp = dp > 0 ? dp : 0;
+  return Math.hypot(dt, dpp);
+}
+
+/** Does the segment (t0,p0)->(t1,p1) touch the axis-aligned box? Slab test. */
+function segmentHitsBox(t0, p0, t1, p1, tMin, tMax, pMin, pMax) {
+  let lo = 0, hi = 1;
+  const dt = t1 - t0, dp = p1 - p0;
+  const clip = (d, a, b, v) => {
+    if (Math.abs(d) < 1e-12) return v >= a && v <= b;
+    let n = (a - v) / d, f = (b - v) / d;
+    if (n > f) { const s = n; n = f; f = s; }
+    if (n > lo) lo = n;
+    if (f < hi) hi = f;
+    return lo <= hi;
+  };
+  if (!clip(dt, tMin, tMax, t0)) return false;
+  if (!clip(dp, pMin, pMax, p0)) return false;
+  return lo <= hi;
+}
+
+/** Would this step put a body into `s`, or take it through `s`? */
+function spanBlocks(s, x0, z0, x1, z1, clearance) {
+  const ax = x0 - s.x, az = z0 - s.z;
+  const bx = x1 - s.x, bz = z1 - s.z;
+  const t0 = ax * s.ux + az * s.uz, p0 = -ax * s.uz + az * s.ux;
+  const t1 = bx * s.ux + bz * s.uz, p1 = -bx * s.uz + bz * s.ux;
+  const d1 = boxDist(t1, p1, s.len, s.half);
+  if (d1 >= clearance) {
+    // The step ENDS in the clear. At walking speed a frame is a couple of
+    // centimetres against a 120 mm wall, so the only way to end up clear on the
+    // far side is a jump; test the segment against the masonry itself.
+    return segmentHitsBox(t0, p0, t1, p1, 0, s.len, -s.half, s.half);
+  }
+  const d0 = boxDist(t0, p0, s.len, s.half);
+  if (d0 < clearance) return d1 < d0 - 1e-9;   // already inside: only refuse going deeper
+  return true;
+}
+
+/**
+ * buildSolids(model, levels) -> [ { spans, buckets, ... } ] per level
+ *
+ * Every wall centreline, cut into the pieces a body cannot walk through: the
+ * spans between its openings. A door or a doorless opening is a hole all the
+ * way to the floor and is subtracted; a window is only a hole if it starts at
+ * the floor, which is what a full-height glazed screen is.
+ */
+function buildSolids(model, levels) {
+  const out = levels.map((L) => ({
+    levelId: L.levelId, minX: L.minX, minZ: L.minZ,
+    spans: [], buckets: new Map(), cols: 0, maxHalf: 0,
+  }));
+  const levelIndex = new Map(levels.map((L, i) => [L.levelId, i]));
+  const defaultLevel = model.levels?.[0]?.id;
+  for (const id in model.walls) {
+    const w = model.walls[id];
+    const li = levelIndex.get(w.levelId ?? defaultLevel);
+    if (li === undefined) continue;
+    const a = model.nodes[w.a], b = model.nodes[w.b];
+    if (!a || !b) continue;
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    if (len < 1e-6) continue;
+    const ux = (b.x - a.x) / len, uz = (b.z - a.z) / len;
+    const holes = [];
+    for (const oid of w.openings ?? []) {
+      const o = model.openings[oid];
+      if (!o) continue;
+      if (o.kind === 'window' && (o.sill ?? 0) > 0.2) continue;
+      holes.push([o.offset - o.width / 2, o.offset + o.width / 2]);
+    }
+    holes.sort((p, q) => p[0] - q[0]);
+    let cursor = 0;
+    const pieces = [];
+    for (const [h0, h1] of holes) {
+      if (h0 > cursor) pieces.push([cursor, h0]);
+      if (h1 > cursor) cursor = h1;
+    }
+    if (cursor < len) pieces.push([cursor, len]);
+    const half = (w.thickness ?? 0.12) / 2;
+    for (const [s0, s1] of pieces) {
+      if (s1 - s0 < 1e-4) continue;
+      out[li].spans.push({
+        wallId: id, x: a.x + ux * s0, z: a.z + uz * s0,
+        ux, uz, len: s1 - s0, half,
+      });
+      if (half > out[li].maxHalf) out[li].maxHalf = half;
+    }
+  }
+  // File each span in every 1 m bucket its padded footprint touches, so a step
+  // only ever tests the handful of walls that are actually near it. Bucket
+  // coordinates are biased so that a wall a few metres outside the lattice —
+  // and a query from the pavement, which is where the arrival crowd is — still
+  // maps to a non-negative cell of the same flat key space.
+  for (const L of out) {
+    const pad = L.maxHalf + WALL_CLEARANCE;
+    let maxI = 1;
+    const boxes = L.spans.map((s) => {
+      const ex = s.x + s.ux * s.len, ez = s.z + s.uz * s.len;
+      return {
+        i0: Math.floor((Math.min(s.x, ex) - pad - L.minX) / SOLID_BUCKET),
+        i1: Math.floor((Math.max(s.x, ex) + pad - L.minX) / SOLID_BUCKET),
+        j0: Math.floor((Math.min(s.z, ez) - pad - L.minZ) / SOLID_BUCKET),
+        j1: Math.floor((Math.max(s.z, ez) + pad - L.minZ) / SOLID_BUCKET),
+      };
+    });
+    for (const b of boxes) if (b.i1 > maxI) maxI = b.i1;
+    L.cols = maxI + SOLID_BIAS * 2 + 2;
+    for (let n = 0; n < boxes.length; n++) {
+      const b = boxes[n];
+      for (let j = b.j0; j <= b.j1; j++) {
+        for (let i = b.i0; i <= b.i1; i++) {
+          const k = bucketKey(L, i, j);
+          if (k < 0) continue;
+          let arr = L.buckets.get(k);
+          if (!arr) { arr = []; L.buckets.set(k, arr); }
+          arr.push(n);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Flat key for a bucket coordinate, or -1 when it is off the biased space. */
+function bucketKey(L, i, j) {
+  const bi = i + SOLID_BIAS, bj = j + SOLID_BIAS;
+  if (bi < 0 || bj < 0 || bi >= L.cols) return -1;
+  return bj * L.cols + bi;
+}
+
+// ---------------------------------------------------------------------------
 // the one place the walkthrough legitimately differs from the analysis
 
 /**
@@ -770,6 +1038,7 @@ export function buildNav(model, brief = {}) {
     roomIds, roomById, doorIds, portalsFrom, byKind,
     fields: new Map(), _roomCells: new Map(),
     roomAnchors: new Map(), entrances: [], doors: [],
+    solids: buildSolids(model, levels),
     cell: NAV_CELL,
   });
 

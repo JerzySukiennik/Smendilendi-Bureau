@@ -17,11 +17,14 @@ import {
   LineSegments, LineBasicMaterial, CanvasTexture, SRGBColorSpace, DoubleSide, Vector2,
 } from 'three';
 import { getRooms, roomCentroid } from '../model/rooms.js';
+import { tryEntry, verticalExtent } from '../model/catalog.js';
 
 const INK = 0x2b2825;
 const PAPER = 0xf3ece1;
 const DIM = 0x6f6a63;
 const GLASS = 0x4d7f96;
+const FURN = 0x5d574f;         // furniture is drawn a weight lighter than the fabric
+const CUT_HEIGHT = 1.20;       // the horizontal section this drawing is taken at
 
 // Heights above the floor. The paper and the poché sit on the floor; the
 // linework and the labels are lifted to just under the 1.20 m cut so a door
@@ -82,9 +85,18 @@ export class PlanDrawing {
     const labels = [];     // { text, sub, x, z, size }
 
     const walls = Object.values(model.walls).filter(w => w.levelId === levelId);
+    const ceiling = model.levels?.find(l => l.id === levelId)?.height ?? 2.70;
 
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     const xs = new Set(), zs = new Set();
+    // A second, finer chain: the jambs of every opening in an exterior wall.
+    // A setting-out drawing that dimensions the walls but not the holes in them
+    // cannot be built from, so this one runs closest to the building. Each jamb
+    // is remembered with the wall it belongs to, because a chain drawn along the
+    // south edge may only carry the south wall's openings — putting every x-jamb
+    // in the building on both the north and the south chain would print two
+    // chains that are neither of them a wall.
+    const jambs = [];      // { axis:'x'|'z', at, cross }
 
     for (const w of walls) {
       const a = model.nodes[w.a], b = model.nodes[w.b];
@@ -132,6 +144,12 @@ export class PlanDrawing {
         for (const s of [-1, 1]) {
           const jx = cx + dx * halfW * s, jz = cz + dz * halfW * s;
           segs.push({ a: [jx + nx * h, jz + nz * h], b: [jx - nx * h, jz - nz * h], color: INK });
+          if (w.type === 'exterior' || w.type === 'party') {
+            // A jamb is dimensioned on the axis the wall RUNS along, never across
+            // its thickness: a door in a north wall is set out from the west.
+            if (Math.abs(dx) > Math.abs(dz)) jambs.push({ axis: 'x', at: round(jx), cross: (a.z + b.z) / 2 });
+            else jambs.push({ axis: 'z', at: round(jz), cross: (a.x + b.x) / 2 });
+          }
         }
         if (o.kind === 'window') {
           // three lines across the opening = the glazed unit in plan
@@ -156,15 +174,31 @@ export class PlanDrawing {
       }
     }
 
-    // rooms: name and clear area at the centroid
+    // FURNITURE AS PLAN SYMBOLS, not as a photograph of the model.
+    //
+    // A shaded 3D top view with a drop shadow sitting inside a line drawing is
+    // the one thing on this sheet that would tell an architect a programmer drew
+    // it. Everything above the 1.20 m cut is left out, as it is on a real plan.
+    const footprints = [];
+    for (const id in model.furniture) {
+      const f = model.furniture[id];
+      if (f.levelId !== levelId) continue;
+      const entry = tryEntry(f.catalogId);
+      if (!entry) continue;
+      const band = verticalExtent(entry, f, ceiling);
+      if (band.zMin >= CUT_HEIGHT) continue;              // above the cut: not drawn
+      const fp = furnitureSymbol(segs, entry, f);
+      if (fp) footprints.push(fp);
+    }
+
+    // rooms: name and clear area, placed clear of the furniture under it
     const rooms = getRooms(model, levelId);
     for (const id of rooms.order) {
       const r = rooms.rooms[id];
       const c = roomCentroid(r);
-      labels.push({
-        text: (roomNames && roomNames.get(id)) || r.name,
-        sub: `${r.area.toFixed(2)} m²`, x: c.x, z: c.z, size: 0.34,
-      });
+      const text = (roomNames && roomNames.get(id)) || r.name;
+      const at = labelSpot(c, r, footprints, text);
+      labels.push({ text, sub: `${r.area.toFixed(2)} m²`, x: at.x, z: at.z, size: 0.34 });
     }
 
     // Dimensions. A drawing an architect can build from carries the running
@@ -173,9 +207,31 @@ export class PlanDrawing {
     if (Number.isFinite(minX)) {
       const pad = 1.4;
       const outer = pad + 1.15;
+      const inner = 0.62;                                             // the openings chain
       const X = [...xs].sort((p, q) => p - q);
       const Z = [...zs].sort((p, q) => p - q);
       const ends = (a) => (a.length >= 2 ? [a[0], a[a.length - 1]] : a);
+
+      // Innermost: where the holes are, ONE CHAIN PER SIDE. A jamb belongs to
+      // the edge of the sheet its own wall stands on, and the two corners of
+      // that edge close the chain, so every figure in it is a real setting-out
+      // distance and the whole chain adds up to the overall.
+      const side = (axis, lo, hi, want) => {
+        const ends2 = axis === 'x' ? [X[0], X[X.length - 1]] : [Z[0], Z[Z.length - 1]];
+        const mid = (lo + hi) / 2;
+        const here = jambs.filter(j => j.axis === axis
+          && (want === 'lo' ? j.cross <= mid : j.cross > mid));
+        if (!here.length) return null;
+        return [...new Set([...here.map(j => j.at), ...ends2.filter(Number.isFinite)])].sort((p, q) => p - q);
+      };
+      const north = side('x', minZ, maxZ, 'lo');    // walls near minZ
+      const south = side('x', minZ, maxZ, 'hi');
+      const west = side('z', minX, maxX, 'lo');
+      const east = side('z', minX, maxX, 'hi');
+      if (south) dimChain(segs, labels, south, maxZ + inner, 'x', maxZ, -0.26, 0.20);
+      if (north) dimChain(segs, labels, north, minZ - inner, 'x', minZ, +0.26, 0.20);
+      if (west) dimChain(segs, labels, west, minX - inner, 'z', minX, -0.26, 0.20);
+      if (east) dimChain(segs, labels, east, maxX + inner, 'z', maxX, +0.26, 0.20);
 
       dimChain(segs, labels, X, maxZ + pad, 'x', maxZ, -0.30);        // south
       dimChain(segs, labels, X, minZ - pad, 'x', minZ, +0.30);        // north
@@ -305,7 +361,7 @@ function arc(segs, cx, cz, r, a0, a1, color) {
  * A dimension string: witness lines down from every node coordinate, one running
  * dimension line, 45-degree architectural ticks and the figure over each bay.
  */
-function dimChain(segs, labels, coords, at, axis, near, textOffset) {
+function dimChain(segs, labels, coords, at, axis, near, textOffset, size = 0.24) {
   const pts = coords.filter((v, i, arr) => i === 0 || v - arr[i - 1] > 0.05);
   if (pts.length < 2) return;
   const tick = 0.16;
@@ -326,17 +382,132 @@ function dimChain(segs, labels, coords, at, axis, near, textOffset) {
   for (let i = 0; i < pts.length - 1; i++) {
     const mid = (pts[i] + pts[i + 1]) / 2;
     const span = pts[i + 1] - pts[i];
-    if (span < 0.25) continue;
+    if (span < 0.02) continue;
+    // A bay too narrow to hold its own figure gets it STAGGERED outwards rather
+    // than dropped. A chain that silently omits a 150 mm pier does not add up to
+    // its own overall, and an architect adds a chain up.
+    const tight = span < size * 3.6;
     labels.push({
       text: `${Math.round(span * 1000)}`,
       sub: '',
-      x: axis === 'x' ? mid : at + textOffset,
-      z: axis === 'x' ? at + textOffset : mid,
-      size: 0.24,
+      x: axis === 'x' ? mid : at + textOffset * (tight ? 2.1 : 1),
+      z: axis === 'x' ? at + textOffset * (tight ? 2.1 : 1) : mid,
+      size,
       rot: axis === 'x' ? 0 : Math.PI / 2,
       color: '#6f6a63',
     });
   }
+}
+
+/**
+ * ONE PIECE OF FURNITURE, AS A PLAN SYMBOL.
+ *
+ * Drawn from the catalogue envelope in the object's own axes, so it turns with
+ * the object: outline first, then the two or three interior lines that make the
+ * symbol readable as what it is — the back of a sofa, the pillow end of a bed,
+ * the bowl of a basin, the door swing of a wardrobe. Everything is a line at
+ * furniture weight; there is no fill, no shade and no shadow anywhere in it.
+ *
+ * @returns {{x:number,z:number,rx:number,rz:number}} the footprint, for label placement
+ */
+function furnitureSymbol(segs, entry, f) {
+  const w = Math.abs((entry.size?.[0] ?? 0.4) * (f.sx ?? 1));
+  const d = Math.abs((entry.size?.[2] ?? 0.4) * (f.sz ?? 1));
+  if (!(w > 0.02) || !(d > 0.02)) return null;
+  const rot = f.rot || 0;
+  const c = Math.cos(rot), s = Math.sin(rot);
+  // local (u along the item's width, v along its depth) -> world (x, z)
+  const P = (u, v) => [f.x + u * c + v * s, f.z - u * s + v * c];
+  const line = (u0, v0, u1, v1) => segs.push({ a: P(u0, v0), b: P(u1, v1), color: FURN });
+  const box = (hu, hv) => {
+    line(-hu, -hv, hu, -hv); line(hu, -hv, hu, hv);
+    line(hu, hv, -hu, hv); line(-hu, hv, -hu, -hv);
+  };
+  const ellipse = (cu, cv, ru, rv, steps = 20) => {
+    for (let i = 0; i < steps; i++) {
+      const t0 = (i / steps) * Math.PI * 2, t1 = ((i + 1) / steps) * Math.PI * 2;
+      segs.push({
+        a: P(cu + Math.cos(t0) * ru, cv + Math.sin(t0) * rv),
+        b: P(cu + Math.cos(t1) * ru, cv + Math.sin(t1) * rv),
+        color: FURN,
+      });
+    }
+  };
+
+  const hu = w / 2, hv = d / 2;
+  const cat = entry.category;
+  const tags = entry.tags || [];
+  const isRound = tags.includes('round') || /round|circ/.test(entry.id);
+
+  if (cat === 'plants' || (cat === 'lighting' && entry.anchor === 'floor')) {
+    ellipse(0, 0, hu, hv);
+    if (cat === 'plants') ellipse(0, 0, hu * 0.35, hv * 0.35, 12);
+    else { line(-hu, 0, hu, 0); line(0, -hv, 0, hv); }
+  } else if (isRound) {
+    ellipse(0, 0, hu, hv);
+    ellipse(0, 0, hu * 0.72, hv * 0.72);
+  } else if (cat === 'seating' && (tags.includes('lounge') || w > 1.2)) {
+    box(hu, hv);                                   // sofa: back, arms, cushions
+    line(-hu, -hv + d * 0.26, hu, -hv + d * 0.26);
+    line(-hu + w * 0.14, -hv + d * 0.26, -hu + w * 0.14, hv);
+    line(hu - w * 0.14, -hv + d * 0.26, hu - w * 0.14, hv);
+  } else if (cat === 'seating') {
+    box(hu, hv);                                   // chair: seat, plus the back
+    line(-hu, -hv + d * 0.22, hu, -hv + d * 0.22);
+  } else if (cat === 'beds') {
+    box(hu, hv);                                   // bed: pillows and the turn-down
+    line(-hu, -hv + d * 0.22, hu, -hv + d * 0.22);
+    line(-hu, -hv + d * 0.42, hu, -hv + d * 0.42);
+    line(0, -hv, 0, -hv + d * 0.22);
+  } else if (cat === 'sanitary') {
+    box(hu, hv);
+    if (/wc|toilet/.test(entry.id)) ellipse(0, hv * 0.15, hu * 0.62, hv * 0.5, 16);
+    else ellipse(0, 0, hu * 0.72, hv * 0.62, 16);  // basin or bath bowl
+  } else if (cat === 'storage' || cat === 'kitchen') {
+    box(hu, hv);                                   // carcass, doors and their opening
+    line(-hu, hv - Math.min(d * 0.35, 0.10), hu, hv - Math.min(d * 0.35, 0.10));
+    line(0, hv - Math.min(d * 0.35, 0.10), 0, hv);
+  } else if (cat === 'tables' || cat === 'office') {
+    box(hu, hv);
+    line(-hu + w * 0.08, -hv + d * 0.08, hu - w * 0.08, -hv + d * 0.08);
+    line(-hu + w * 0.08, hv - d * 0.08, hu - w * 0.08, hv - d * 0.08);
+  } else {
+    box(hu, hv);
+  }
+  return { x: f.x, z: f.z, rx: Math.max(Math.abs(hu * c) + Math.abs(hv * s), 0.05),
+    rz: Math.max(Math.abs(hu * s) + Math.abs(hv * c), 0.05) };
+}
+
+/**
+ * Where a room's name goes. The centroid, unless something is standing on it —
+ * a room label printed over the dining table is the drawing contradicting
+ * itself. Candidates walk outwards from the centroid and the first one clear of
+ * every footprint AND still inside the room wins.
+ */
+function labelSpot(c, room, footprints, text) {
+  const halfW = Math.max(0.9, text.length * 0.11);
+  const halfH = 0.30;
+  const clash = (x, z) => footprints.some(f =>
+    Math.abs(f.x - x) < f.rx + halfW * 0.55 && Math.abs(f.z - z) < f.rz + halfH * 1.6);
+  if (!clash(c.x, c.z)) return c;
+  for (const step of [0.7, 1.3, 2.0, 2.8]) {
+    for (const [ux, uz] of [[0, -1], [0, 1], [-1, 0], [1, 0], [-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]]) {
+      const x = c.x + ux * step, z = c.z + uz * step;
+      if (!pointInPolygon(room.polygon, x, z)) continue;
+      if (!clash(x, z)) return { x, z };
+    }
+  }
+  return c;
+}
+
+function pointInPolygon(poly, x, z) {
+  if (!poly || poly.length < 3) return true;
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], zi = poly[i][1], xj = poly[j][0], zj = poly[j][1];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 /**
