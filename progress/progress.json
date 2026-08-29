@@ -599,7 +599,15 @@
    "headline": "One id, one reviewed level, now unforgeable: lobby mix copy deleted, handle setVolume and opts.bus removed, checks 10a-10d added, 9 dead assets wired or dropped; 22/22 checks, 78 paths measured on the live nodes, 0 divergences",
    "shot": "shots/audio-levels-r2.png",
    "at": "2026-08-28T08:38:51.554Z"
+  },
+  {
+   "piece": "audio-levels",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "6.5/10 — the four signed-off levels are genuinely correct end-to-end (verified independently, measured on the live gain nodes, 0 divergences over 55 call sites), but the verifier that is supposed to k",
+   "at": "2026-08-28T23:23:14.550Z"
   }
  ],
- "updated": "2026-08-28T08:38:51.554Z"
+ "updated": "2026-08-28T23:23:14.550Z"
 }
