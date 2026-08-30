@@ -21,7 +21,10 @@ import {
   Scene, PerspectiveCamera, Color, Fog, Group, Mesh, InstancedMesh, Object3D,
   PointLight, Vector3, MathUtils, BoxGeometry, MeshBasicMaterial, SphereGeometry,
   InstancedBufferAttribute, Frustum, Matrix4, Sphere,
+  PlaneGeometry, CanvasTexture, SRGBColorSpace, NearestFilter,
+  LinearMipmapLinearFilter,
 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PMREMGenerator } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { makeLightRig } from '../core/palette.js';
@@ -86,9 +89,29 @@ export const ACCENT_USES = [
  */
 export const CYANOTYPE = 0x566671;
 
-/** Acoustic felt on the cubicle screens. A cool grey, s 0.15 — under item 10's
- *  25 % ceiling, so it is a temperature and not a second accent. */
-export const FELT = 0x5f6870;
+/**
+ * Acoustic felt on the cubicle screens — and the last piece of the item 10
+ * argument, which the CYANOTYPE note above got half right.
+ *
+ * Round 3 fixed the cyanotypes and left this at 0x5f6870, defending it as
+ * "a cool grey, s 0.15, under item 10's 25 % ceiling". The albedo was indeed
+ * s 0.15. The RENDER was not, and item 10 is scored on pixels: the two 1.35 m
+ * screens are the largest single mass of colour in the hero frame, they stand
+ * in shade, and a blue-grey surface lit almost entirely by a cool hemisphere
+ * and a blue sky comes back MORE saturated than its paint, not less. Measured
+ * off the shipped hero frame at 1600 x 900: the panels sample #1e252d, H 212,
+ * S 0.33 — over the ceiling — and the cool band carried 31 % of every pixel in
+ * the frame with S > 0.30 (3.85 % of the whole frame against the warm band's
+ * 8.55 %). That is a second accent by the only measurement the bar takes.
+ *
+ * A surface's albedo is a claim about paint; only the render is evidence. So
+ * the felt is now a warm-neutral greige, H 33 / S 0.10, which is what office
+ * acoustic felt mostly is anyway, and the cool half of the frame comes from
+ * where item 3 wants it to come from: the hemisphere light, the sky through
+ * the glazing and the 6500 K monitor point lights. Nothing that is PAINTED in
+ * this room is a competing accent any more.
+ */
+export const FELT = 0x7d776f;
 
 export class Office {
   constructor(ctx) {
@@ -156,6 +179,7 @@ export class Office {
     scene.add(poolGroup);
     this.pool = new InstancePool(poolGroup);
     this._layoutInstanced();
+    this._buildCubicleScreens();
 
     // ---- lighting --------------------------------------------------------
     this._buildLights();
@@ -318,6 +342,42 @@ export class Office {
     b.at({ x: 14.74, y: 0.32, z: 2.96, ry: 0.16 }, (q) => PROPS.cardboardBox(q, { w: 0.40, h: 0.27, d: 0.36 }));
     this._shadow(14.72, 0.004, 3.00, 0.62, 0.58);
     col(14.72, 3.00, 0.46, 0.42);
+
+    // ---- the roll store, under the whiteboard ----------------------------
+    //
+    // The one stretch of this wall still bare in POSES.teapoint is the strip
+    // between the whiteboard and the tea point: 1.8 m of plaster with nothing
+    // in the frame's lower right. Every practice has this object — an open
+    // crate of rolled prints nobody will ever unroll again — and it does three
+    // things at once: it fills the void, it adds a prop type to the frame, and
+    // it puts a vertical cluster against a horizontal wall.
+    b.at({ x: 14.70, z: 6.28, ry: -0.12 }, (q) => {
+      const w = 0.50, d = 0.44, h = 0.42;
+      q.cboxUp(w, 0.018, d, { color: OFFICE.ply, c: 0.004 });                       // base
+      for (const sz of [-1, 1]) {
+        q.cboxUp(w, h, 0.018, { z: sz * (d / 2 - 0.009), color: OFFICE.ply, c: 0.004 });
+      }
+      for (const sx of [-1, 1]) {
+        q.cboxUp(0.018, h, d - 0.036, { x: sx * (w / 2 - 0.009), color: OFFICE.ply, c: 0.004 });
+      }
+      q.cboxUp(w - 0.036, 0.012, d - 0.036, { y: 0.018, color: 0x8f877b, ao: false, c: 0.003 });
+      // nine rolls, leaning at slightly different angles so the tops are ragged
+      const lean = [-0.05, 0.03, -0.015, 0.06, -0.035, 0.01, 0.045, -0.06, 0.02];
+      for (let i = 0; i < 9; i++) {
+        const cx = -0.14 + (i % 3) * 0.14, cz = -0.11 + Math.floor(i / 3) * 0.11;
+        q.at({ x: cx, z: cz, rx: lean[i] * 0.6, rz: lean[i] }, (r2) => {
+          r2.cylUp(0.036, 0.036, 0.86 + (i % 4) * 0.05, 10, {
+            y: 0.03, color: i % 3 === 1 ? OFFICE.paperWarm : OFFICE.paper, mat: 'paper',
+          });
+          if (i % 2) {
+            r2.cylUp(0.038, 0.038, 0.014, 10, { y: 0.52, color: OFFICE.charcoal, mat: 'ink', ao: false, open: true });
+          }
+        });
+      }
+    });
+    S('rollStore');
+    this._shadow(14.70, 0.004, 6.28, 0.66, 0.60, -0.12);
+    col(14.70, 6.28, 0.50, 0.44);
 
     // ---- tea point -------------------------------------------------------
     b.at({ x: 14.70, z: 7.90, ry: -Math.PI / 2 }, (q) => PROPS.coffeeCounter(q, { w: 1.80 })); S('coffeeCounter');
@@ -1168,6 +1228,67 @@ export class Office {
   }
 
   /**
+   * The three CUBICLE monitors, which had no screen at all.
+   *
+   * Round 3 fixed the black rectangle on the player's own desk and shipped
+   * three more. `_layoutInstanced()` places `K.monitor` at every cubicle, and
+   * propMonitor() is a bezel, a chin, a neck and a foot — the screen quad is
+   * deliberately NOT part of it, because on a workstation it carries a live OS
+   * texture and must not be merged into an instanced batch. Nothing ever
+   * supplied one here, so the aperture showed the unlit inside of the housing:
+   * measured off the walked frame at (5.10, 6.10), #18130e, luma 10. Three
+   * black rectangles at eye height in the middle of the room.
+   *
+   * `_auditScreens()` could not catch it because it iterates `workstations`,
+   * and a cubicle is not a workstation. That is the same shape of mistake as
+   * the original defect — an assertion that only covers the case somebody
+   * already thought about — so the audit now counts these too.
+   *
+   * These do NOT need a live OS. Nobody is designing at them; an intern's
+   * machine sitting at its desktop is what the room needs, and three more
+   * `createScreen()` surfaces would be three more canvases repainting every
+   * frame for scenery. One 128 x 76 canvas, painted once, shared by three
+   * quads merged into a single unlit mesh: one draw call, one texture, no
+   * per-frame cost, and three fewer holes in the room.
+   */
+  _buildCubicleScreens() {
+    const { w, h, y, z } = MONITOR_SCREEN;
+    const cv = document.createElement('canvas');
+    cv.width = 128; cv.height = 76;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#0f6a68'; g.fillRect(0, 0, 128, 76);              // desktop field
+    g.fillStyle = '#c8c4bb'; g.fillRect(0, 68, 128, 8);              // task bar
+    g.fillStyle = '#8d8981'; g.fillRect(2, 70, 18, 4);               // start button
+    for (let i = 0; i < 2; i++) {                                    // two open windows
+      const x0 = 10 + i * 46, y0 = 12 + i * 16, ww = 56, hh = 34;
+      g.fillStyle = '#c8c4bb'; g.fillRect(x0, y0, ww, hh);
+      g.fillStyle = '#1c3f5c'; g.fillRect(x0 + 1, y0 + 1, ww - 2, 6);
+      g.fillStyle = '#f1efe9'; g.fillRect(x0 + 2, y0 + 9, ww - 4, hh - 11);
+      g.fillStyle = '#6f6b64';
+      for (let r = 0; r < 4; r++) g.fillRect(x0 + 5, y0 + 13 + r * 5, ww - 14 - r * 6, 2);
+    }
+    g.fillStyle = '#e8e2d4';                                         // desktop icons
+    for (let r = 0; r < 3; r++) g.fillRect(4, 4 + r * 14, 8, 8);
+    const tex = new CanvasTexture(cv);
+    tex.colorSpace = SRGBColorSpace;
+    tex.magFilter = NearestFilter;                                   // a PSX-era machine
+    tex.minFilter = LinearMipmapLinearFilter;
+
+    const quads = [];
+    for (const c of CUBICLES) {
+      const q = new PlaneGeometry(w, h);
+      q.translate(c.x, CUBICLE_MONITOR_ANCHOR.y + y, c.z + CUBICLE_MONITOR_ANCHOR.z + z);
+      quads.push(q);
+    }
+    const mesh = new Mesh(mergeGeometries(quads, false),
+      new MeshBasicMaterial({ map: tex, toneMapped: false, color: 0x6e6e6e }));
+    mesh.name = 'cubicle-screens';
+    this.cubicleScreens = mesh;
+    this.scene.add(mesh);
+    return mesh;
+  }
+
+  /**
    * Assert that no monitor in this room is a black rectangle.
    *
    * A screen that never lights is the one defect a screenshot cannot show you,
@@ -1188,6 +1309,19 @@ export class Office {
           max: l ? Math.round(l.max) : null,
           glow: ws.glow.intensity,
         };
+      });
+      // The cubicles count. They are monitors in the same room at the same eye
+      // height, and the previous version of this audit walked `workstations`
+      // only — which is exactly why three of them shipped as black rectangles
+      // one round after the fourth was fixed. There is no live canvas to
+      // sample here, so the check is the one that actually applies: is the
+      // screen mesh present, in the scene, and carrying a texture.
+      const cub = this.cubicleScreens;
+      const cubTris = cub ? cub.geometry.index.count / 3 : 0;
+      rows.push({
+        desk: 'cubicles', player: `${CUBICLES.length} stand-ins`,
+        mean: (cub && cub.parent && cub.material.map && cubTris >= CUBICLES.length * 2) ? 100 : null,
+        max: null, glow: 0,
       });
       const dead = rows.filter((r) => r.mean === null || r.mean < 12);
       if (dead.length) {
@@ -1684,6 +1818,9 @@ export class Office {
   dispose() {
     this.envMap?.dispose();
     for (const ws of this.workstations) ws.dispose();
+    this.cubicleScreens?.geometry.dispose();
+    this.cubicleScreens?.material.map?.dispose();
+    this.cubicleScreens?.material.dispose();
     this.pool?.dispose();
     this.rig?.dispose();
     this.interact?.dispose();

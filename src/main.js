@@ -12,6 +12,7 @@ import { AudioBus } from './core/audio.js';
 import { Assets } from './core/assets.js';
 import { PlaceholderMode } from './core/mode.js';
 import { createState } from './core/state.js';
+import { createLoop } from './core/loop.js';
 
 // Modes to try, in the order they should be attempted. Each entry names the module
 // and the export; a missing module is skipped with one console.info, not an error.
@@ -85,6 +86,12 @@ class App {
       this.engine.register(first);
       console.info('[app] running the placeholder mode — no game mode is present yet');
     }
+
+    // The game loop. It has to exist BEFORE the first mode is pushed: it
+    // listens for the office opening, and that is where the first brief is
+    // generated and posted to the inbox.
+    this.loop = createLoop(this.ctx);
+    this.ctx.loop = this.loop;
 
     this.engine.push(first);
     this.engine.start();

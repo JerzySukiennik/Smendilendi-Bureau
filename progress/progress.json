@@ -884,7 +884,42 @@
    "status": "fail",
    "headline": "12 / 15 on the finish bar for the hero frame (items 5-ceiling, 10 and — on the shipped teapoint pose — 1 fail). The prop brief itself is essentially discharged: 0 of 39 props still read as a bare box.",
    "at": "2026-08-30T13:26:48.008Z"
+  },
+  {
+   "piece": "office props",
+   "role": "builder",
+   "round": 4,
+   "status": "pass",
+   "headline": "Critic round 3 closed: monitors all paint (6/6), the wall/ceiling seam is gone, one accent hue, plotter panel un-buried",
+   "detail": "The blocker (workstation 0 black) was already fixed in HEAD and verified live in index.html: screenLuma 107.8 on all three desks, console prints 'screens live' with zero warnings. Four defects still stood and are now fixed. (1) The 211-luma aliased cream line at every wall/ceiling junction was the ao:false wall SOLID showing through a rasterisation crack; replaced the AO-ramp approach with a physical 42x18 mm dark head reveal lapped 20 mm above the ceiling plane (room.js). Junction now reads ceiling 62 / reveal 6 / wall 94 instead of 62 / 211 / 94. (2) Item 10: the felt partitions rendered at H212 S0.33 and carried 31% of the frame's saturated pixels; FELT is now a warm-neutral greige and the cool band is 0.8-4.2% of saturated pixels across all five poses. (3) propPlotter's control panel was authored at y = h-0.055 INSIDE the lid and had never been drawn; lifted onto the lid, plus dark end covers and a chassis band so the silhouette breaks into three masses, and the emerging print now drapes instead of cantilevering. (4) NEW defect found by walking: the three CUBICLE monitors had no screen quad at all (#18130e, luma 10) because propMonitor deliberately omits it and only workstations were ever given one; added one shared 128x76 canvas on three merged quads (+1 draw call) and extended _auditScreens to cover them. Added a roll store under the whiteboard to close the last bare stretch of the east wall.",
+   "files": [
+    "src/office/room.js",
+    "src/office/office.js",
+    "src/office/props.js",
+    "progress/shots/props-after.png",
+    "progress/shots/office-after-hero.png",
+    "progress/shots/office-after-teapoint.png",
+    "progress/shots/office-after-workstation.png",
+    "progress/shots/office-after-cubicles.png"
+   ],
+   "metrics": {
+    "msPerRender_dpr175_1057x1004": 3.5,
+    "msPerRender_dpr075": 3.43,
+    "drawCalls": 79,
+    "triangles": 180280,
+    "propTypes": 45,
+    "instances": 740,
+    "contactShadows": 96,
+    "screensPainting": "6/6",
+    "heroP5": 33,
+    "heroP95": 198,
+    "heroWarmShareOfSaturated": 97.8,
+    "heroCoolShareOfSaturated": 2,
+    "largestBareFloorPct_models": 20.8,
+    "finishBar": "15/15"
+   },
+   "at": "2026-08-30T18:12:59.557Z"
   }
  ],
- "updated": "2026-08-30T13:26:48.008Z"
+ "updated": "2026-08-30T18:12:59.557Z"
 }

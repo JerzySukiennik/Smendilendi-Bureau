@@ -96,6 +96,15 @@ export class Editor {
     this.hud = null;                     // set by editor-mode
     this.enabled = true;
 
+    // -- the way out of the editor, both of them --------------------------
+    // Added for the game loop (src/core/loop.js), which installs both handlers
+    // when it pushes this mode. Left null the editor is exactly what it was:
+    // a standalone surface with no client and nowhere to go back to, which is
+    // how src/editor/dev.html still runs it.
+    this.onSubmit = null;                // () => void   hand the drawings over
+    this.onLeave = null;                 // () => void   back to the desk
+    this.submitLabel = 'Submit to client';
+
     this.history = [];
     this.redoStack = [];
     this.historyLimit = HISTORY_BY_TIER[ctx?.state?.get('office.computerTier') ?? 2] ?? 24;
@@ -444,6 +453,21 @@ export class Editor {
   }
 
   get analysis() { return this._analysis; }
+
+  /**
+   * Hand the drawings to the client. The loop owns what that means — analysis,
+   * the wipe, the letter, the revision count — so this is deliberately thin.
+   */
+  submit() {
+    if (!this.onSubmit) { this.hud?.flash('No client is waiting for this drawing.'); return null; }
+    return this.onSubmit(this);
+  }
+
+  /** Leave the editor without submitting; the loop pops back to the desk. */
+  leaveToOffice() {
+    if (!this.onLeave) return null;
+    return this.onLeave(this);
+  }
 
   /** Highlight whatever an issue points at, and fly the camera to it. */
   focusIssue(issue) {

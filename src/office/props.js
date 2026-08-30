@@ -1038,20 +1038,54 @@ export function propPlotter(b) {
     color: OFFICE.nearBlack, mat: 'ink', ao: false });
   // body: 260 mm deep shell with a lid, on the classic plotter proportions
   b.cboxUp(w, 0.24, d, { y: h - 0.27, color: body, c: 0.010 });
+  // Chassis band and the two moulded end covers.
+  //
+  // Round 3 gave this machine a slot, a roll, a panel, a basket and a shelf,
+  // and at gameplay distance a critic still called it "a white box on four thin
+  // legs". He was reading the SILHOUETTE, and the silhouette was one pale
+  // rectangle 1.38 m long, because every detail on it was a seam or a recess
+  // in the same colour. Detail that is the same value as its background does
+  // nothing beyond about three metres. What a large-format plotter actually has
+  // — and what breaks the rectangle into three masses at any distance — is dark
+  // moulded end covers and a dark chassis band under the pale shell.
+  b.cboxUp(w - 0.03, 0.036, d - 0.02, { y: h - 0.303, color: OFFICE.steelDark, mat: 'metal', c: 0.006 });
+  for (const sx of [-1, 1]) {
+    b.cboxUp(0.115, 0.250, d + 0.008, { x: sx * (w / 2 - 0.055), y: h - 0.275,
+      color: OFFICE.steelDark, mat: 'metal', c: 0.008 });
+  }
   b.cboxUp(w - 0.012, 0.045, d - 0.012, { y: h - 0.045, color: body, shade: 1.06, c: 0.008 });  // lid
   b.boxUp(w - 0.012, 0.003, 0.004, { y: h - 0.047, z: d / 2 - 0.05, color: 0x9a968f, ao: false }); // lid seam
   // THE detail: a full-width paper output slot, recessed and dark
-  b.cboxUp(w - 0.16, 0.045, 0.020, { y: h - 0.145, z: d / 2 - 0.004,
+  b.cboxUp(w - 0.30, 0.045, 0.020, { y: h - 0.145, z: d / 2 - 0.004,
     color: 0x1a1816, mat: 'ink', ao: false, c: 0.004 });
-  b.cboxUp(w - 0.14, 0.014, 0.014, { y: h - 0.108, z: d / 2 + 0.002,
+  b.cboxUp(w - 0.28, 0.014, 0.014, { y: h - 0.108, z: d / 2 + 0.002,
     color: 0x6f6b64, mat: 'metal', ao: false, c: 0.003 });                                       // cutter rail
-  // a sheet coming out of it, still curling
-  b.boxUp(0.84, 0.0016, 0.26, { y: h - 0.14, z: d / 2 + 0.11, rx: 0.42, color: OFFICE.paper, mat: 'paper', ao: false });
-  b.boxUp(0.62, 0.0012, 0.010, { y: h - 0.20, z: d / 2 + 0.19, rx: 0.42, color: 0x8b8478, mat: 'paper', ao: false });
-  // control panel at the right-hand end, angled up
-  b.at({ x: w / 2 - 0.19, y: h - 0.055, z: d / 2 - 0.10, rx: -0.55 }, (q) => {
-    q.cboxUp(0.24, 0.016, 0.14, { color: 0x3d3a36, mat: 'ink', ao: false, c: 0.004 });
-    q.cboxUp(0.13, 0.006, 0.075, { y: 0.016, z: -0.018, color: 0x2a3a44, mat: 'ink', ao: false, c: 0.003 });
+  // A sheet leaving the slot: a short lip, then a drape that HANGS.
+  //
+  // It used to be a single 0.26 m plate at rx 0.42 — 24 degrees off horizontal,
+  // i.e. a flat white shelf sticking 0.11 m straight out of the front of the
+  // machine at the exact height of the slot. In the shipped teapoint frame it
+  // covered the slot it was supposed to be coming out of and read as a broken
+  // panel. A1 paper leaving a plotter falls; it does not cantilever.
+  b.boxUp(0.60, 0.0016, 0.075, { x: -0.10, y: h - 0.150, z: d / 2 + 0.036, rx: 0.30,
+    color: OFFICE.paper, mat: 'paper', ao: false, shade: 1.04 });
+  b.boxUp(0.60, 0.0016, 0.235, { x: -0.10, y: h - 0.278, z: d / 2 + 0.090, rx: 1.24,
+    color: OFFICE.paper, mat: 'paper', ao: false, shade: 1.02 });
+  b.boxUp(0.44, 0.0012, 0.012, { y: h - 0.388, x: -0.10, z: d / 2 + 0.128, rx: 1.24,
+    color: 0x8b8478, mat: 'paper', ao: false });
+  // Control panel, ON the lid at the right-hand end.
+  //
+  // It was authored at y = h - 0.055 = 0.875 and is 16 mm thick, while the lid
+  // spans 0.885 to 0.930 over the same footprint — so the whole panel, screen,
+  // buttons and the one ACCENT-coloured key were sealed INSIDE the machine and
+  // had never once been drawn. That is why the close-up reads as a blank shell.
+  b.at({ x: w / 2 - 0.21, y: h + 0.001, z: d / 2 - 0.16, rx: -0.55 }, (q) => {
+    // A moulded pod in the machine's own grey with a dark screen inset — not a
+    // black plate. Authored dark all over, the first version read from across
+    // the room as a rectangular HOLE punched in the lid.
+    q.cboxUp(0.24, 0.018, 0.14, { color: 0x8d8981, mat: 'metal', ao: false, c: 0.005 });
+    q.cboxUp(0.145, 0.008, 0.082, { y: 0.017, z: -0.016, color: 0x2b3b46, mat: 'ink', ao: false, c: 0.003 });
+    q.cboxUp(0.115, 0.004, 0.056, { y: 0.024, z: -0.016, color: 0x6f97a8, mat: 'ink', ao: false, c: 0.002 });
     for (let i = 0; i < 4; i++) {
       q.cboxUp(0.016, 0.006, 0.016, { x: -0.075 + (i % 2) * 0.028, z: 0.042 - Math.floor(i / 2) * 0.026,
         y: 0.016, color: i === 0 ? ACCENT : 0x8d8981, mat: 'ink', ao: false, c: 0.002 });

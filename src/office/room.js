@@ -353,6 +353,65 @@ export function buildRoom(opts = {}) {
   b.cbox(0.022, sk, D, { x: 0.011, y: sk / 2, z: D / 2, color: OFFICE.skirting, mat: 'ink', ao: false, c: 0.005 });
   b.cbox(0.022, sk, D, { x: W - 0.011, y: sk / 2, z: D / 2, color: OFFICE.skirting, mat: 'ink', ao: false, c: 0.005 });
 
+  // ---- head shadow gap: the wall/ceiling junction made PHYSICAL ------------
+  //
+  // Round 3 tried to win item 5 at the soffit with vertex AO alone, and lost
+  // twice. Two things were wrong and only one of them was the ramp.
+  //
+  //  1. The ramp is invisible at a grazing angle. The junction between a wall
+  //     and a ceiling is seen almost edge-on from anywhere in the room, so a
+  //     0.24 m band on the wall and a 0.50 m band on the ceiling collapse into
+  //     a handful of screen pixels. Item 5 samples 20 px apart. Measured on the
+  //     shipped teapoint frame: ceiling 65 luma, wall 94 luma — a real
+  //     difference, but spread over three pixels, so the two samples the bar
+  //     takes land on the same two surfaces and read whatever the shading
+  //     happens to give.
+  //  2. A hairline crack at the junction shows the SOLID behind the finish
+  //     plane, and the solid is `wallShade` at ao:false. Raycast down the
+  //     junction on the teapoint pose: hits at x 15.000 (finish plane), 15.000
+  //     (ceiling plane) and 15.02 (solid) inside 30 mm. Whatever the maths
+  //     says about lapping, the rasteriser resolved that stack as a 1-2 px
+  //     STEPPED CREAM LINE at 211 luma against a 94-luma wall and a 65-luma
+  //     ceiling — a junction BRIGHTER than either surface it joins, running
+  //     the full width of the frame. Two rounds of deepening the AO ramp could
+  //     never have fixed it, because the bright pixels were not shaded at all.
+  //
+  // The fix is the same one the floor already uses and it fixes both at once:
+  // stop asking a shading ramp to draw a line and put an OBJECT there. A 42 mm
+  // dark reveal at the head of every wall, standing 18 mm proud of the finish
+  // plane, with its top lapping 4 mm above the ceiling plane. It occludes the
+  // seam with something dark instead of leaving it to show something bright,
+  // and it gives item 5 a junction band that is dark by construction and
+  // cannot wash out with viewing angle, lighting or pixel ratio.
+  //
+  // It is also a real detail, not a patch: a shadow gap at the head of a
+  // plastered wall is standard in a converted loft, it is the exact
+  // counterpart of the skirting at the floor, and an architect reads it
+  // instantly. Chamfered like everything else, at 4 mm.
+  // 60 mm deep, of which the top 20 mm is TUCKED ABOVE the ceiling plane. That
+  // last number is the whole trick and the first attempt got it wrong: with the
+  // batten's top at H + 0.004 its top chamfer sat exactly on the ceiling line,
+  // faced the light, and drew a bright tan facet — the same "junction brighter
+  // than both surfaces" failure in a new colour. Ending it 20 mm PROUD of the
+  // ceiling puts the whole top chamfer behind the ceiling plane, so the only
+  // thing visible at the junction is the dark front face and the downward
+  // bottom chamfer. 40 mm of the reveal shows.
+  //
+  // `shade` matters as much as the colour. Left at full brightness the reveal's
+  // front face caught the key at its top edge and came back at 97 luma against
+  // a 62-luma ceiling and a 94-luma wall — a dark trim that is still the
+  // BRIGHTEST thing at the junction is not a junction band, it is the original
+  // defect in brown. Held down to 0.40 the whole reveal stays under both
+  // surfaces it separates, whatever the light does.
+  const gapH = 0.060, gapP = 0.018, gapC = 0x413c35, gapS = 0.40;
+  const gapY = H + 0.020 - gapH / 2;
+  // North: at the head this wall's visible face is the clerestory head plane at
+  // z = 0.1005, NOT the wall line — a batten on z = 0 would sit behind it.
+  b.cbox(W, gapH, gapP, { x: W / 2, y: gapY, z: 0.1005 + gapP / 2, color: gapC, mat: 'ink', ao: false, shade: gapS, c: 0.004 });
+  b.cbox(W, gapH, gapP, { x: W / 2, y: gapY, z: D - 0.001 - gapP / 2, color: gapC, mat: 'ink', ao: false, shade: gapS, c: 0.004 });
+  b.cbox(gapP, gapH, D, { x: 0.001 + gapP / 2, y: gapY, z: D / 2, color: gapC, mat: 'ink', ao: false, shade: gapS, c: 0.004 });
+  b.cbox(gapP, gapH, D, { x: W - 0.001 - gapP / 2, y: gapY, z: D / 2, color: gapC, mat: 'ink', ao: false, shade: gapS, c: 0.004 });
+
   // ---- glazing: frames (metal) + panes (glass) ----------------------------
   const glazing = [];
   const frame = 0.055;

@@ -315,14 +315,58 @@ export class EditorMode extends Mode {
     if (this.editor) this.editor.siteFaces = tags.site ? (this.siteFaces || []) : [];
   }
 
+  /**
+   * Re-site the editor on a NEW commission.
+   *
+   * Added for the game loop (src/core/loop.js). init() reads the commission
+   * once and a mode is only ever init()ed once, so without this the second
+   * brief of a session would have been drawn on the first brief's plot: the
+   * wrong boundary, the wrong setbacks, the wrong neighbours casting the shade
+   * the daylight module measures, and a cost bar reading against last month's
+   * budget. Everything the plot owns is torn down and rebuilt; the model itself
+   * is not touched here, because it belongs to the session.
+   */
+  setCommission(commission) {
+    if (!commission || !this.initialised) return false;
+    if (commission === this.commission) return false;
+    this.commission = commission;
+
+    this.treePool?.dispose();
+    this.treePool = null;
+    clearGroup(this.site);
+    this._buildSite(commission.plot);
+
+    const ed = this.editor;
+    if (ed) {
+      ed.brief = briefFrom(commission);
+      ed.siteBounds = boundsOfPolygon(commission.plot?.boundary);
+      ed.siteFaces = this.siteFaces || [];
+      ed.plan.setSite({ trees: commission.plot?.trees || [] });
+      ed.cameras.obstacles = () => (ed.layers.trees ? (this.crowns || []) : []);
+      ed._labelCache = null;
+      ed._costCache.version = -1;
+      ed.markDirty(['*']);
+      ed._needsInitialFrame = true;      // frame the new plot on the next update
+      ed.hud?.refreshValidation?.();
+      ed.hud?.refreshCost?.();
+    }
+    this._applySiteVisibility();
+    return true;
+  }
+
   // -- mode plumbing -------------------------------------------------------
 
   enter(params = {}) {
     super.enter(params);
+    // The loop hands the current brief in on every push; a commission that has
+    // moved on since this mode was built re-sites it here rather than silently
+    // drawing on the wrong plot.
+    if (params.commission) this.setCommission(params.commission);
     if (this.hud) this.hud.root.style.display = '';
     if (this.editor) {
       this.editor.enabled = true;
       this.editor.hud?.refreshTool();
+      this.editor.hud?.refreshSubmit?.();
     }
   }
 
@@ -388,6 +432,25 @@ function briefFrom(c) {
     params: c.params,
     title: c.title,
   };
+}
+
+/**
+ * Empty a group and give back what it held. Geometry is always ours; materials
+ * come from the shared palette cache and must NOT be disposed — the only
+ * exception is the buildable-area overlay, which _buildSite news up itself.
+ */
+function clearGroup(g) {
+  if (!g) return;
+  for (let i = g.children.length - 1; i >= 0; i--) {
+    const o = g.children[i];
+    g.remove(o);
+    o.traverse?.((n) => {
+      if (!n.isMesh && !n.isInstancedMesh) return;
+      n.geometry?.dispose?.();
+      const m = n.material;
+      if (m && m.isMeshBasicMaterial) m.dispose();
+    });
+  }
 }
 
 function polygonGeometry(poly) {

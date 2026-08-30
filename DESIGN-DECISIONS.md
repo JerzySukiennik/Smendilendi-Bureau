@@ -114,9 +114,19 @@ The game is **English only**. Metric units throughout.
 
 ## Tech
 three.js, ES modules from CDN, **no build step**. Firebase RTDB for the shared session
-(account gzowotesla@gmail.com, Spark plan, no billing — so no anonymous auth: access is
-by a long office code, identity is a random id in localStorage). Deployed to GitHub Pages
-at smendilendi-bureau.gzowo.fun. Display title keeps the Polish ł: "Smendiłendi Bureau".
+(**its own dedicated Firebase project**, `bureau-gzowo`, on the account
+**jerzysukiennik203@gmail.com**, created and managed through the Firebase CLI; Spark
+plan, no billing — so no anonymous auth: access is by a long office code, identity is a
+random id in localStorage). Deployed with **Firebase Hosting** to **bureau.gzowo.fun**.
+Display title keeps the Polish ł: "Smendiłendi Bureau".
+
+*Amended 2026-08-30 by Jurek, replacing the original plan of GitHub Pages at
+smendilendi-bureau.gzowo.fun on the shared `gzowos-games` project under
+gzowotesla@gmail.com. The consequence is worth stating, because it removes a standing
+hazard: a dedicated project means our database rules are no longer one instance-wide
+ruleset shared with SatisFarm, Ducks, Voidworks and the rest, so deploying them can no
+longer silently delete another game's rules. `firebase deploy --only database` is safe
+here in a way it never was on the shared instance.*
 No physics engine. Target: 60 fps in the office and 40 fps in the walkthrough on a
 MacBook Pro 2019, furniture instanced, NPC count capped.
 

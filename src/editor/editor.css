@@ -367,3 +367,14 @@
   .ed-measure, .ed-cost { width: 250px; }
   .ed-players { right: 266px; }
 }
+
+/* ---- the loop's two buttons -------------------------------------------- */
+/* Submit is the only place in the editor where a click has consequences the
+   player cannot undo, so it is the only button in the bar that carries the
+   accent. Added with the game loop (src/core/loop.js). */
+.ed-top button.primary {
+  background: var(--accent);
+  color: #1b1a18;
+  font-weight: 600;
+}
+.ed-top button.primary:hover { background: #e2874a; color: #16150f; }

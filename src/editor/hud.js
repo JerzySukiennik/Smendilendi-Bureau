@@ -113,7 +113,27 @@ export class EditorHUD {
     bar.appendChild(div('sep'));
     bar.appendChild(button('Zoom extents', () => this.ed.cameras.zoomExtents(this.ed.contentBounds()), 'Shift+Z'));
     bar.appendChild(button('Check design', () => { this.ed.validate(); this.showTab('validate'); }));
+
+    // The two ways out of the editor. Both are hidden until the game loop
+    // (src/core/loop.js) installs its handlers, so src/editor/dev.html — where
+    // there is no office to go back to and no client to submit to — is
+    // unchanged. refreshSubmit() is the loop's hook for relabelling the button
+    // on the revision round.
+    bar.appendChild(div('sep'));
+    this.backBtn = button('Back to desk', () => this.ed.leaveToOffice(), 'Leave the editor');
+    this.submitBtn = button('Submit to client', () => this.ed.submit(), 'Hand the drawings over');
+    this.submitBtn.classList.add('primary');
+    bar.append(this.backBtn, this.submitBtn);
+    this.refreshSubmit();
     this.root.appendChild(bar);
+  }
+
+  /** Show the loop's buttons once it has something for them to do. */
+  refreshSubmit() {
+    if (!this.submitBtn) return;
+    this.submitBtn.style.display = this.ed.onSubmit ? '' : 'none';
+    this.submitBtn.textContent = this.ed.submitLabel || 'Submit to client';
+    if (this.backBtn) this.backBtn.style.display = this.ed.onLeave ? '' : 'none';
   }
 
   _buildDock() {
