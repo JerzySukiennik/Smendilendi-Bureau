@@ -368,14 +368,36 @@ export function mixLiteralHits(root, busNames, skip = ['src/core/audio.js']) {
           + '— mix.json is the only place a bus level is written');
       }
     }
-    // b) a level pushed straight at the bus
+    // b) a level pushed straight at the bus.
+    //    `\s*\??\.?\s*\(` and not `\s*\(`: the OPTIONAL-CALL form is how game code
+    //    actually reaches the audio bus in this codebase, because the bus may be
+    //    absent (`this.ctx?.audio?.setVolume?.(...)`). Round 5's critic walked
+    //    straight through that gap — `this.ctx?.audio?.setVolume?.("music", 0.2)`
+    //    in office-mode.js moved the music bus to 0.2 at office entry and this
+    //    script printed "all checks passed", which is round 4's lobby blocker
+    //    under a different spelling. The plain `.setVolume(` form was caught; the
+    //    one the codebase actually writes was not.
+    //    applyUserVolumes is in the list for the same reason: a whole map of
+    //    levels handed over in one call is the most direct way to restate the mix.
     text.split('\n').forEach((l, i) => {
-      const m = l.match(new RegExp(String.raw`\.(setVolume|setBusGain|setMasterGain|setUserVolume)\s*\(([^)]*)\)`));
+      const m = l.match(new RegExp(String.raw`\.(setVolume|setBusGain|setMasterGain|setUserVolume|applyUserVolumes)\s*\??\.?\s*\(([^)]*)\)`));
       if (!m) return;
       const args = m[2].split(',').map((a) => a.trim());
       const last = args[args.length - 1] || '';
       if (new RegExp(`^${NUM}$`).test(last))
         hits.push(`${rel}:${i + 1}  ${m[1]}(..., ${last}) — a literal bus level outside mix.json`);
+      else if (m[1] === 'applyUserVolumes' && new RegExp(`:\\s*${NUM}`).test(m[2]))
+        hits.push(`${rel}:${i + 1}  ${m[1]}(${m[2].slice(0, 40)}) — a literal bus level outside mix.json`);
+    });
+    // c) a level written straight into the engine's state. The engine ignores
+    //    both now (`volumes` hands back a copy, `mix` is deep-frozen), but a
+    //    developer who writes one has misunderstood where levels live and should
+    //    be told at build time rather than by a sound that does not change.
+    text.split('\n').forEach((l, i) => {
+      const m = l.match(new RegExp(String.raw`\.(volumes|mix)\b[^=;]*=\s*(${NUM})\s*;?`));
+      if (m && !/[=!<>]=/.test(l.slice(0, l.indexOf('=')) + '=')) {
+        hits.push(`${rel}:${i + 1}  writes .${m[1]} = ${m[2]} — the mix is read-only outside assets/audio/mix.json`);
+      }
     });
   }
   return hits;

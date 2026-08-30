@@ -73,6 +73,42 @@
  *   The pattern behind all three: any way to change a level that is not a number
  *   in manifest.json or mix.json is a way to make the review page lie. So there is
  *   now no such way, rather than a scanner racing to catch each new one.
+ *
+ * ROUND 5 — THE SAME BLOCKER, THREE MORE SPELLINGS.
+ *   Round 4 removed the ways a level could be changed THROUGH A SOUND. It left
+ *   three ways to change the BUS the sound rides on, all reachable from any game
+ *   file, and all invisible to the sign-off:
+ *
+ *     4. `this.ctx?.audio?.setVolume?.("music", 0.2)`. Check 10b already banned a
+ *        literal level handed to setVolume — but its regex was `\.setVolume\s*\(`,
+ *        and every audio call in this codebase is written with optional chaining
+ *        (`?.setVolume?.(`), because the bus may not exist yet. So the one form
+ *        the check could see was the one nobody writes. Dropped into
+ *        office-mode.js it moved the music bus to 0.2 on office entry — the
+ *        lobby blocker again, three words long — and the script still printed
+ *        "all checks passed". FIXED in the scanner (`\s*\??\.?\s*\(`), which as
+ *        a side effect also catches round 4's `h?.setVolume?.(0.15)` statically
+ *        rather than relying on the method being absent.
+ *     5. `audio.volumes.music = 0.2`. `volumes` was a plain public object, so a
+ *        game file could write the live bus level straight into it. FIXED: the
+ *        internal map is `_volumes` and `volumes` is a getter handing back a
+ *        COPY, so the write lands on a throwaway and the game keeps its level.
+ *     6. `audio.mix.buses.music = 0.2`. The mix was a plain object, and
+ *        DEFAULT_MIX was only shallow-frozen — `Object.freeze` does not protect
+ *        `.buses`. FIXED: normaliseMix() deep-freezes, so the assignment throws.
+ *
+ *   All three are now also caught statically (check 10b), so they fail the build
+ *   as well as failing to work. Every attack any critic has used against this
+ *   sign-off — round 2's `volume:`, round 4's wrapper/bus/lobby three, and these
+ *   — is now a row in `node assets/audio/build/attack-suite.mjs`, which moves a
+ *   level twelve different ways on a scratch copy and fails if any of them still
+ *   gets past verify-signoff.mjs.
+ *
+ *   Two things fell out of fixing 5 and 6. setVolume() from outside is now
+ *   recorded as a user deviation, so the OS settings slider persists like the
+ *   lobby's instead of being wiped by the next _applyVolumes(); and mute() no
+ *   longer unmutes to mix.master, which used to throw away whatever the player
+ *   had set the master slider to.
  */
 
 /**
@@ -88,8 +124,23 @@ export const AUDIO_BASE_PATH = AUDIO_DIR;
 export const MANIFEST_PATH = AUDIO_DIR + 'manifest.json';
 export const MIX_PATH = AUDIO_DIR + 'mix.json';
 
+/**
+ * Freeze an object and everything under it. The mix is the one number set the
+ * whole sign-off rests on, and `Object.freeze` alone is shallow: round 5's
+ * critic changed a level with `audio.mix.buses.music = 0.2` on a DEFAULT_MIX
+ * that was already "frozen", and every check still passed. A nested freeze makes
+ * that assignment throw instead of quietly making the review page a liar.
+ */
+function deepFreeze(o) {
+  if (o && typeof o === 'object' && !Object.isFrozen(o)) {
+    Object.freeze(o);
+    for (const v of Object.values(o)) deepFreeze(v);
+  }
+  return o;
+}
+
 /** Mirror of assets/audio/mix.json, used only when the fetch fails. */
-export const DEFAULT_MIX = Object.freeze({
+export const DEFAULT_MIX = deepFreeze({
   master: 0.9,
   buses: { music: 0.45, ambient: 0.5, sfx: 0.8, ui: 0.7 },
   kindToBus: { music: 'music', radio: 'ambient', amb: 'ambient', os: 'ui', ui: 'ui', sfx: 'sfx' },
@@ -227,8 +278,14 @@ export class AudioBus {
     // player has actually dragged, so a change to mix.json reaches the game
     // instead of being overwritten by a stale copy in somebody's localStorage.
     this.userVolumes = {};
-    this.volumes = this._volumesFromMix();
-    if (opts.volumes) Object.assign(this.volumes, opts.volumes);
+    // PRIVATE. Read it from outside through the `volumes` getter, which hands
+    // back a COPY: round 5's critic moved the music bus with a bare
+    // `audio.volumes.music = 0.2` from a game file and all 22 checks passed.
+    // Writing to the copy now changes nothing, so that line is dead on arrival
+    // instead of silently overriding a signed-off level.
+    this._volumes = this._volumesFromMix();
+    if (opts.volumes) Object.assign(this._volumes, opts.volumes);
+    this._muted = false;
     this._playing = new Set();
     this._loops = new Map();       // name -> node handle
     this._missing = new Set();
@@ -244,6 +301,14 @@ export class AudioBus {
     this.manifestPath = opts.manifestPath ?? MANIFEST_PATH;
     this.codec = opts.codec || null;         // resolved lazily: 'ogg' | 'm4a'
   }
+
+  /**
+   * The live bus levels, as a fresh plain copy. Read-only by construction: the
+   * settings screens read it to draw their sliders, and the only ways to CHANGE
+   * a level are setUserVolume() (the player moved a slider) or editing
+   * assets/audio/mix.json and re-running the sign-off.
+   */
+  get volumes() { return { ...this._volumes }; }
 
   _volumesFromMix() {
     const v = this.mixVolumes();
@@ -274,7 +339,6 @@ export class AudioBus {
   setUserVolume(bus, v) {
     const val = Math.max(0, Math.min(1, Number(v)));
     if (!Number.isFinite(val)) return { ...this.userVolumes };
-    this.userVolumes[bus] = val;
     this.setVolume(bus, val);
     return { ...this.userVolumes };
   }
@@ -290,9 +354,9 @@ export class AudioBus {
       const known = b === 'master' || this.mix.buses[b] !== undefined;
       if (known && Number.isFinite(Number(v))) this.userVolumes[b] = Math.max(0, Math.min(1, Number(v)));
     }
-    this.volumes = this._volumesFromMix();
+    this._volumes = this._volumesFromMix();
     this._applyVolumes();
-    return { ...this.volumes };
+    return { ...this._volumes };
   }
 
   get busList() { return busNames(this.mix); }
@@ -308,7 +372,7 @@ export class AudioBus {
       this.mix = normaliseMix(DEFAULT_MIX);
       console.warn(`[audio] mix ${url} unavailable — using the built-in default mix`, err);
     }
-    this.volumes = this._volumesFromMix();
+    this._volumes = this._volumesFromMix();
     this._applyVolumes();
     return this.mix;
   }
@@ -384,8 +448,8 @@ export class AudioBus {
   gainOf(name, context = null) {
     const e = this.entry(name) || {};
     const bus = busForKind(e.kind, this.mix);
-    const master = this.volumes.master ?? this.mix.master;
-    const busGain = this.volumes[bus] ?? this.mix.buses[bus] ?? 0.8;
+    const master = this._volumes.master ?? this.mix.master;
+    const busGain = this._volumes[bus] ?? this.mix.buses[bus] ?? 0.8;
     const asset = typeof e.gain === 'number' ? e.gain : 1;
     const ctx = contextFactor(e, context);
     return { bus, master, busGain, asset, context: context || null, contextGain: ctx,
@@ -437,11 +501,11 @@ export class AudioBus {
     if (!Ctx) { this.enabled = false; console.warn('[audio] no WebAudio, running silent'); return this; }
     this.ctx = new Ctx();
     this.master = this.ctx.createGain();
-    this.master.gain.value = this.volumes.master;
+    this.master.gain.value = this._muted ? 0 : this._volumes.master;
     this.master.connect(this.ctx.destination);
     for (const b of this.busList) {
       const g = this.ctx.createGain();
-      g.gain.value = this.volumes[b];
+      g.gain.value = this._volumes[b];
       g.connect(this.master);
       this.buses[b] = g;
     }
@@ -467,15 +531,38 @@ export class AudioBus {
         this.buses[b] = g;
       }
     }
-    this.setMasterGain(this.volumes.master);
-    for (const b of this.busList) this.setVolume(b, this.volumes[b]);
+    this._setBusNode('master', this._volumes.master);
+    for (const b of this.busList) this._setBusNode(b, this._volumes[b]);
   }
 
+  /**
+   * Move a bus. The ONLY caller that has any business here is a settings slider
+   * the player is dragging, so this is simply setUserVolume under its older
+   * name: the move is clamped, recorded as a deviation from mix.json, and
+   * survives a later mix reload. src/os/apps/settings.js calls it, and its
+   * slider now persists like the lobby's instead of being wiped by the next
+   * _applyVolumes().
+   *
+   * What it is NOT is a way for game code to state a level. A hardcoded
+   * `audio.setVolume('music', 0.2)` in a game file is exactly round 4's lobby
+   * blocker with a shorter name — the review page would promise one number and
+   * the game would play another — so check 10e of the sign-off fails on any
+   * numeric literal handed to this method outside this file.
+   */
   setVolume(bus, v) {
-    this.volumes[bus] = v;
+    const val = Math.max(0, Math.min(1, Number(v)));
+    if (!Number.isFinite(val)) return;
+    this.userVolumes[bus] = val;
+    this._setBusNode(bus, val);
+  }
+
+  /** Push a level onto the graph. Internal: does not touch the deviation map. */
+  _setBusNode(bus, v) {
+    this._volumes[bus] = v;
     if (!this._ready) return;
     const node = bus === 'master' ? this.master : this.buses[bus];
-    if (node) node.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02);
+    const live = bus === 'master' && this._muted ? 0 : v;
+    if (node) node.gain.setTargetAtTime(live, this.ctx.currentTime, 0.02);
   }
 
   /**
@@ -491,13 +578,22 @@ export class AudioBus {
 
   getBusGain(kind) {
     const bus = this.mix.buses[kind] !== undefined ? kind : busForKind(kind, this.mix);
-    return this.volumes[bus];
+    return this._volumes[bus];
   }
 
   setMasterGain(v) { this.setVolume('master', v); }
-  getMasterGain() { return this.volumes.master; }
+  getMasterGain() { return this._volumes.master; }
 
-  mute(v = true) { this.setVolume('master', v ? 0 : this.mix.master); }
+  /**
+   * A transient global mute (tab hidden, pause menu). Deliberately does NOT go
+   * through setVolume: muting is not the player choosing a level, and unmuting
+   * must restore whatever the master slider was actually on. It used to unmute
+   * to mix.master, which threw away the player's own master setting.
+   */
+  mute(v = true) {
+    this._muted = !!v;
+    this._setBusNode('master', this._volumes.master);
+  }
 
   /**
    * Load one sound. Never throws. Resolves to an AudioBuffer or null.
@@ -802,11 +898,15 @@ function normaliseMix(raw) {
   const kindToBus = { ...(raw && raw.kindToBus ? raw.kindToBus : DEFAULT_MIX.kindToBus) };
   // A kind pointed at a bus that does not exist would be silent; route it to sfx.
   for (const [k, b] of Object.entries(kindToBus)) if (buses[b] === undefined) kindToBus[k] = 'sfx';
-  return {
+  // Frozen: a mix is config, and the only legitimate way to change it is to edit
+  // assets/audio/mix.json and re-run the sign-off. Nothing in src/ writes it
+  // (grep proves it), so freezing costs nothing and removes a whole class of
+  // "the game plays a level the review page never showed".
+  return deepFreeze({
     master: Number.isFinite(raw && raw.master) ? raw.master : DEFAULT_MIX.master,
     buses,
     kindToBus,
-  };
+  });
 }
 
 function setPos(panner, p) {

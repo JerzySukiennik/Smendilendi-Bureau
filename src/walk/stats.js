@@ -30,6 +30,7 @@
 
 import { PASSING_WIDTH, PERSON_WIDTH } from './navmesh.js';
 import { briefLimit, isDwelling } from '../analysis/brief.js';
+import { canonicalKey } from '../analysis/classify.js';
 import { GOALS } from './roles.js';
 
 export const WC_TRAVEL_LIMIT = 75.0;      // m, workplace
@@ -76,12 +77,24 @@ export class Stats {
     // The brief has no check id for travel distance to a WC, so this one is
     // still ours; it is workplace guidance, and it does not apply to a dwelling.
     this.wcLimit = this.dwelling ? null : WC_TRAVEL_LIMIT;
+    // The room classes the client actually asked for, in the classifier's own
+    // vocabulary. A missing room is only a defect if it is in here.
+    this.briefKinds = new Set();
+    for (const line of this.brief?.program ?? []) {
+      const k = canonicalKey(line?.key ?? line?.name);
+      if (k) this.briefKinds.add(k);
+    }
 
     this.journeys = 0;
     this.completed = 0;
     this.failed = 0;
     this.failedNoRoute = 0;
     this.failedNoRoom = 0;
+    // Two very different findings, and printing them as one accused the
+    // architect of leaving out a room his client never asked for. See
+    // `journeyFailed`.
+    this.failedNoRoomAsked = 0;
+    this.failedNoRoomUnasked = 0;
     this.distance = 0;                    // m, completed journeys only
     this.byGoal = new Map();              // goalKey -> { n, fail, dist, worstWidth }
     this.roomSeconds = new Map();         // roomId -> person-seconds
@@ -126,14 +139,29 @@ export class Stats {
    * A journey that could not happen. `reason` is either 'no-route' (the room
    * exists but nothing connects to it, or the gap is under 0.55 m) or
    * 'no-room' (the building has no room of that kind at all).
+   *
+   * 'no-room' splits in two, and conflating them is an accusation:
+   *   ASKED   — the brief's programme lists the room and the drawing has not
+   *             got one. A defect, benchmarked against the brief, in red.
+   *   UNASKED — nobody asked for a room of this kind, so nothing is wrong with
+   *             the drawing; somebody in the simulated crowd simply wanted
+   *             something this building does not do. Recorded, not complained
+   *             about — the same treatment src/analysis/catalogue.js gives an
+   *             unstocked requirement. Most of these never reach here at all:
+   *             roles.fitDayToBuilding drops the goal before anybody sets off.
    */
   journeyFailed(goal, reason, person, where) {
     this.failed++;
     this.goalBucket(goal).fail++;
-    if (reason === 'no-room') this.failedNoRoom++; else this.failedNoRoute++;
+    let asked = false;
+    if (reason === 'no-room') {
+      this.failedNoRoom++;
+      asked = (GOALS[goal]?.rooms ?? []).some((k) => this.briefKinds.has(k));
+      if (asked) this.failedNoRoomAsked++; else this.failedNoRoomUnasked++;
+    } else this.failedNoRoute++;
     if (this.annoyed.length < 400) {
       this.annoyed.push({
-        goal, reason,
+        goal, reason, asked,
         role: person?.label ?? 'Someone',
         personId: person?.id ?? null,
         x: where?.x ?? 0, z: where?.z ?? 0, level: where?.level ?? 0,
@@ -308,6 +336,8 @@ export class Stats {
       failed: this.failed,
       failedNoRoute: this.failedNoRoute,
       failedNoRoom: this.failedNoRoom,
+      failedNoRoomAsked: this.failedNoRoomAsked,
+      failedNoRoomUnasked: this.failedNoRoomUnasked,
       successRate: this.journeys ? this.completed / this.journeys : 1,
       averageDistance: this.completed ? this.distance / this.completed : 0,
       totalDistance: this.distance,
@@ -410,9 +440,14 @@ export function renderReport(stats, {
   cards.appendChild(card('Construction cost', built != null ? money(built) : '—',
     budget != null ? `budget ${money(budget)}` : '',
     built != null && budget != null ? (built <= budget ? 'good' : 'bad') : ''));
+  // What the sheet may hold against the DRAWING: a route that does not exist,
+  // and a room the brief asked for that is not there. Somebody wanting a staff
+  // room in a house nobody asked to have one is not a defect, so it colours
+  // nothing — it is still counted in "gave up", where it belongs.
+  const blame = s.failedNoRoute + s.failedNoRoomAsked;
   cards.appendChild(card('Journeys walked', String(s.journeys),
     `${s.completed} arrived · ${s.failed} gave up`,
-    s.failed === 0 ? 'good' : (s.failed / Math.max(1, s.journeys) > 0.05 ? 'bad' : 'warn')));
+    blame === 0 ? 'good' : (blame / Math.max(1, s.journeys) > 0.05 ? 'bad' : 'warn')));
   cards.appendChild(card('Average journey', `${fmt(s.averageDistance)} m`,
     `${walkTime(s.averageDistance)} at ${REPORT_WALK_SPEED} m/s · ${fmt(s.totalDistance / 1000, 2)} km in total`));
   cards.appendChild(card('Narrowest route', `${fmt(s.narrow?.width ?? NaN, 2)} m`,
@@ -431,15 +466,19 @@ export function renderReport(stats, {
 
   tb.appendChild(row('Journeys completed',
     `${s.completed} of ${s.journeys} (${Math.round(s.successRate * 100)} %)`,
-    '100 %', s.failed === 0 ? 'good' : 'bad'));
+    '100 %', blame === 0 ? 'good' : 'bad'));
 
   if (s.failedNoRoute) {
     tb.appendChild(row('Journeys with no route at all',
       `${s.failedNoRoute}`, `0 — every room reachable`, 'bad'));
   }
-  if (s.failedNoRoom) {
-    tb.appendChild(row('Journeys with no room to go to',
-      `${s.failedNoRoom}`, 'the brief lists the room', 'bad'));
+  if (s.failedNoRoomAsked) {
+    tb.appendChild(row('Journeys to a room the brief asked for and the drawing has not got',
+      `${s.failedNoRoomAsked}`, 'the brief lists the room', 'bad'));
+  }
+  if (s.failedNoRoomUnasked) {
+    tb.appendChild(row('Journeys nobody could make — no room of that kind, and none was asked for',
+      `${s.failedNoRoomUnasked}`, 'not in the brief — recorded, not a defect', null));
   }
 
   if (s.wc) {
@@ -504,15 +543,17 @@ export function renderReport(stats, {
     const list = sec.querySelector('ul');
     const grouped = new Map();
     for (const a of stats.annoyed) {
-      const key = `${a.role}|${a.goal}|${a.reason}`;
+      const key = `${a.role}|${a.goal}|${a.reason}|${a.asked ? '1' : '0'}`;
       grouped.set(key, (grouped.get(key) ?? 0) + 1);
     }
     for (const [key, n] of [...grouped.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) {
-      const [role, goal, reason] = key.split('|');
+      const [role, goal, reason, asked] = key.split('|');
       const li = document.createElement('li');
       const g = GOALS[goal];
       li.textContent = reason === 'no-room'
-        ? `${role} wanted somewhere to go — ${g ? g.label : goal} — and this building has no such room. ${n}×`
+        ? (asked === '1'
+          ? `${role} wanted somewhere to go — ${g ? g.label : goal} — and the room the brief asked for is not in the drawing. ${n}×`
+          : `${role} wanted somewhere to go — ${g ? g.label : goal} — and this building has no such room. Nobody asked for one. ${n}×`)
         : `${role} ${g ? g.label : goal} and could not get there from where they were standing. ${n}×`;
       list.appendChild(li);
     }

@@ -116,6 +116,7 @@ export class WallTool extends TwoPointTool {
   }
 
   onKey(e) {
+    if (this.typing) return false;          // [ and ] are characters a number can contain
     if (e.code === 'BracketLeft') { this.thickness = clamp(this.thickness - 0.02, 0.06, 1.2); this.flash(`${Math.round(this.thickness * 1000)} mm`); return true; }
     if (e.code === 'BracketRight') { this.thickness = clamp(this.thickness + 0.02, 0.06, 1.2); this.flash(`${Math.round(this.thickness * 1000)} mm`); return true; }
     return false;
@@ -209,7 +210,19 @@ export class RectTool extends TwoPointTool {
   }
 
   finish(a, b) {
-    const [x0, z0, x1, z1] = this._corners(a, b);
+    const centre = this.fromCentre;
+    const made = this._build(a, b, centre);
+    if (!made) return null;
+    this.last = {
+      ids: made.ids, a: a.clone(), corner: made.corner, fromCentre: centre,
+      sx: b.x < a.x ? -1 : 1, sz: b.z < a.z ? -1 : 1,
+    };
+    return null;                      // rectangles do not chain
+  }
+
+  /** Lay the four walls of one rectangle. @returns {{ids,corner}|null} */
+  _build(a, b, centre) {
+    const [x0, z0, x1, z1] = this._corners(a, b, centre);
     if (Math.abs(x1 - x0) < 0.05 || Math.abs(z1 - z0) < 0.05) return null;
     const c = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
     const ops = c.map((pt, i) => {
@@ -220,13 +233,12 @@ export class RectTool extends TwoPointTool {
       };
     });
     const made = this.ed.applyMany(ops);
-    this.last = { ids: made.map(o => o.id), a: a.clone(), corner: [x0, z0, x1, z1] };
     this.flash(`${(Math.abs(x1 - x0)).toFixed(2)} × ${(Math.abs(z1 - z0)).toFixed(2)} m`);
-    return null;                      // rectangles do not chain
+    return { ids: made.map(o => o.id), corner: [x0, z0, x1, z1] };
   }
 
-  _corners(a, b) {
-    if (this.fromCentre) {
+  _corners(a, b, centre = this.fromCentre) {
+    if (centre) {
       const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z);
       return [r(a.x - dx), r(a.z - dz), r(a.x + dx), r(a.z + dz)];
     }
@@ -242,18 +254,59 @@ export class RectTool extends TwoPointTool {
     }
   }
 
+  /**
+   * A typed "6000,4000".
+   *
+   * Two rules, and the second one is the one that keeps the model honest:
+   *
+   * 1. Alt draws from the CENTRE, so the pair is still the rectangle's real
+   *    length and width and the far corner is HALF of it away. Committing the
+   *    full pair and then mirroring it about the centre built a 12 x 8 m
+   *    rectangle out of a typed 6 x 4 — twice the building, on the tool an
+   *    architect sets the shell out with.
+   * 2. With nothing in progress the pair RE-SETS the rectangle just drawn,
+   *    exactly as a typed length re-lengths the wall just drawn. It used to
+   *    fall back to the cursor and lay a SECOND rectangle over the first: four
+   *    walls became twelve and the schedule listed two overlapping rooms, in
+   *    silence. Mistyping a dimension and retyping it is a five-minute-old
+   *    reflex; it has to land on the rectangle you can see.
+   */
   onValue(v) {
     if (v.kind !== 'pair' && v.kind !== 'length') return false;
     const w = v.kind === 'length' ? v.value : (v.a ?? 0);
     const d = v.kind === 'length' ? v.value : (v.b ?? v.a ?? 0);
-    if (!(w > 0) || !(d > 0)) return false;
+    if (!(w > 0) || !(d > 0)) return this.refuse('A rectangle needs a length and a width');
+    if (!this.from && this.last) return this._resetLast(w, d);
     const a = this.from || this.ed._pointer.snap?.point?.clone();
     if (!a) return false;
     // direction of the two typed dimensions follows the quadrant the cursor is in
     const sx = this.to && this.to.x < a.x ? -1 : 1;
     const sz = this.to && this.to.z < a.z ? -1 : 1;
+    const k = this.fromCentre ? 0.5 : 1;
     this.from = a;
-    this._commit(a.clone(), new Vector3(a.x + sx * w, a.y, a.z + sz * d));
+    this._commit(a.clone(), new Vector3(a.x + sx * w * k, a.y, a.z + sz * d * k));
+    return true;
+  }
+
+  /** Re-set the rectangle just drawn to a typed size: delete its four walls, lay four new ones. */
+  _resetLast(w, d) {
+    const L = this.last;
+    const k = L.fromCentre ? 0.5 : 1;
+    const a = L.a.clone();
+    const b = new Vector3(a.x + L.sx * w * k, a.y, a.z + L.sz * d * k);
+    const [x0, z0, x1, z1] = this._corners(a, b, L.fromCentre);
+    if (Math.abs(x1 - x0) < 0.05 || Math.abs(z1 - z0) < 0.05) {
+      return this.refuse('Too small — a rectangle starts at 50 mm');
+    }
+    // If the player has since erased it, re-typing a size must not resurrect it.
+    const alive = L.ids.filter(id => this.model.walls[id]);
+    if (!alive.length) { this.last = null; return this.refuse('That rectangle is gone'); }
+    this.ed.applyMany(alive.map(id => ({ t: 'wall.delete', id })));
+    const made = this._build(a, b, L.fromCentre);
+    if (!made) { this.last = null; return this.refuse('That rectangle is gone'); }
+    this.last = { ...L, ids: made.ids, corner: made.corner };
+    this.ed.measurements.clear();
+    this.flash(`Rectangle re-set to ${fmt(Math.abs(x1 - x0))} × ${fmt(Math.abs(z1 - z0))}`);
     return true;
   }
 
@@ -290,6 +343,7 @@ export class SlabTool extends TwoPointTool {
   }
 
   onKey(e) {
+    if (this.typing) return false;          // "4r" is a radius, not a floor/roof toggle
     if (e.code === 'KeyR') {
       this.kind = this.kind === 'floor' ? 'roof' : 'floor';
       this.flash(`Slab: ${this.kind}`);

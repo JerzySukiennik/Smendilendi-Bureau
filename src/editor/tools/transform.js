@@ -120,8 +120,9 @@ export class MoveTool extends TransformTool {
    * landed on a wall face and a drop that landed on the ground handed the move a
    * vertical component nobody asked for: a dining chair moved 500 mm sideways
    * came to rest 446 mm in the air, contact shadow and all. Height is a
-   * deliberate act (ArrowUp locks blue, or a typed vector with a y in it), never
-   * a by-product of where two rays happened to hit.
+   * deliberate act — ArrowUp locks blue, or a typed "<0,0,500>", which _commit()
+   * honours through its `exact` flag — never a by-product of where two rays
+   * happened to hit.
    */
   _groundOnly() {
     if (this.ed.lockAxis === 'z') return false;
@@ -157,12 +158,18 @@ export class MoveTool extends TransformTool {
     this._commit(this.op.delta.clone());
   }
 
-  _commit(delta, { copies = 1 } = {}) {
+  /**
+   * `exact` marks a delta the player TYPED. A typed vector is the deliberate act
+   * _groundOnly() talks about, so its blue component is honoured instead of
+   * being quietly flattened — dropping it made "<0,0,500>" do nothing at all,
+   * with no message, while the same tool moved happily along red and green.
+   */
+  _commit(delta, { copies = 1, exact = false } = {}) {
     if (!this.op) return false;
     const list = this.op.targets;
     const copy = this.op.copy || copies > 1;
     const ops = [];
-    const flat = this._groundOnly();
+    const flat = !exact && this._groundOnly();
     for (let c = 1; c <= copies; c++) {
       const d = delta.clone().multiplyScalar(c);
       const dGround = flat ? new Vector3(d.x, 0, d.z) : d;
@@ -177,11 +184,27 @@ export class MoveTool extends TransformTool {
     return true;
   }
 
+  /**
+   * TWO TYPED VECTOR FORMS, AND THEY MEAN DIFFERENT THINGS — SketchUp's rule:
+   *   <500,0,0>   RELATIVE: move by these components
+   *   [500,0,0]   GLOBAL:   put the grabbed point at this coordinate
+   * Treating the square brackets as relative moved a chair at x = 3.000 to
+   * x = 3.500 when the player had asked for x = 0.500, which is a whole
+   * different building when the coordinate came off a survey.
+   */
   onValue(v) {
     if (v.kind === 'vector') {
       // UI axes: x = red, y = green (plan depth), z = blue (up)
       const d = new Vector3(v.x, v.z, v.y);
-      if (this.op) return this._commit(d);
+      if (!v.rel) {
+        // The anchor is the grabbed point, or the selection's own centre when
+        // Move was armed without grabbing anything.
+        const anchor = this.op ? this.op.anchor.clone() : this.centroid(this.targets());
+        if (!anchor) return this.refuse('Nothing to place — select something first');
+        d.sub(anchor);
+        if (!this.op && !this.last) return this.refuse('Nothing to place — select something first');
+      }
+      if (this.op) return this._commit(d, { exact: true });
       return this._redoLast(d);
     }
     if (v.kind === 'array' && this.op) {

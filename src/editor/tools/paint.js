@@ -13,14 +13,16 @@
 // budget: "brick to 6 faces  +14 400".
 
 import { Tool } from './base.js';
-import { COLOR } from '../constants.js';
+import { COLOR, materialName } from '../constants.js';
 import { materialPrice, tryEntry } from '../../model/catalog.js';
 import { wallLength } from '../../model/building.js';
 
 export class PaintTool extends Tool {
   static id = 'paint';
   static toolName = 'Paint Bucket';
-  static valueLabel = '';
+  // The box carries the armed finish and its rate, so it says FINISH — not
+  // LENGTH, which is what an empty label fell back to over a material name.
+  static valueLabel = 'Finish';
   static valueMode = 'length';
   static hint = 'Click a face to paint it. Alt samples, Ctrl paints the whole run, '
     + 'Shift replaces that material everywhere. Furniture takes a colour instead.';
@@ -41,7 +43,7 @@ export class PaintTool extends Tool {
     this.ed.hud?.showTab('materials');
   }
 
-  setMaterial(id) { this.material = id; this.flash(`${id} — ${materialPrice(id)} / m²`); }
+  setMaterial(id) { this.material = id; this.flash(`${materialName(id)} — ${materialPrice(id)} / m²`); }
   setColor(hex) { this.color = hex; }
 
   onMove(p) {
@@ -50,12 +52,12 @@ export class PaintTool extends Tool {
     this._hit = hit;
     if (hit && this.model.walls[hit.entityId]) {
       const side = this._sideOf(hit);
-      this.setDisplay(`${this.material} · ${side} face · ${materialPrice(this.material)} / m²`);
+      this.setDisplay(`${materialName(this.material)} · ${side} face · ${materialPrice(this.material)}/m²`);
     } else if (hit && this.model.furniture[hit.entityId]) {
       const e = tryEntry(this.model.furniture[hit.entityId].catalogId);
       this.setDisplay(e ? `${e.name} · colour` : '');
     } else {
-      this.setDisplay(`${this.material} · ${materialPrice(this.material)} / m²`);
+      this.setDisplay(`${materialName(this.material)} · ${materialPrice(this.material)}/m²`);
     }
   }
 
@@ -79,9 +81,9 @@ export class PaintTool extends Tool {
     // Alt = sample
     if (input?.alt) {
       const w = this.model.walls[hit.entityId];
-      if (w) { this.material = this._sideOf(hit) === 'inner' ? w.matInner : w.matOuter; this.flash(`Sampled ${this.material}`); this.ed.hud?.refreshMaterials(); }
+      if (w) { this.material = this._sideOf(hit) === 'inner' ? w.matInner : w.matOuter; this.flash(`Sampled ${materialName(this.material)}`); this.ed.hud?.refreshMaterials(); }
       const s = this.model.slabs[hit.entityId];
-      if (s) { this.material = s.mat; this.flash(`Sampled ${this.material}`); this.ed.hud?.refreshMaterials(); }
+      if (s) { this.material = s.mat; this.flash(`Sampled ${materialName(this.material)}`); this.ed.hud?.refreshMaterials(); }
       return;
     }
 
@@ -95,7 +97,7 @@ export class PaintTool extends Tool {
     const slab = this.model.slabs[hit.entityId];
     if (slab) {
       this.apply({ t: 'slab.setMaterial', id: hit.entityId, mat: this.material });
-      this.flash(`${this.material} floor · ${materialPrice(this.material)} / m²`);
+      this.flash(`${materialName(this.material)} floor · ${materialPrice(this.material)} / m²`);
       return;
     }
 
@@ -110,7 +112,7 @@ export class PaintTool extends Tool {
     this.ed.applyMany(ids.map(id => ({ t: 'wall.setProps', id, props: { [key]: this.material } })));
     const after = this._cost(ids, key, this.material);
     const delta = after - before;
-    this.flash(`${this.material} to ${ids.length} face${ids.length > 1 ? 's' : ''}  ${delta >= 0 ? '+' : ''}${Math.round(delta)}`);
+    this.flash(`${materialName(this.material)} to ${ids.length} face${ids.length > 1 ? 's' : ''}  ${delta >= 0 ? '+' : ''}${Math.round(delta)}`);
   }
 
   _cost(ids, key, override = null) {
@@ -157,7 +159,7 @@ export class PaintTool extends Tool {
 export class EraserTool extends Tool {
   static id = 'erase';
   static toolName = 'Eraser';
-  static valueLabel = '';
+  static valueLabel = 'Eraser';
   static valueMode = 'length';
   static hint = 'Click or drag over things to delete them. Setting-out lines are erased too.';
 

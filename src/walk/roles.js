@@ -601,6 +601,78 @@ export function buildPopulation({
   return people;
 }
 
+/**
+ * fitDayToBuilding(people, { has, asked }) -> people
+ *
+ * Trim the timetable to the building these people are actually going to live
+ * in, BEFORE anybody sets off. This is the same principle the catalogue already
+ * works to in src/analysis/catalogue.js: a requirement the drawing never had to
+ * meet is RECORDED, not complained about.
+ *
+ * The rosters are written for a building type, not for one drawing. The house
+ * roster gives a parent `desk: 3` between 08:30 and 16:00 — the joint highest
+ * weight of eleven — and `desk` resolves to an office, a study or a staff room.
+ * A detached-house brief does not have to list any of the three, and the
+ * generated ones mostly do not. The result was a parent walking off to a study
+ * that was never asked for, failing, getting visibly annoyed, and a red line on
+ * the architect's sheet reading "Journeys with no room to go to — benchmark:
+ * the brief lists the room" about a room his client never mentioned. That is
+ * the game being wrong about his job, in the one place it is supposed to be
+ * unarguable.
+ *
+ *   has(kind)   the building HAS a room of this class
+ *   asked(kind) the brief's written programme ASKS for one
+ *
+ * A goal survives if it can be satisfied (has), or if it cannot be satisfied
+ * because a room the client asked for is missing (asked) — that failure is a
+ * real finding and must still happen. Everything else is dropped, and so are
+ * the involuntary needs: nobody goes looking for a WC in a lock-up garage that
+ * was never drawn one.
+ *
+ * `person.day` is the role's own shared band array, so every band is rebuilt
+ * rather than edited. Returns the same people, and the list of goals dropped,
+ * for the console line.
+ */
+export function fitDayToBuilding(people, { has = () => true, asked = () => false } = {}) {
+  const verdict = new Map();
+  const keep = (goalKey) => {
+    if (verdict.has(goalKey)) return verdict.get(goalKey);
+    const g = GOALS[goalKey];
+    let ok = true;
+    if (g) {
+      const rooms = g.rooms ?? [];
+      ok = rooms.some((k) => k === '__outside' || has(k) || asked(k));
+    }
+    verdict.set(goalKey, ok);
+    return ok;
+  };
+
+  const dropped = new Set();
+  for (const p of people) {
+    p.day = (p.day ?? []).map((band) => {
+      const goals = {};
+      let kept = 0;
+      for (const k in band.goals) {
+        if (keep(k)) { goals[k] = band.goals[k]; kept++; }
+        else dropped.add(k);
+      }
+      // A band with nothing left in it would make the person stand still all
+      // day, which says less than letting them try and fail. Put the heaviest
+      // original goal back and let the statistics record what happens.
+      if (!kept) {
+        const top = Object.entries(band.goals).sort((a, b) => b[1] - a[1])[0];
+        if (top) goals[top[0]] = top[1];
+      }
+      return { ...band, goals };
+    });
+    p.needs = {
+      wc: keep('wc') ? (p.needs?.wc ?? 0) : 0,
+      coffee: keep('coffee') ? (p.needs?.coffee ?? 0) : 0,
+    };
+  }
+  return { people, dropped: [...dropped] };
+}
+
 /** The time band covering `hour` for this person, or the nearest one. */
 export function bandAt(person, hour) {
   const day = person.day || [];

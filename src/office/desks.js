@@ -26,7 +26,10 @@ import {
 } from 'three';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
-import { MONITOR_SCREEN, OFFICE, ACCENT } from './props.js';
+import {
+  MONITOR_SCREEN, MONITOR_ANCHOR, OFFICE, ACCENT, MeshBuilder, builderMaterial,
+  propPlantSmall, propMug, propSheet,
+} from './props.js';
 import { materialFor } from '../core/palette.js';
 
 const FONT_URL = 'https://unpkg.com/three@0.180.0/examples/fonts/helvetiker_bold.typeface.json';
@@ -181,13 +184,52 @@ export class PlaceholderOs {
   dispose() { this.texture.dispose(); }
 }
 
-/** Try the real OS module, fall back to the stand-in. */
+/**
+ * Try the real OS module, fall back to the stand-in.
+ *
+ * The fallback used to be silent: `catch (_) {}` with no logging, so an OS that
+ * half-loaded was indistinguishable from one that worked, and the office would
+ * quietly ship the stand-in for the rest of the session. It now says so, loudly
+ * and once, with the actual error.
+ */
+let _fallbackWarned = false;
 export async function createScreen(opts) {
   try {
     const mod = await import('../os/os.js');
-    if (mod?.createOsSurface) return mod.createOsSurface(opts);
-  } catch (_) { /* the OS piece is not in yet */ }
+    if (mod?.createOsSurface) return await mod.createOsSurface(opts);
+    throw new Error('src/os/os.js exports no createOsSurface');
+  } catch (err) {
+    if (!_fallbackWarned) {
+      _fallbackWarned = true;
+      console.warn('[office] the real OS did not load — desk monitors are running the '
+        + 'PlaceholderOs stand-in. Reason:', err);
+    }
+  }
   return new PlaceholderOs(opts);
+}
+
+/**
+ * Mean and peak luma of whatever a screen surface is currently painting.
+ * Used by office.js to assert that a monitor is not a black rectangle; a
+ * screen that never lights is the one defect a screenshot cannot show you,
+ * because a black screen and a missing screen look identical.
+ */
+export function screenLuma(surface) {
+  const src = surface?.canvas || surface?.texture?.image;
+  if (!src || !src.width) return null;
+  const c = document.createElement('canvas');
+  c.width = 96;
+  c.height = Math.max(1, Math.round(96 * src.height / src.width));
+  const g = c.getContext('2d', { willReadFrequently: true });
+  try { g.drawImage(src, 0, 0, c.width, c.height); } catch (_) { return null; }
+  const d = g.getImageData(0, 0, c.width, c.height).data;
+  let sum = 0, max = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+    sum += l;
+    if (l > max) max = l;
+  }
+  return { mean: sum / (d.length / 4), max };
 }
 
 // ---------------------------------------------------------------------------
@@ -282,26 +324,46 @@ export class Workstation {
     this.group.name = `workstation-${slot.index}`;
     this.group.position.set(slot.x, 0, slot.z);
     this.group.rotation.y = slot.ry || 0;
-    this.player = null;
+    // `undefined` means "never assigned", which is NOT the same thing as an
+    // assigned-but-empty desk (`null`). assignPlayers() compared `ws.player?.id`
+    // with `p?.id`, and for a never-assigned empty slot both sides were
+    // undefined, so the guard skipped it forever: two of three monitors had no
+    // OS, no texture and no glow — the dead black rectangle the class comment
+    // below explicitly forbids.
+    this.player = undefined;
+    this.assigned = false;
     this.os = null;
     this.screen = null;
     this.nameplate = null;
     this.glow = null;
+    this.personalGroup = null;
     this.personal = { plant: 'succulent', poster: 'plan', figurine: 'duck', mugColor: 0 };
 
     // The screen: a plain unlit quad. A monitor is an emitter, not a lit
     // surface — lighting it with the room's key would make it grey.
+    //
+    // MONITOR_SCREEN is monitor-local; MONITOR_ANCHOR is where the monitor
+    // stands on the desk. Both are needed, and forgetting the second one is
+    // what buried the whole in-game OS under the desk for three rounds.
     const geo = new PlaneGeometry(MONITOR_SCREEN.w, MONITOR_SCREEN.h);
     this.screen = new Mesh(geo, new MeshBasicMaterial({ color: 0x101214, toneMapped: false }));
-    this.screen.position.set(0, MONITOR_SCREEN.y, MONITOR_SCREEN.z + 0.001);
+    this.screen.position.set(
+      0,
+      MONITOR_ANCHOR.y + MONITOR_SCREEN.y,
+      MONITOR_ANCHOR.z + MONITOR_SCREEN.z + 0.001,
+    );
     this.screen.name = 'screen';
     this.screen.userData.workstation = this;
     this.group.add(this.screen);
 
     // The monitor throws a little cool light back into the room — light source
     // number four, and by far the coolest colour temperature in the frame.
-    this.glow = new PointLight(0x9fc4e8, 0.0, 1.9, 2.0);
-    this.glow.position.set(0, MONITOR_SCREEN.y, MONITOR_SCREEN.z + 0.30);
+    this.glow = new PointLight(0x9fc4e8, 0.0, 2.6, 2.0);
+    this.glow.position.set(
+      0,
+      MONITOR_ANCHOR.y + MONITOR_SCREEN.y,
+      MONITOR_ANCHOR.z + MONITOR_SCREEN.z + 0.34,
+    );
     this.group.add(this.glow);
   }
 
@@ -320,7 +382,8 @@ export class Workstation {
    * frame, and it would not be true to a studio either.
    */
   async assign(player, { tier = 1 } = {}) {
-    this.player = player;
+    this.player = player || null;
+    this.assigned = true;
     if (this.nameplate) { this.group.remove(this.nameplate); this.nameplate = null; }
     if (player) {
       this.nameplate = makeNameplate(player.nick, player.color);
@@ -328,20 +391,106 @@ export class Workstation {
       this.nameplate.rotation.y = -0.35;
       this.group.add(this.nameplate);
     }
+    this.buildPersonal();
     if (!this.os) {
       this.os = await createScreen({
-        width: 512, height: 306, tier,
+        width: 545, height: 325, tier,
         nick: player?.nick || 'idle', playerId: player?.id || null,
       });
       this.screen.material.map = this.os.texture;
       this.screen.material.needsUpdate = true;
+      // An empty desk does not sit through a startup animation: nobody is there
+      // to press the button, and a machine that is black for the first five
+      // seconds of every screenshot is the same dead rectangle by another name.
+      // The real OS can skip its boot; the stand-in has no boot to skip.
+      if (!player) this.skipBoot(tier);
     }
-    const lit = player ? 1.0 : 0.34;
+    const lit = player ? 1.0 : 0.42;
     this.screen.material.color.setScalar(lit);
-    this.glow.intensity = 0.55 * lit;
+    this.glow.intensity = 1.5 * lit;
+  }
+
+  /** Jump a freshly created surface straight to the desktop. */
+  skipBoot(tier = 1) {
+    const raw = this.os?.os;
+    if (raw?.setTier) { raw.setTier(tier, { boot: false }); this.os.update?.(0); return true; }
+    // Fallback for any surface without that hook: run it forward until it
+    // paints something. 12 s of simulated time, capped.
+    for (let i = 0; i < 240; i++) {
+      this.os?.update?.(0.05);
+      const l = screenLuma(this.os);
+      if (l && l.mean > 20) return true;
+    }
+    return false;
   }
 
   setTier(tier) { this.os?.setTier?.(tier); }
+
+  // -- desk personalisation ---------------------------------------------------
+  //
+  // DESIGN-DECISIONS.md: "Desk personalisation (plant, poster, figurine, mug
+  // colour) visible to other players." PERSONALISATION used to be an exported
+  // constant with no consumer anywhere in src/ — the list existed, the meshes
+  // did not. These four choices are now real geometry on the desk, rebuilt in
+  // place when the player changes them from the management panel, and they ride
+  // the same shared-state path as everything else so the other two architects
+  // see them.
+
+  setPersonal(patch = {}) {
+    Object.assign(this.personal, patch);
+    this.buildPersonal();
+    return this.personal;
+  }
+
+  buildPersonal() {
+    if (this.personalGroup) {
+      this.group.remove(this.personalGroup);
+      for (const m of this.personalGroup.children) { m.geometry.dispose(); }
+      this.personalGroup = null;
+    }
+    if (!this.player) return null;      // an empty desk is bare, and that reads
+    const p = this.personal;
+    const b = new MeshBuilder();
+
+    // plant — desk end, far side from the mouse hand
+    if (p.plant && p.plant !== 'none') {
+      const seed = { succulent: 5, fern: 17, cactus: 41 }[p.plant] || 5;
+      b.at({ x: -0.62, y: 0.74, z: 0.06 }, (q) => propPlantSmall(q, {
+        seed, pot: p.plant === 'cactus' ? 0xc9a07a : OFFICE.ceramic,
+      }));
+    }
+    // figurine — 60-90 mm of nonsense on top of the monitor's plinth
+    if (p.figurine && p.figurine !== 'none') {
+      b.at({ x: 0.30, y: 0.74, z: -0.16 }, (q) => figurine(q, p.figurine));
+    }
+    // poster — an A4 print in a clip frame, standing against the desk return
+    if (p.poster && p.poster !== 'none') {
+      b.at({ x: 0.70, y: 0.74, z: -0.20, ry: -0.42, rx: -0.16 }, (q) => {
+        q.boxUp(0.012, 0.30, 0.014, { x: -0.10, color: OFFICE.steelDark, mat: 'metal', ao: false });
+        q.boxUp(0.012, 0.30, 0.014, { x: 0.10, color: OFFICE.steelDark, mat: 'metal', ao: false });
+        q.at({ y: 0.16 }, (r) => propSheet(r, {
+          w: 0.21, h: 0.297,
+          color: p.poster === 'photo' ? 0xd8cfbe : OFFICE.paper,
+          ink: p.poster === 'section' ? OFFICE.charcoal : 0x8b8478,
+        }));
+      });
+    }
+    // the player's own mug, in their chosen colour
+    const mugCol = PERSONALISATION.mugColors[p.mugColor % PERSONALISATION.mugColors.length];
+    b.at({ x: 0.46, y: 0.74, z: 0.22, ry: 0.6 }, (q) => propMug(q, { color: mugCol, full: true }));
+
+    const g = new Group();
+    g.name = 'personalisation';
+    for (const { mat, geometry } of b.build()) {
+      const m = new Mesh(geometry, builderMaterial(mat));
+      m.castShadow = true;
+      m.receiveShadow = true;
+      g.add(m);
+    }
+    this.group.add(g);
+    this.personalGroup = g;
+    return g;
+  }
 
   update(dt, visible) {
     if (visible) this.os?.update?.(dt);
@@ -351,6 +500,26 @@ export class Workstation {
     this.os?.dispose?.();
     this.screen.geometry.dispose();
     this.screen.material.dispose();
+    if (this.personalGroup) for (const m of this.personalGroup.children) m.geometry.dispose();
+  }
+}
+
+/** 60-90 mm of desk nonsense. Three shapes, all instantly readable at 2 m. */
+function figurine(b, kind) {
+  if (kind === 'duck') {
+    b.cylUp(0.030, 0.034, 0.030, 10, { color: 0xe8c341, mat: 'flat', ao: false });
+    b.sphere(0.026, 8, { y: 0.048, s: [1, 0.9, 1.15], color: 0xe8c341, mat: 'flat', ao: false });
+    b.sphere(0.017, 7, { y: 0.072, z: 0.012, color: 0xe8c341, mat: 'flat', ao: false });
+    b.boxUp(0.012, 0.008, 0.020, { y: 0.070, z: 0.030, color: 0xd4763a, mat: 'flat', ao: false });
+  } else if (kind === 'obelisk') {
+    b.boxUp(0.052, 0.012, 0.052, { color: OFFICE.charcoal, mat: 'ink', ao: false });
+    b.add(new BoxGeometry(0.030, 0.075, 0.030), { y: 0.050, s: [1, 1, 1], color: 0xdad3c4, mat: 'flat', ao: false });
+    b.add(new BoxGeometry(0.030, 0.026, 0.030), { y: 0.100, s: [0.35, 1, 0.35], color: 0xdad3c4, mat: 'flat', ao: false });
+  } else {                                     // 'arch' — a model of an arch
+    b.boxUp(0.070, 0.010, 0.040, { color: OFFICE.ply, ao: false });
+    b.boxUp(0.016, 0.058, 0.030, { x: -0.024, y: 0.010, color: 0xe7e0d1, mat: 'paper', ao: false });
+    b.boxUp(0.016, 0.058, 0.030, { x: 0.024, y: 0.010, color: 0xe7e0d1, mat: 'paper', ao: false });
+    b.boxUp(0.064, 0.014, 0.030, { y: 0.068, color: 0xe7e0d1, mat: 'paper', ao: false });
   }
 }
 

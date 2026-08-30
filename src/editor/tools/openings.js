@@ -65,11 +65,23 @@ class OpeningTool extends Tool {
     return had;
   }
 
+  /**
+   * THE COMMA BELONGS TO THE NUMBER, NOT TO THE SWING.
+   *
+   * The swing flip used to sit on ',' and '.', which are the pair separator and
+   * the decimal point of the box this tool labels "Width, height". Typing the
+   * 900,2100 the label asks for fired a swing toast, swallowed the comma and
+   * committed 9 002 100 mm. The flip moved to '<' and '>' — Shift on the same
+   * two keys, and the glyphs point the way the leaf goes — so every character
+   * the Measurements box can use reaches it untouched. [ and ] are guarded as
+   * well: they open a typed coordinate.
+   */
   onKey(e) {
+    if (this.typing) return false;
     if (e.code === 'BracketLeft') { this.cycle(-1); return true; }
     if (e.code === 'BracketRight') { this.cycle(1); return true; }
-    if (this.kind === 'door' && (e.code === 'Comma' || e.code === 'Period')) {
-      this.swing = SWINGS[(SWINGS.indexOf(this.swing || 'in-left') + (e.code === 'Period' ? 1 : 3)) % 4];
+    if (this.kind === 'door' && (e.key === '<' || e.key === '>')) {
+      this.swing = SWINGS[(SWINGS.indexOf(this.swing || 'in-left') + (e.key === '>' ? 1 : 3)) % 4];
       this.flash(`Swing: ${this.swing}`);
       return true;
     }
@@ -273,8 +285,8 @@ export class DoorTool extends OpeningTool {
   static toolName = 'Door';
   static valueLabel = 'Width, height';
   static valueMode = 'pair';
-  static hint = 'Click a wall to cut a door. [ ] change the leaf, , . flip the swing. '
-    + 'Type a width to override. Default 900 × 2050 mm.';
+  static hint = 'Click a wall to cut a door. [ ] change the leaf, < > flip the swing. '
+    + 'Type "900,2100" for an exact width and height. Default 900 × 2050 mm.';
 
   constructor(ed) {
     super(ed, 'door', 'doors', 'door-internal-900');

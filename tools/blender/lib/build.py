@@ -11,10 +11,17 @@ bevelled volumes and not raw boxes.
 
 Three rules, enforced here so no family script can forget them:
 
-  1. CONNECTED. Before anything is meshed, the parts' axis-aligned boxes are
-     grown by `TOUCH_TOL` and a union-find runs over the overlapping pairs. More
-     than one component -> BuildError naming every orphan. A chair leg that does
-     not reach the seat cannot leave this file.
+  1. CONNECTED. Every pair of parts whose boxes overlap is tested face against
+     face with BVHTree.overlap; a union-find over the pairs that actually touch
+     must give ONE component, or BuildError names every orphan. A chair leg that
+     does not reach the seat cannot leave this file.
+  1b. VISIBLE. Being joined is not enough: a part can touch its host and still
+     be swallowed by a third one. Two espresso cups sat on their warming tray
+     inside the boiler housing, fifteen piano sharps inside the piano's own
+     case, a column scale's entire column inside a tall-unit carcase, four
+     castors inside a trolley's plinth, a display fridge's glass inside its own
+     door frame. All of them passed every number. `assert_visible` refuses any
+     part contained in a SOLID part's box (see Shape.buried).
   2. BEVELLED. Every part gets a bevel on its sharp edges (>= BEVEL_ANGLE), with
      clamp_overlap so thin parts survive. Cards (leaves, glazing) opt out.
   3. ONE MESH PER MATERIAL REGION. Parts are joined per slot at the end, so an
@@ -111,13 +118,21 @@ def _ring_pts(w, d, n, round_xz=True, corner=None, arc=(0.0, 1.0), closed=True):
 
 
 class Part:
-    __slots__ = ('name', 'slot', 'bm', 'lo', 'hi', 'bevel', '_bvh')
+    __slots__ = ('name', 'slot', 'bm', 'lo', 'hi', 'bevel', 'solid', '_bvh')
 
-    def __init__(self, name, slot, bm, bevel):
+    def __init__(self, name, slot, bm, bevel, solid=True):
         self.name = name
         self.slot = slot
         self.bm = bm
         self.bevel = bevel
+        # `solid` means "this primitive fills its own bounding box", which is
+        # what lets it HIDE another part. Only a box and a cylinder come close.
+        # A wedge is half its box, a taper is a frustum, a tube follows a path,
+        # a ring is an annulus, a bowl is open and a card is a plane -- so a
+        # part inside one of THOSE boxes is very likely still in plain sight.
+        # Counting them as containers reported a ramp's own nosing strips, every
+        # stair tread and the soil in a plant pot as invisible.
+        self.solid = solid
         self._bvh = None
         vs = [v.co for v in bm.verts]
         self.lo = Vector((min(v.x for v in vs), min(v.y for v in vs), min(v.z for v in vs)))
@@ -183,7 +198,11 @@ class Shape:
         bmesh.ops.create_cube(bm, size=1.0)
         bmesh.ops.scale(bm, vec=Vector(size), verts=bm.verts)
         _xform(bm, pos, rot)
-        return self._add(bm, slot, bevel, name or 'box')
+        # a TILTED box does not fill its axis-aligned box either, and treating
+        # it as a container reported a monitor screen sunk 2 mm proud of its own
+        # tilted bezel as invisible
+        return self._add(bm, slot, bevel, name or 'box',
+                         solid=not (rot and any(rot)))
 
     def taper(self, size_a, size_b, pos, axis='x', length=1.0, slot='tint', rot=(0, 0, 0),
               bevel=None, name=None):
@@ -210,7 +229,7 @@ class Shape:
             bm.faces.new([verts[i] for i in f])
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         _xform(bm, pos, rot)
-        return self._add(bm, slot, bevel, name or 'taper')
+        return self._add(bm, slot, bevel, name or 'taper', solid=False)
 
     def wedge(self, size, pos, slot='tint', rot=(0, 0, 0), bevel=None, name=None,
               low=0.0):
@@ -242,7 +261,7 @@ class Shape:
             bm.faces.new((v[(xi, 0, 0)], v[(xi, 0, 1)], v[(xi, 1, 1)], v[(xi, 1, 0)]))
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         _xform(bm, pos, rot)
-        return self._add(bm, slot, bevel, name or 'wedge')
+        return self._add(bm, slot, bevel, name or 'wedge', solid=False)
 
     def cyl(self, r_bottom, r_top, h, pos, slot='tint', seg=12, axis='y', rot=(0, 0, 0),
             bevel=None, name=None, cap=True):
@@ -257,7 +276,11 @@ class Shape:
         if axis != 'z':
             bmesh.ops.transform(bm, matrix=m, verts=bm.verts)
         _xform(bm, pos, rot)
-        return self._add(bm, slot, bevel, name or 'cyl')
+        # a cone does not fill its box either; only a true cylinder does, and
+        # only while it is axis-aligned
+        return self._add(bm, slot, bevel, name or 'cyl',
+                         solid=abs(r_bottom - r_top) < 1e-6
+                         and not (rot and any(rot)))
 
     def card(self, size, pos, slot='foliage', rot=(0, 0, 0), name=None):
         """A single double-sided quad: 2 triangles. Leaves, blinds, paper."""
@@ -268,7 +291,7 @@ class Shape:
         bm.faces.new(vs)
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         _xform(bm, pos, rot)
-        return self._add(bm, slot, 0.0, name or 'card')
+        return self._add(bm, slot, 0.0, name or 'card', solid=False)
 
     def tube(self, path, r, slot='metal', seg=8, bevel=0.0, name=None):
         """A round bar bent through a polyline. Cord, tap spout, steam wand, stem."""
@@ -298,7 +321,7 @@ class Shape:
         bm.faces.new(list(reversed(rings[0])))
         bm.faces.new(rings[-1])
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-        return self._add(bm, slot, bevel, name or 'tube')
+        return self._add(bm, slot, bevel, name or 'tube', solid=False)
 
     def ring(self, outer, inner, thickness, pos, slot='tint', rot=(0, 0, 0),
              bevel=None, name=None, seg=24, round_xz=True, corner=None,
@@ -335,7 +358,7 @@ class Shape:
             bm.faces.new((ob[-1], ib[-1], it[-1], ot[-1]))
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         _xform(bm, pos, rot)
-        return self._add(bm, slot, bevel, name or 'ring')
+        return self._add(bm, slot, bevel, name or 'ring', solid=False)
 
     def shell(self, outer, inner_depth, wall, pos, slot='ceramic', rot=(0, 0, 0),
               bevel=None, name=None, seg=None, round_xz=False, corner=None):
@@ -381,19 +404,49 @@ class Shape:
         bm.faces.new(ib)                                        # bowl floor
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         _xform(bm, pos, rot)
-        part = self._add(bm, slot, bevel, name or 'bowl')
+        part = self._add(bm, slot, bevel, name or 'bowl', solid=False)
         return Bowl(part, pos[1] + floor, pos[1] + top,
                     (w - wall * 2, d - wall * 2))
 
     # -- bookkeeping --------------------------------------------------------
 
-    def _add(self, bm, slot, bevel, name):
+    def _add(self, bm, slot, bevel, name, solid=True):
         self._n += 1
-        p = Part(f'{name}.{self._n}', slot, bm, BEVEL if bevel is None else bevel)
+        p = Part(f'{name}.{self._n}', slot, bm, BEVEL if bevel is None else bevel,
+                 solid=solid)
         self.parts.append(p)
         return p
 
-    # -- the assertion ------------------------------------------------------
+    # -- the assertions -----------------------------------------------------
+
+    def buried(self, eps=0.0005):
+        """Parts a SOLID part swallows whole, i.e. geometry nobody can ever see.
+
+        `assert_connected` catches a part that touches nothing. It cannot catch
+        a part that touches its host and is then covered by a third part: two
+        espresso cups sat on their warming tray, correctly joined to it, entirely
+        inside the boiler housing above. Nobody had looked at the top of that
+        machine, and the numbers all said pass.
+
+        Containment is tested against the axis-aligned box of parts that FILL
+        that box (see Part.solid). A bowl, a ring, a tube and a card do not, so
+        they never count as containers -- otherwise every waste sitting on a
+        basin floor reports as invisible.
+
+        Returns [(hidden, container), ...].
+        """
+        out = []
+        for p in self.parts:
+            for q in self.parts:
+                if q is p or not q.solid:
+                    continue
+                if all(q.lo[i] - eps <= p.lo[i] and p.hi[i] <= q.hi[i] + eps
+                       for i in range(3)):
+                    out.append((p.name, q.name))
+                    break
+        return out
+
+    # -- connectivity ------------------------------------------------------
 
     def components(self, tol=TOUCH_TOL):
         """Union-find over parts whose SURFACES meet. Returns a list of lists.
@@ -437,6 +490,15 @@ class Shape:
         raise BuildError(
             f'{self.id}: {len(self.parts)} parts form {len(comps)} disconnected bodies; '
             f'the main body has {len(main)}. Floating: ' + '; '.join(orphans))
+
+    def assert_visible(self):
+        hidden = self.buried()
+        if not hidden:
+            return
+        raise BuildError(
+            f'{self.id}: {len(hidden)} part(s) sealed inside another solid and '
+            'visible from nowhere: '
+            + '; '.join(f'{a} inside {b}' for a, b in hidden))
 
     # -- finishing ----------------------------------------------------------
 
@@ -542,6 +604,7 @@ def _bevel(bm, amt):
 def finish(shape, palette, target_size=None, fit_axes='xyz', fit_max=0.04):
     """Assert, bevel, join per slot, apply the anchor, hand back Blender objects."""
     shape.assert_connected()
+    shape.assert_visible()
     for p in shape.parts:
         _bevel(p.bm, p.bevel)
         shape._recompute(p)

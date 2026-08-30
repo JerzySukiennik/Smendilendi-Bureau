@@ -152,7 +152,11 @@ export class Employee {
     this.body.position.y = Math.sin(this._t * 1.6) * 0.006;
     this.body.rotation.y = Math.sin(this._t * 0.31) * 0.10;
     if (cameraPos) this.nick.lookAt(cameraPos.x, this.nick.getWorldPosition(_v).y, cameraPos.z);
-    if (this.busy) this.progress = Math.min(1, this.progress + dt * 0.02 * this.spec.speed);
+    // The office-wide focus multiplier: a hot cup of coffee makes the room work
+    // faster for as long as it stays hot (office.js applyFocus/_decayFocus).
+    // 0 -> 1.0x, 1 -> 1.5x.
+    const focus = 1 + (this.focus || 0) * 0.5;
+    if (this.busy) this.progress = Math.min(1, this.progress + dt * 0.02 * this.spec.speed * focus);
   }
 }
 
@@ -216,6 +220,12 @@ export class Staff {
     this.state?.set('office.employees', this.list.map((e) => ({
       id: e.id, name: e.name, tier: e.tier, cubicle: e.cubicle.index,
     })));
+  }
+
+  /** Office-wide focus, 0..1. Set by office.js when somebody sips hot coffee. */
+  setFocus(f) {
+    this.focus = f || 0;
+    for (const e of this.list) e.focus = this.focus;
   }
 
   update(dt, cameraPos) {

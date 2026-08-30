@@ -126,6 +126,13 @@ export class Editor {
     const before = this.model;
     const full = this.session.sendOp(op);
     if (!full) return null;
+    // A REFUSAL DOES NOT OUTLIVE THE NEXT SUCCESSFUL EDIT. "Too wide — that wall
+    // is only 2000 mm" used to sit in the Measurements box while the door that
+    // followed it was cut and standing in the model, so the one line the player
+    // reads mid-operation contradicted the building. Anything that actually
+    // changes the model clears it; the typed text itself is left alone, because
+    // a value being typed right now is not the thing that was refused.
+    if (this.measurements.error) this.measurements.setError('');
     if (history) {
       // applyOp is pure and deterministic, so re-running it against the model as
       // it was gives us exactly the inverse the session already applied.

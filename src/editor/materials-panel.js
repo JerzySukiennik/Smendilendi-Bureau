@@ -11,6 +11,13 @@
 import { MATERIAL_CLASSES, FURNITURE_TINTS, materialCost } from '../core/palette.js';
 import { MATERIAL_PRICES, materialPrice } from '../model/catalog.js';
 import { formatMoney } from './measure.js';
+import { materialName } from './constants.js';
+
+// Two priced finishes have no class of their own: geometry.js renders 'wood' as
+// 'wood-mid' and 'render' as 'plaster-warm'. Without this the swatch for each
+// fell back to a flat grey, so the palette showed neither the timber nor the
+// render it was about to charge 240 and 150 per m2 for.
+const CLASS_FOR = { wood: 'wood-mid', render: 'plaster-warm' };
 
 const WALL_FINISHES = ['plaster', 'paint', 'brick', 'stone', 'concrete', 'polishedConcrete', 'tile', 'wood', 'render', 'metal', 'glass', 'terrazzo'];
 const FLOOR_FINISHES = ['screed', 'timberFloor', 'tileFloor', 'vinyl', 'carpet', 'terrazzo', 'polishedConcrete'];
@@ -65,16 +72,17 @@ export class MaterialsPanel {
     const grid = document.createElement('div');
     grid.className = 'mat-grid';
     for (const id of ids) {
-      const spec = MATERIAL_CLASSES[id];
+      const spec = MATERIAL_CLASSES[CLASS_FOR[id] || id];
+      const name = materialName(id);
       const b = document.createElement('button');
       b.className = 'mat-sw';
       b.dataset.mat = id;
       b.dataset.group = 'mat';
       b.style.background = spec ? `#${spec.color.toString(16).padStart(6, '0')}` : '#888';
       const s = document.createElement('span');
-      s.textContent = id;
+      s.textContent = name;
       b.appendChild(s);
-      b.title = `${id} — ${materialPrice(id)} per m²`;
+      b.title = `${name} — ${formatMoney(materialPrice(id))} per m²`;
       b.addEventListener('click', () => {
         const tool = this.ed.setTool('paint');
         tool.setMaterial(id);
@@ -95,12 +103,12 @@ export class MaterialsPanel {
   refresh() {
     const tool = this.ed.tools.get('paint');
     const mat = tool?.material || 'plaster';
-    const rows = [[`Armed: ${mat}`, `${formatMoney(materialPrice(mat))} / m²`]];
+    const rows = [[`Armed: ${materialName(mat)}`, `${formatMoney(materialPrice(mat))} / m²`]];
     for (const id of this.ed.selection) {
       const w = this.ed.model.walls[id];
       if (!w) continue;
-      rows.push([`${id} inner`, `${w.matInner} · ${formatMoney(materialPrice(w.matInner))} / m²`]);
-      rows.push([`${id} outer`, `${w.matOuter} · ${formatMoney(materialPrice(w.matOuter))} / m²`]);
+      rows.push(['Selected wall, inner face', `${materialName(w.matInner)} · ${formatMoney(materialPrice(w.matInner))} / m²`]);
+      rows.push(['Selected wall, outer face', `${materialName(w.matOuter)} · ${formatMoney(materialPrice(w.matOuter))} / m²`]);
       break;
     }
     this.info.innerHTML = '';

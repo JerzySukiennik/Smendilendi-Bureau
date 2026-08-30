@@ -288,10 +288,20 @@ export function contactShadowTexture() {
   // blending: multiply blending looked right on paper and rendered as white
   // squares on the actual floor, which is exactly the sort of thing that has to
   // be looked at rather than reasoned about.
+  //
+  // The gradient shape matters more than its peak. A blob that fades from the
+  // centre outwards puts its darkest pixel UNDER the object, where nobody can
+  // see it, and leaves the visible ring — the only part that reads as a contact
+  // shadow — at the faint tail. Measured on the cardboard boxes in round 1:
+  // 37/255 and 17/255 of floor darkening against 60-115 under the desks, i.e. a
+  // fail of finish bar item 4 caused purely by the falloff curve.
+  // So the core is a PLATEAU that covers the whole footprint at full strength
+  // and the falloff is a short shoulder in the outer third.
   const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
-  grad.addColorStop(0.00, 'rgba(14,12,10,0.58)');
-  grad.addColorStop(0.34, 'rgba(16,14,12,0.40)');
-  grad.addColorStop(0.68, 'rgba(20,18,15,0.14)');
+  grad.addColorStop(0.00, 'rgba(12,10,9,0.82)');
+  grad.addColorStop(0.46, 'rgba(13,11,10,0.78)');
+  grad.addColorStop(0.62, 'rgba(15,13,11,0.62)');
+  grad.addColorStop(0.80, 'rgba(18,16,13,0.28)');
   grad.addColorStop(1.00, 'rgba(24,20,17,0.00)');
   g.fillStyle = grad;
   g.fillRect(0, 0, S, S);
@@ -301,8 +311,20 @@ export function contactShadowTexture() {
   return _blobTex;
 }
 
+/**
+ * The contact-shadow material, with ONE addition: a per-instance strength.
+ *
+ * Every shadow point already carried a `strength` (a mug on a desk should not
+ * sit in the same pool of dark as a plan chest on the floor) and nothing read
+ * it, so every blob rendered at full weight. InstancedMesh's built-in
+ * instanceColor cannot express it — it multiplies rgb, and these blobs are
+ * almost black already, so scaling their colour changes nothing visible. What
+ * has to vary is ALPHA, which means one extra instanced attribute and four
+ * lines of shader patch. Instances whose `aStrength` is never written render
+ * invisible, so office.js sets the attribute for every instance it allocates.
+ */
 export function contactShadowMaterial() {
-  return new MeshBasicMaterial({
+  const m = new MeshBasicMaterial({
     map: contactShadowTexture(),
     transparent: true,
     depthWrite: false,
@@ -312,6 +334,16 @@ export function contactShadowMaterial() {
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
   });
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aStrength;\nvarying float vStrength;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvStrength = aStrength;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vStrength;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n\tdiffuseColor.a *= vStrength;');
+  };
+  m.customProgramCacheKey = () => 'office-contact-shadow-strength';
+  return m;
 }
 
 /** A unit quad in the XZ plane, for the contact-shadow instanced mesh. */
@@ -411,9 +443,28 @@ export function propMonitor(b, o = {}) {
   b.boxUp(pw + 0.016, 0.026, 0.03, { y: stand + 0.02, z: -0.012, color: OFFICE.nearBlack, mat: 'ink', ao: false });
 }
 
-/** The screen quad of a monitor, in monitor-local space. Handled separately
- *  because it carries a live texture and must not be merged. */
+/** The screen quad of a monitor, in MONITOR-LOCAL space (origin at the foot of
+ *  the stand). Handled separately because it carries a live texture and must
+ *  not be merged. Add MONITOR_ANCHOR to get workstation-local space. */
 export const MONITOR_SCREEN = { w: 0.545, h: 0.325, y: 0.22 + 0.02 + 0.325 / 2, z: 0.013 };
+
+/**
+ * Where a monitor STANDS, relative to a workstation's floor origin: on the
+ * 740 mm desk top, 280 mm back from the desk centre.
+ *
+ * This constant exists because the screen went missing for three rounds. The
+ * monitor prop was placed by office.js at (0, 0.74, -0.28); the live screen
+ * quad was parented to the workstation group at MONITOR_SCREEN.y alone, i.e.
+ * 0.402 m above the FLOOR — 0.74 m too low and 0.28 m too far forward. The
+ * whole in-game OS rendered under the desk and the click-to-focus flight landed
+ * on the slab. Both placements now read this one object, so they cannot drift
+ * apart again: office.js positions the bezel with it, desks.js hangs the screen
+ * and its glow off it.
+ */
+export const MONITOR_ANCHOR = { y: 0.74, z: -0.28 };
+
+/** The same, for the shallower 1.40 x 0.70 m cubicle desks. */
+export const CUBICLE_MONITOR_ANCHOR = { y: 0.74, z: -0.24 };
 
 export function propKeyboard(b, o = {}) {
   b.boxUp(0.44, 0.016, 0.135, { color: OFFICE.charcoal, ao: false });

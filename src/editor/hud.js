@@ -16,6 +16,9 @@ import { CataloguePanel } from './catalogue-panel.js';
 import { MaterialsPanel } from './materials-panel.js';
 import { formatArea, formatMoney, formatMetres } from './measure.js';
 
+/** Type sizes the Measurements value steps down through to stay on one line. */
+const VALUE_SIZES = [17, 15, 13, 11];
+
 const VIEWS = [
   { id: 'orbit', label: '3D', key: 'F3' },
   { id: 'plan', label: 'Plan', key: 'F2' },
@@ -218,6 +221,19 @@ export class EditorHUD {
     this.redoBtn.disabled = !this.ed.canRedo;
   }
 
+  /**
+   * The value row is ONE LINE, ALWAYS, and it shrinks rather than spill.
+   *
+   * The box may never change size — it stands 8 px under the cost bar and a
+   * second line pushed its own caption up behind it. But the read-outs that
+   * matter most are the long ones: the tape's "6000 mm  Δx 6000 mm  Δy 0 mm
+   * Δz 0 mm", the door's "900 × 2050 mm · 2000 mm from end", the bucket's
+   * finish and rate. Eliding those instead of wrapping them would trade one
+   * unreadable box for another, so the type steps down until the line fits —
+   * MEASURED, not guessed from a character count, because the box is 300 px on
+   * a wide viewport and 250 px on a narrow one and the mono face is whatever
+   * the machine has. The ellipsis stays as the last resort below 11 px.
+   */
   refreshMeasurements() {
     const m = this.ed.measurements;
     this.measureEl.classList.toggle('typing', m.typing);
@@ -227,6 +243,22 @@ export class EditorHUD {
       : escapeHtml(m.display || '');
     this.mEcho.textContent = m.error || m.echo || '';
     this.mEcho.classList.toggle('err', !!m.error);
+    this._fitValue(m.typing ? m.text : (m.display || ''));
+  }
+
+  /**
+   * Step the value down through the type sizes until it is on one line. Only
+   * when the string actually changed, and it stops at the FIRST size that fits,
+   * so the common case (a length, at full size) costs one layout read.
+   */
+  _fitValue(shown) {
+    if (shown === this._fittedText) return;
+    this._fittedText = shown;
+    const el = this.mValue;
+    for (const px of VALUE_SIZES) {
+      el.style.fontSize = `${px}px`;
+      if (el.scrollWidth <= el.clientWidth) return;
+    }
   }
 
   refreshCost() {

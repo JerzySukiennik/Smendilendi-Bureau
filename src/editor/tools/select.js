@@ -11,7 +11,7 @@ import { tryEntry } from '../../model/catalog.js';
 export class SelectTool extends Tool {
   static id = 'select';
   static toolName = 'Select';
-  static valueLabel = '';
+  static valueLabel = 'Selection';
   static valueMode = 'length';
   static hint = 'Click to select. Ctrl adds, Shift adds/subtracts, Ctrl+Shift subtracts. '
     + 'Double-click a wall for the whole run. Delete removes the selection.';

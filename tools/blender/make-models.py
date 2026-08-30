@@ -59,6 +59,9 @@ def main():
                                  f'{(entry.get("proc") or ["-"])[0]}')
             shape = builder(entry)
             comps = len(shape.components())
+            # geometry nobody can see is a defect even when every number passes:
+            # see Shape.buried.
+            hidden = shape.buried()
             objs = finish(shape, palette,
                           target_size=families.ENVELOPE.get(item_id, shape.declared),
                           fit_axes=families.FIT_AXES.get(item_id, 'xyz'),
@@ -78,9 +81,11 @@ def main():
                 'anchor': shape.anchor,
                 'kb': round(path.stat().st_size / 1024, 1),
                 'ms': round((time.time() - t0) * 1000),
+                'buried': [f'{a} inside {b}' for a, b in hidden],
             })
             print(f'  ok  {item_id:24s} {report[-1]["tris"]:5d} tris  '
-                  f'{report[-1]["bbox"]}  {report[-1]["kb"]} kB')
+                  f'{report[-1]["bbox"]}  {report[-1]["kb"]} kB'
+                  + (f'  BURIED {report[-1]["buried"]}' if hidden else ''))
         except BuildError as err:
             failures.append(str(err))
             print(f'  FAIL {item_id}: {err}')
@@ -108,7 +113,11 @@ def main():
     out = {'built': report, 'failures': failures, 'handoff': handoff}
     (HERE / '_tmp').mkdir(exist_ok=True)
     (HERE / '_tmp' / 'build-report.json').write_text(json.dumps(out, indent=1))
-    print(f'\n{len(report)} built, {len(failures)} failed')
+    buried = [(r['id'], r['buried']) for r in report if r['buried']]
+    print(f'\n{len(report)} built, {len(failures)} failed, '
+          f'{len(buried)} with parts nobody can see')
+    for item_id, names in buried:
+        print(f'  BURIED {item_id}: {"; ".join(names)}')
     if failures:
         sys.exit(1)
 

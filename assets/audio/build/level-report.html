@@ -1,0 +1,108 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Audio levels — what actually leaves the speakers</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 22px 26px; background: #14161a; color: #dfe3ea;
+         font: 13px/1.45 ui-monospace, "SF Mono", Menlo, monospace; }
+  h1 { font-size: 17px; margin: 0 0 2px; letter-spacing: .2px; }
+  .sub { color: #8b93a1; margin: 0 0 16px; font-size: 12px; }
+  .verdict { display: inline-block; padding: 3px 9px; border-radius: 3px; font-weight: 600; }
+  .good { background: #1d3d24; color: #7fe08f; } .bad { background: #4a1f22; color: #ff9b9b; }
+  table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+  th { text-align: left; font-weight: 600; color: #8b93a1; padding: 4px 10px 6px 0;
+       border-bottom: 1px solid #2b2f37; position: sticky; top: 0; background: #14161a; }
+  td { padding: 2px 10px 2px 0; border-bottom: 1px solid #1c1f25; white-space: nowrap; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .id { color: #cbd3e1; } .ctx { color: #8b93a1; } .site { color: #7d8698; }
+  .ok { color: #7fe08f; } .no { color: #ff8f8f; font-weight: 700; }
+  .rev { color: #ffd479; }
+  tr.reviewed td { background: #191d24; }
+  .note { color: #8b93a1; margin-top: 14px; font-size: 12px; max-width: 90ch; }
+</style>
+<h1>One id, one reviewed level — measured on the live gain nodes</h1>
+<p class="sub" id="sub">measuring…</p>
+<div id="out"></div>
+<p class="note">
+  Every row is a sound the game can play. <b>measured</b> is
+  <code>master.gain.value &times; bus.gain.value &times; handle.gain.gain.value</code> read off the real
+  WebAudio nodes after actually playing it in this page — not a recomputation.
+  <b>manifest</b> is master &times; bus &times; asset gain &times; context, computed straight from
+  the two JSON files without touching engine code. <b>reviewed</b> is the number stored in
+  review/batches.json, i.e. what the review page showed Jurek. Amber rows are the levels he
+  changed by hand. A row marked <span class="ctx">dyn</span> can only ever be quieter than
+  the number shown: <code>dynamic</code> attenuates and never amplifies.
+</p>
+<script type="module">
+import { AudioBus } from '../../../src/core/audio.js';
+const $ = (s) => document.querySelector(s);
+const pct = (v) => (v * 100).toFixed(4) + '%';
+
+const [mix, man, batches, sites] = await Promise.all(
+  ['../mix.json', '../manifest.json', '../../../review/batches.json', './callsites.json']
+    .map((u) => fetch(u, { cache: 'no-cache' }).then((r) => r.json())));
+
+// what the human was shown
+const reviewed = {};
+(function walk(o) { if (Array.isArray(o)) o.forEach(walk);
+  else if (o && typeof o === 'object') {
+    if (o.id && o.mix && typeof o.mix.effective === 'number') reviewed[o.id] = o.mix.effective;
+    Object.values(o).forEach(walk); } })(batches);
+
+const bus = new AudioBus();
+await bus.loadMix(); await bus.loadManifest(); bus.init();
+await Promise.all(Object.keys(man).map((id) => bus.load(id)));
+
+const paths = [];
+for (const [id, e] of Object.entries(man)) {
+  paths.push([id, null]);
+  for (const c of Object.keys(e.contexts || {})) paths.push([id, c]);
+}
+
+const rows = [];
+for (const [id, ctxName] of paths) {
+  const key = `${id}|${ctxName || '(base)'}`;
+  const h = bus.play(id, ctxName ? { context: ctxName } : {});
+  const e = man[id];
+  const busName = mix.kindToBus[e.kind] ?? (mix.buses[e.kind] !== undefined ? e.kind : 'sfx');
+  const cf = ctxName ? e.contexts[ctxName] : 1;
+  const expected = mix.master * mix.buses[busName] * (e.gain ?? 1) * cf;
+  const measured = h ? bus.master.gain.value * bus.buses[h.bus].gain.value * h.gain.gain.value : null;
+  if (h) h.stop(0.001);
+  const site = sites[key] || [];
+  rows.push({ id, ctx: ctxName || '(base)', bus: busName, measured, expected,
+              reviewed: reviewed[id] ?? null,
+              dyn: site.some((s) => s.dynamic),
+              sites: site.map((s) => (s.fn.startsWith('via ') ? `${s.at} (runtime id)` : s.at)) });
+}
+
+let bad = 0, worst = 0;
+for (const r of rows) {
+  if (r.measured === null) { bad++; r.verdict = 'NO BUFFER'; continue; }
+  const d = Math.abs(r.measured - r.expected);
+  worst = Math.max(worst, d);
+  const revOk = r.reviewed === null || Math.abs(r.measured - r.reviewed) < 1e-6;
+  r.verdict = (d < 1e-6 && revOk) ? 'yes' : 'NO';
+  if (r.verdict === 'NO') bad++;
+}
+
+$('#sub').innerHTML =
+  `${rows.length} playback paths &middot; ${Object.keys(man).length} ids &middot; `
+  + `${rows.reduce((n, r) => n + r.sites.length, 0)} call sites &middot; `
+  + `largest measured-vs-manifest gap ${worst.toExponential(2)} (float32 AudioParam quantisation) &middot; `
+  + `<span class="verdict ${bad ? 'bad' : 'good'}">${bad ? bad + ' DIVERGENCE(S)' : '0 divergences'}</span>`;
+
+$('#out').innerHTML = `<table><thead><tr>
+  <th>id</th><th>context</th><th>bus</th><th class="num">measured</th>
+  <th class="num">manifest</th><th class="num">reviewed</th><th>ok</th><th>call site(s)</th>
+</tr></thead><tbody>` + rows.map((r) => `<tr class="${r.reviewed !== null ? 'reviewed' : ''}">
+  <td class="id">${r.id}</td>
+  <td class="ctx">${r.ctx}${r.dyn ? ' <span class="ctx">dyn</span>' : ''}</td>
+  <td class="ctx">${r.bus}</td>
+  <td class="num">${r.measured === null ? '—' : pct(r.measured)}</td>
+  <td class="num">${pct(r.expected)}</td>
+  <td class="num rev">${r.reviewed === null ? '' : pct(r.reviewed)}</td>
+  <td class="${r.verdict === 'yes' ? 'ok' : 'no'}">${r.verdict}</td>
+  <td class="site">${r.sites.join(', ') || '—'}</td>
+</tr>`).join('') + '</tbody></table>';
+</script>

@@ -24,7 +24,7 @@ const EXT = { x0: 0, z0: 0, x1: 12.0, z1: 9.0 };
 const CORR_N = 4.20;
 const CORR_S = 5.52;
 
-export function demoModel({ broken = false, seed = 'demo' } = {}) {
+export function demoModel({ broken = false, pinch = false, seed = 'demo' } = {}) {
   let model = createModel({ height: 2.70 });
   const op = (o) => { model = applyOp(model, o).model; };
 
@@ -34,6 +34,17 @@ export function demoModel({ broken = false, seed = 'demo' } = {}) {
   // ---- the corridor ------------------------------------------------------
   op({ t: 'wall.add', ax: EXT.x0, az: CORR_N, bx: EXT.x1, bz: CORR_N, wallType: 'interior' });
   op({ t: 'wall.add', ax: EXT.x0, az: CORR_S, bx: EXT.x1, bz: CORR_S, wallType: 'interior' });
+
+  // ---- the WIDTH fixture -------------------------------------------------
+  // A 120 mm pilaster hanging off the north corridor wall: a boxed soil pipe,
+  // a chimney breast, a downstand — the commonest thing there is in a real
+  // plan, and it is SHORTER ALONG THE CORRIDOR THAN A SEARCH CELL IS WIDE.
+  // That is the whole point of it. It takes the corridor from 1.20 m clear to
+  //   5.46 (south face) - 4.76 (stub end) = 0.700 m
+  // over 120 mm of its length, and a clear-width measurement that reports
+  // anything but 700 mm here is telling the architect something he can
+  // disprove with a scale rule. src/walk/check-widths.mjs asserts it.
+  if (pinch) op({ t: 'wall.add', ax: 3.20, az: CORR_N, bx: 3.20, bz: 4.76, wallType: 'interior' });
 
   // ---- north zone: living, kitchen/dining, main bedroom -------------------
   op({ t: 'wall.add', ax: 4.50, az: EXT.z0, bx: 4.50, bz: CORR_N, wallType: 'interior' });

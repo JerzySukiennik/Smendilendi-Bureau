@@ -47,6 +47,19 @@ export const STUCK_SECONDS = 2.5;
 export const MAX_REPLANS = 3;
 /** How far ahead on the current segment a walker aims. Metres. */
 const LOOKAHEAD = 0.55;
+/**
+ * How far the torso turns when somebody edges past another person in a passage
+ * narrower than PASSING_WIDTH. Radians.
+ *
+ * 1.35 rad is 77 degrees, and the number is a measurement, not a look: a torso
+ * is 0.215 H across the shoulders and 0.125 H front to back, so the width it
+ * presents across the corridor is 0.215 |cos t| + 0.125 |sin t| of stature.
+ * That is FLAT until well past 60 degrees — at 60 degrees a squeezing figure is
+ * no narrower than a walking one, which is why a modest lean shows nothing. At
+ * 77 degrees it is 0.170 H: an adult goes from 370 mm across to 293 mm, and the
+ * shoulder visibly leads.
+ */
+const SQUEEZE_TURN = 1.35;
 /** Most goal markers drawn in one frame, nearest and most annoyed first. */
 const MAX_ICONS = 8;
 /** Closest two markers may come on screen, in NDC (2 = the whole viewport). */
@@ -302,6 +315,12 @@ class Agent {
     this.coffeeNeed = Math.random() * 0.5;
     this.speedScale = 1;
     this.squeezeCooldown = 0;
+    // The squeeze, as a body attitude rather than an event: `squeezeHold` is
+    // how much longer the pinch lasts, `squeeze` is the eased 0..1 the mesh is
+    // drawn from, `squeezeSide` which shoulder leads.
+    this.squeezeHold = 0;
+    this.squeeze = 0;
+    this.squeezeSide = 1;
     this.roomId = null;
     this.vx = 0; this.vz = 0;
     this.bob = 0;
@@ -810,6 +829,11 @@ export class Crowd {
       a.wcNeed += dh * 0.32 * (p.needs.wc || 0);
       a.coffeeNeed += dh * 0.28 * (p.needs.coffee || 0);
       if (a.squeezeCooldown > 0) a.squeezeCooldown -= dt;
+      // The turn is held for the length of the PINCH and eased in and out, so
+      // it reads as somebody edging through rather than as a one-frame twitch.
+      a.squeezeHold = Math.max(0, a.squeezeHold - dt);
+      const wantSq = a.squeezeHold > 0 ? 1 : 0;
+      a.squeeze += Math.max(-dt * 3.2, Math.min(dt * 3.2, wantSq - a.squeeze));
 
       // Going home overrides everything — except walking in. Sending somebody
       // home while they are still on the approach path stranded every
@@ -1038,10 +1062,22 @@ export class Crowd {
     let speed = a.p.speed * a.speedScale;
     if (crowded) {
       if (width < PASSING_WIDTH) {
-        // Two people, one width. They turn sideways and edge past — the exact
+        // Two people, one width. They TURN SIDEWAYS and edge past — the exact
         // thing a 1.20 m corridor is for, made visible by its absence.
+        //
+        // This has to be visible on the body, not just in the log. A 12 mm bob
+        // on a 1.72 m figure is nothing, and it was overwritten by the stride
+        // bob forty lines further down in the same function anyway. So the
+        // torso yaws towards the direction of travel until the shoulder leads:
+        // at SQUEEZE_TURN the silhouette across the corridor goes from 0.215 H
+        // to 0.170 H — a fifth narrower — and the arms stop swinging into the
+        // wall. The head keeps facing where they are going.
         speed *= 0.42;
-        a.bob = Math.sin(this.t * 12 + a.phase) * 0.012;
+        if (a.squeeze < 0.05) {
+          // lead with the shoulder AWAY from whoever is coming past
+          a.squeezeSide = (dx * sz - dz * sx) >= 0 ? 1 : -1;
+        }
+        a.squeezeHold = Math.max(a.squeezeHold, 0.8);
         if (a.squeezeCooldown <= 0) {
           a.squeezeCooldown = 2.5;
           const cell = nav.indexAt(a.x, a.z, a.level);
@@ -1228,34 +1264,38 @@ export class Crowd {
       const torsoH = H * 0.29;
       const headS = H * 0.13;
       const base = a.y + a.bob;
-      const cy_ = Math.cos(a.yaw), sy_ = Math.sin(a.yaw);
+      // The body turns sideways in a squeeze; the head keeps facing the way
+      // they are going, which is what makes it read as edging past rather than
+      // as wandering off sideways.
+      const bodyYaw = a.yaw + a.squeeze * SQUEEZE_TURN * a.squeezeSide;
+      const cyB = Math.cos(bodyYaw), syB = Math.sin(bodyYaw);
 
       // A limb hangs from a joint and swings about the person's own X axis, so
       // its centre is the joint plus R(yaw)*R(x,angle) applied to (0,-len/2,0):
       //   (-L/2 sin(ang) sin(yaw),  -L/2 cos(ang),  -L/2 sin(ang) cos(yaw))
       const limb = (name, jx, jy, jz, ang, len, thick, colour) => {
         const c = Math.cos(ang), sn = Math.sin(ang);
-        _q.setFromAxisAngle(_up, a.yaw);
+        _q.setFromAxisAngle(_up, bodyYaw);
         _qLimb.setFromAxisAngle(AXIS_X, ang);
         _q.multiply(_qLimb);
-        _p.set(jx - (len * 0.5) * sn * sy_, jy - (len * 0.5) * c, jz - (len * 0.5) * sn * cy_);
+        _p.set(jx - (len * 0.5) * sn * syB, jy - (len * 0.5) * c, jz - (len * 0.5) * sn * cyB);
         _s.set(thick, len, thick);
         _m.compose(_p, _q, _s);
         pool.place(name, _m, colour);
       };
 
       // legs — hip rotation about the person's own X axis
-      const swing = a.walking ? Math.sin(a.phase) * 0.55 : 0;
+      const swing = a.walking ? Math.sin(a.phase) * 0.55 * (1 - 0.65 * a.squeeze) : 0;
       const tap = a.state === STATE.BLOCKED ? Math.max(0, Math.sin(a.lookAbout * 9)) * 0.35 : 0;
       for (let s = -1; s <= 1; s += 2) {
         const legAng = (s > 0 ? swing : -swing) + (s > 0 ? tap : 0);
         limb('npc.leg',
-          a.x + cy_ * (H * 0.075) * s, base + legLen, a.z - sy_ * (H * 0.075) * s,
+          a.x + cyB * (H * 0.075) * s, base + legLen, a.z - syB * (H * 0.075) * s,
           legAng, legLen, H * 0.085, p.trousers);
       }
 
       // torso
-      _q.setFromAxisAngle(_up, a.yaw);
+      _q.setFromAxisAngle(_up, bodyYaw);
       _p.set(a.x, base + legLen + torsoH * 0.5, a.z);
       _s.set(H * 0.215, torsoH, H * 0.125);
       _m.compose(_p, _q, _s);
@@ -1267,7 +1307,7 @@ export class Crowd {
       for (let s = -1; s <= 1; s += 2) {
         const ang = (s > 0 ? -swing : swing) * 0.8;
         limb('npc.arm',
-          a.x + cy_ * (H * 0.125) * s, shY, a.z - sy_ * (H * 0.125) * s,
+          a.x + cyB * (H * 0.125) * s, shY, a.z - syB * (H * 0.125) * s,
           ang, armLen, H * 0.058, p.cloth);
       }
 

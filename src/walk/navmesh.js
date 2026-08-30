@@ -438,6 +438,29 @@ export class Navmesh {
    * (count + 1) x 0.10 m — which is the right way to round a width that
    * somebody may have to get a wheelchair through. Inside a doorway the count
    * is additionally capped at the leaf width, which is exact.
+   *
+   * THREE RULES, each of which was once wrong and printed a wrong millimetre
+   * figure on the post-occupancy sheet:
+   *
+   * 1. NARROWEST, NOT WIDEST. A 0.20 m search cell has four 0.10 m quarters,
+   *    and taking the widest of their spans erases any obstruction shorter than
+   *    the cell: a 120 mm pilaster, a boxed duct, a bookcase set end-on — the
+   *    exact things that pinch a real corridor. A 1.40 m corridor pinched to a
+   *    hand-measured 0.700 m by a 120 mm stub reported 1.400 m at every cell
+   *    across the obstruction, and the sheet then named a different room's door
+   *    as the narrowest route. The reading has to be the narrowest span, for
+   *    the same reason a schedule of clear widths is: the narrow one is the one
+   *    that decides whether he fits.
+   * 2. ONLY QUARTERS A PERSON COULD STAND IN. Narrowest over ALL quarters is
+   *    too sensitive the other way: the 0.15 m slot between a wardrobe and the
+   *    wall is floor, is not a route, and must not be printed as the corridor's
+   *    clear width. A quarter counts only when its own clear width is at least
+   *    a shoulder — the same PERSON_WIDTH test that decides passability — and
+   *    every passable cell has at least one such quarter by construction.
+   * 3. MEASURE ACROSS THE PASSAGE, NOT OUT THROUGH THE DOOR. The scan stops at
+   *    a room boundary as well as at an obstruction. Without that, the cell in
+   *    an 0.80 m corridor directly opposite a doorway measured the corridor
+   *    plus the whole room behind the door and read 7.800 m.
    */
   passageWidth(cell, di, dj) {
     const l = this.levelOf[cell];
@@ -445,36 +468,57 @@ export class Navmesh {
     const f = L.fine;
     const k = cell - L.base;
     const ci = k % L.w, cj = (k - ci) / L.w;
-    const dirs = (di || dj) ? [[-dj, di]] : [[1, 0], [0, 1]];
-    let best = 0;
+    // A clear width is measured along a WALL, so the scan is always orthogonal.
+    // A diagonal step (neither axis dominant) has no single perpendicular: its
+    // 45-degree chord cuts the corner of the room and is not a width of
+    // anything — measured that way a 1.00 m doorway in the nursery read 500 mm.
+    // Both axes are measured instead, and the narrower is the answer.
+    const dirs = (di && dj) || (!di && !dj) ? [[1, 0], [0, 1]] : [[-dj, di]];
     let leafCap = Infinity;
-    for (let sj = 0; sj < 2; sj++) {
-      for (let si = 0; si < 2; si++) {
-        const fi0 = ci * 2 + si, fj0 = cj * 2 + sj;
-        if (fi0 >= f.w || fj0 >= f.h) continue;
-        const k0 = fj0 * f.w + fi0;
-        if (!f.walk[k0]) continue;
-        for (const [px, pz] of dirs) {
-          let count = 1;
-          for (const sign of [1, -1]) {
-            for (let step = 1; step <= 40; step++) {
-              const i = fi0 + px * step * sign, j = fj0 + pz * step * sign;
-              if (i < 0 || j < 0 || i >= f.w || j >= f.h) break;
-              if (!f.walk[j * f.w + i]) break;
-              count++;
+    const dIdx = this.doorIdx[cell];
+    if (dIdx >= 0) {
+      const o = this.model.openings[this.doorIds[dIdx]];
+      if (o && Number.isFinite(o.width)) leafCap = o.width;
+    }
+
+    // Two passes: quarters a person fits in, and — only if there are none —
+    // every walkable quarter, so a cell nobody can use still returns a number.
+    let best = Infinity;
+    for (let pass = 0; pass < 2 && !Number.isFinite(best); pass++) {
+      const floor = pass === 0 ? PERSON_WIDTH : 0;
+      for (let sj = 0; sj < 2; sj++) {
+        for (let si = 0; si < 2; si++) {
+          const fi0 = ci * 2 + si, fj0 = cj * 2 + sj;
+          if (fi0 >= f.w || fj0 >= f.h) continue;
+          const k0 = fj0 * f.w + fi0;
+          if (!f.walk[k0] || f.width[k0] < floor) continue;
+          const room0 = f.roomOf[k0];
+          for (const [px, pz] of dirs) {
+            let count = 1;
+            for (const sign of [1, -1]) {
+              for (let step = 1; step <= 40; step++) {
+                const i = fi0 + px * step * sign, j = fj0 + pz * step * sign;
+                if (i < 0 || j < 0 || i >= f.w || j >= f.h) break;
+                const kk = j * f.w + i;
+                if (!f.walk[kk]) break;
+                // Measured from inside a room, the span stops at that room's
+                // own boundary: at the far wall, at the next room, and at the
+                // reveal of a door in the side wall — the floor carved through
+                // a doorway belongs to no room (roomOf < 0) and is not part of
+                // the corridor's clear width. Measured from inside a doorway
+                // (room0 < 0) nothing stops it but the masonry, and the leaf
+                // width caps the answer anyway.
+                if (room0 >= 0 && f.roomOf[kk] !== room0) break;
+                count++;
+              }
             }
+            const span = count * FINE_CELL;
+            if (span < best) best = span;
           }
-          const span = count * FINE_CELL;
-          if (span > best) best = span;
         }
       }
     }
-    const di2 = this.doorIdx[cell];
-    if (di2 >= 0) {
-      const o = this.model.openings[this.doorIds[di2]];
-      if (o && Number.isFinite(o.width)) leafCap = o.width;
-    }
-    return Math.min(best || this.width[cell], leafCap);
+    return Math.min(Number.isFinite(best) ? best : this.width[cell], leafCap);
   }
 
   /**
@@ -1141,6 +1185,41 @@ export function buildNav(model, brief = {}) {
     return (a.levelIdx - b.levelIdx) || (rank(a) - rank(b)) || (b.width - a.width);
   });
   nav.mainEntrance = nav.entrances[0] ?? null;
+
+  // -- an anchor has to be a point somebody can actually stand on ----------
+  //
+  // roomPoint() is a room's ADDRESS: roomToRoom() measures the travel distance
+  // to it, _goalRoomFor() picks the nearest room by it, and _approachCell()
+  // aims the annoyed walker at it. It is chosen above as the widest passable
+  // cell of the room, and width says nothing about reachability: a dining
+  // table's clearance envelope plus two chairs can seal the far strip of a
+  // kitchen, and the widest cell then sits in the pocket with no way in. The
+  // room reads as used, because the crowd's field is seeded from every one of
+  // its cells, but the distance printed to it is a distance to a point nobody
+  // can reach.
+  //
+  // One flood fill from the front door settles it. An anchor outside that fill
+  // is re-picked as the widest cell of the room that is inside it. A room with
+  // no reachable cell at all keeps its anchor: that room is the finding, and
+  // the walkthrough reports it as unreachable rather than moving the goalposts.
+  const startCell = nav.mainEntrance
+    ? (nav.mainEntrance.cellIn >= 0 ? nav.mainEntrance.cellIn : nav.mainEntrance.cellOut)
+    : -1;
+  if (startCell >= 0 && pass[startCell]) {
+    const reach = nav.field('anchors:reachable', [startCell]).dist;
+    for (const r of topo.rooms) {
+      const a = nav.roomAnchors.get(r.id);
+      if (!a || reach[a.cell] < Infinity) continue;
+      let best = -1, bestW = -1;
+      for (const k of nav.roomCells(r.id)) {
+        if (!(reach[k] < Infinity)) continue;
+        if (width[k] > bestW) { bestW = width[k]; best = k; }
+      }
+      if (best < 0) continue;
+      const p = nav.centreOf(best);
+      nav.roomAnchors.set(r.id, { x: p.x, z: p.z, y: p.y, level: levelOf[best], cell: best });
+    }
+  }
 
   return nav;
 }

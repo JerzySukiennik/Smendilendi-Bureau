@@ -32,7 +32,8 @@
 import {
   Scene, Group, Color, Fog, Mesh, PerspectiveCamera, PlaneGeometry,
   BoxGeometry, CylinderGeometry, SphereGeometry, ConeGeometry, MeshStandardMaterial,
-  MeshBasicMaterial, BufferAttribute, PointLight, DirectionalLight, MathUtils, Matrix4,
+  MeshBasicMaterial, BufferAttribute, BufferGeometry, PointLight, DirectionalLight,
+  MathUtils, LineSegments, LineBasicMaterial,
   Vector2, Vector3, Box3, Raycaster, CanvasTexture, DoubleSide, RingGeometry, SRGBColorSpace,
   AdditiveBlending,
 } from 'three';
@@ -113,11 +114,19 @@ const TAG_INK = '#eef2f4';
 // _buildDressing(). Anything added here should be added to a merge or to an
 // existing pool kind, never as a new mesh.
 
+// The hero shot. Every crime also carries its own framing (CRIMES[].view in
+// bad-building.js) and the camera flies between them; this is the pose it rests
+// at and returns to.
 const CAM = {
   eye: new Vector3(17.5, 5.6, 21.5),
   look: new Vector3(0.2, 5.3, 0.0),
   fov: 40,
 };
+
+/** How long the camera takes to fly from one framing to another, in seconds. */
+const FLY = 0.85;
+
+const ZERO = new Vector3();
 
 export class MenuMode extends Mode {
   constructor() {
@@ -135,6 +144,22 @@ export class MenuMode extends Mode {
     this.tagAlpha = [];     // per-tag opacity, tweened
     this.tagsHot = false;   // the report chip is hovered / the report is open
     this.tagNear = -1;      // the tag the pointer is closest to, in pixels
+
+    // --- the camera's own state ------------------------------------------
+    // `want` is the framing being asked for (the hero shot, or a crime's own
+    // view); `from` is where the flight started and `t` how far along it is.
+    // The composed pose lives in `eye`/`look`/`fov` and the drift is added on
+    // top of it, so a flight and the idle drift never fight each other.
+    this.camWant = CAM;
+    this.camFrom = { eye: CAM.eye.clone(), look: CAM.look.clone(), fov: CAM.fov };
+    this.camT = 1;
+    this.camEye = CAM.eye.clone();
+    this.camLook = CAM.look.clone();
+    this.camFov = CAM.fov;
+    this.dockPx = 0;        // width of a docked panel; the frame pans clear of it
+    this._flyTmp = {
+      eye: new Vector3(), look: new Vector3(), fwd: new Vector3(), right: new Vector3(),
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -182,6 +207,7 @@ export class MenuMode extends Mode {
 
     this._buildMotion(scene);
     this._buildLights(scene);
+    this._buildNorthPoint(scene);
     this._buildTags(scene);
 
     // Lettering needs the typeface; everything above is already on screen while
@@ -193,10 +219,28 @@ export class MenuMode extends Mode {
     this.lobby = new Lobby(ctx, {
       onAction: (id, data) => this._act(id, data),
       crimes: building.crimes,
-      onCrimeFocus: (i) => { this.pinnedTag = i; },
-      onBlock: (v) => { this.blocked = v; },
+      onCrimeFocus: (i) => this.focusCrime(i),
+      // closing the report leaves the camera where the player last pointed, so
+      // the diagnosis has to come back with it
+      onBlock: (v) => {
+        this.blocked = v;
+        if (!v && this.pinnedTag >= 0) this._showTagCard(this.pinnedTag);
+      },
       onTagsHot: (v) => { this.tagsHot = v; },
+      // the report docks down the left; the camera pans so the building sits in
+      // what is left of the frame rather than behind the panel
+      onDock: (px) => { this.dockPx = px; },
     });
+
+    // Escape releases a pinned crime. The lobby owns Escape while a panel is
+    // open (it closes the panel); this only fires when nothing is open, which is
+    // exactly when a pinned camera is the thing the player wants to back out of.
+    this._onKey = (e) => {
+      if (e.key !== 'Escape' || this.blocked || this.pinnedTag < 0) return;
+      e.stopPropagation();
+      this.focusCrime(-1);
+    };
+    window.addEventListener('keydown', this._onKey);
   }
 
   // -- scene ----------------------------------------------------------------
@@ -269,7 +313,12 @@ export class MenuMode extends Mode {
     });
     const merged = mergeGeometries(parts, false);
     for (const g of parts) g.dispose();
-    const clouds = new Mesh(merged, new MeshBasicMaterial({ vertexColors: true, fog: false, flatShading: true }));
+    // NO flatShading here. MeshBasicMaterial is unlit, so it has no such
+    // property, and three.js logs "THREE.Material: 'flatShading' is not a
+    // property of THREE.MeshBasicMaterial" once per boot when you set it. The
+    // faceting these puffs read with comes from the vertex colours above, not
+    // from a normal, so nothing is lost by dropping it.
+    const clouds = new Mesh(merged, new MeshBasicMaterial({ vertexColors: true, fog: false }));
     clouds.name = 'clouds';
     clouds.renderOrder = -1;
     scene.add(clouds);
@@ -344,7 +393,14 @@ export class MenuMode extends Mode {
         }
       }
     };
-    block('stone', -30.5, -14.0, 12, 11.5, 10, 3);
+    // 11.5 m high at z -14 put this block's parapet within a pixel of ours and
+    // its face flush against our west return from the menu camera, so the two
+    // read as one volume butting another with no junction and no coping — the
+    // fifth of the untagged apparent defects a critic catalogued. Moving it
+    // 12 m north and dropping it a storey opens real sky between the two
+    // silhouettes and pushes it further into the 70-220 m fog, which is where a
+    // background block belongs.
+    block('stone', -30.5, -26.0, 12, 9.0, 10, 3);
     block('concrete', 34.0, -30.0, 14, 8.5, 11, 2);
     block('plaster', -34.0, -34.0, 19, 14.0, 12, 4);
     block('concrete-dark', 9.0, -40.0, 24, 9.5, 13, 3);
@@ -441,10 +497,21 @@ export class MenuMode extends Mode {
     this.statics = [];
     const S = (name, tr, color) => this.statics.push([name, tr, color ?? null]);
 
-    // street trees along the pavement, and a tree line in the distance
+    // Street trees along the pavement, and a tree line in the distance.
+    //
+    // NOTHING PLANTED MAY TOUCH THE BUILDING'S SILHOUETTE. Round 2 had a tree at
+    // (20.5, -2.0) — 13 m clear of the east face in plan, and from this camera
+    // its crown landed straight across the escape stair, which a critic read as
+    // "a conifer jammed against the facade": an untagged apparent defect, and
+    // those are worse than the tagged ones because they make the twelve
+    // deliberate crimes look like more of the same sloppiness. It has moved to
+    // (27, -16), which also clears the sight line the crime-8 framing needs
+    // along x = 26. The one tree left near the right edge, (19.8, 13.2), is
+    // there ON PURPOSE as the foreground framing element (reference checklist
+    // item 12) and stands well in front of the building, not against it.
     const treeSpots = [
-      [-15.5, 8.4, 1.15], [-10.0, 10.6, 0.9], [16.8, 11.6, 1.1],
-      [-19.5, 1.0, 0.95], [-21.5, -6.0, 1.1], [20.5, -2.0, 0.9],
+      [-15.5, 8.4, 1.15], [-10.0, 10.6, 0.9], [19.8, 13.2, 1.15],
+      [-19.5, 1.0, 0.95], [-21.5, -6.0, 1.1], [27.0, -16.0, 0.9],
       [-30, -14, 1.2], [-16, -22, 1.1], [4, -24, 1.0], [22, -26, 1.15],
       [34, -12, 1.0], [-38, -4, 1.05], [30, 6, 0.95], [-27, 8, 0.9],
     ];
@@ -472,21 +539,32 @@ export class MenuMode extends Mode {
     // bollards guarding the forecourt, on 1.5 m centres
     for (let i = 0; i < 9; i++) S('bollard', { position: { x: 5.4 + i * 1.5, y: 0.5, z: 6.0 } });
 
-    // two street lamps, on the public pavement where they belong
-    for (const x of [-6.5, 12.0]) {
+    // Two street lamps, on the public pavement where they belong — and BOTH
+    // west of the entrance. Round 2 put the second at x 12.0, which from this
+    // camera stands dead in the middle of the colonnade: a 5 m grey column
+    // between C3 and C4, of a different diameter and a different material,
+    // which is precisely the sentence a critic wrote about it. The colonnade is
+    // crime 5 and it has to be read as four columns of which ONE is wrong, so
+    // nothing else vertical is allowed to stand in that run.
+    for (const x of [-20.0, -6.5]) {
       S('lamppost', { position: { x, y: 2.5, z: 10.4 } });
       S('lamphead', { position: { x: x + 0.22, y: 5.05, z: 10.4 } });
     }
 
-    // the cones under the roof outlet — someone's answer to crime 11
+    // The cones under the roof outlet — someone's answer to crime 11. Two of
+    // them are the accent; the third has been out there through the three
+    // winters the tag mentions and is faded, which keeps the saturated-accent
+    // count at four in the resting frame (flag, two cones, hazard X).
     S('cone', { position: { x: -0.5, y: 0.98, z: 5.9 } }, COLORS.accent);
     S('cone', { position: { x: 1.15, y: 0.98, z: 6.3 }, rotationY: 0.5 }, COLORS.accent);
-    S('cone', { position: { x: 0.2, y: 0.98, z: 6.6 }, rotationY: 1.1 }, COLORS.accentDeep);
+    S('cone', { position: { x: 0.2, y: 0.98, z: 6.6 }, rotationY: 1.1 }, gradeTint(0xb2472e, 'prop'));
 
-    // bins, bench, bikes, a planter, a for-sale board
-    S('bin', { position: { x: -5.6, y: 0.55, z: 6.1 } }, gradeTint(0x476b4a, 'prop'));
-    S('bin', { position: { x: -4.9, y: 0.55, z: 6.1 } }, gradeTint(0x35566e, 'prop'));
-    S('bin', { position: { x: -4.2, y: 0.55, z: 6.1 }, rotationY: 0.1 }, gradeTint(0x8d7f6c, 'prop'));
+    // Bins in the side yard, which is where a bin store goes — not in a line
+    // across the entrance forecourt, where round 2 had them and where they read
+    // as one more thing wrong with the building rather than as street dressing.
+    S('bin', { position: { x: -14.6, y: 0.55, z: 3.3 }, rotationY: 0.06 }, gradeTint(0x476b4a, 'prop'));
+    S('bin', { position: { x: -13.9, y: 0.55, z: 3.3 } }, gradeTint(0x35566e, 'prop'));
+    S('bin', { position: { x: -13.2, y: 0.55, z: 3.3 }, rotationY: 0.1 }, gradeTint(0x8d7f6c, 'prop'));
     S('benchSeat', { position: { x: -7.6, y: 0.44, z: 8.0 } });
     S('benchLeg', { position: { x: -8.35, y: 0.21, z: 8.0 } });
     S('benchLeg', { position: { x: -6.85, y: 0.21, z: 8.0 } });
@@ -515,9 +593,16 @@ export class MenuMode extends Mode {
       S('slabPaver', { position: { x: -2.2 + (i % 4) * 0.62, y: 0.05, z: 6.8 + Math.floor(i / 4) * 0.62 } }, COLORS.paving);
     }
 
-    // parked cars in the side car park
-    // one vehicle stays at full saturation as an accent repeat; the rest are graded
-    const parked = [[11.2, -0.2, COLORS.accentDeep, 1], [13.6, 0.4, gradeTint(0x35566e, 'vehicle'), 1],
+    // Parked cars in the side car park. EVERY vehicle is graded.
+    //
+    // Round 2 left one at COLORS.accentDeep "as an accent repeat", and a full
+    // hue histogram of the frame then counted five to six saturated instances
+    // against a checklist bar of two to four — the flag, three cones, the hazard
+    // X and a pillar-box-red van. The van is a 4.3 m object low in the frame and
+    // it was pulling the eye harder than the crime it sat under; it is a muted
+    // oxide now, and the accent budget is spent on the four things that mean
+    // something.
+    const parked = [[11.2, -0.2, gradeTint(0x9c4a33, 'vehicle'), 1], [13.6, 0.4, gradeTint(0x35566e, 'vehicle'), 1],
       [16.0, -0.6, gradeTint(0xd7c9b0, 'vehicle'), 1]];
     for (const [x, z, c] of parked) {
       S('carBody', { position: { x, y: 0.72, z }, rotationY: Math.PI / 2 }, c);
@@ -561,11 +646,20 @@ export class MenuMode extends Mode {
   }
 
   _buildLights(scene) {
-    // 1024, not 2048. The shadow map is baked once and never re-rendered (the sun
-    // does not move and nothing that moves casts), so its only remaining cost is
-    // the lookup; halving the map halves the one-off bake and the memory, and at
-    // a 60 m fitted shadow camera 1024 is still a 59 mm texel.
-    this.rig = makeLightRig(scene, { timeOfDay: 'morning', radius: 30, shadowMapSize: 1024 });
+    // 4096, and the size is FREE, which round 2's comment here got backwards.
+    //
+    // That comment argued for 1024 on cost grounds. Measured offscreen with
+    // gl.finish(), the steady frame is 5.2 ms at 1024, 4.4 ms at 2048 and 5.2 ms
+    // at 4096 — identical within noise, because shadowMap.autoUpdate is false
+    // (see enter()) and the depth pass therefore runs on exactly one frame per
+    // enter(); that one-off bake is 5.6 ms at 4096. What 1024 did cost was the
+    // checklist: at a 60 m fitted shadow camera it is a 58.6 mm texel, and a
+    // bollard is 150 mm across, so all five bollards and one lamp post lost
+    // their contact shadow entirely (measured luma delta under the base vs
+    // ground 55 px away: +5.4, -4.4, -1.7, -5.3, +0.5 and -55.5 against a bar
+    // of 12) and read as floating. 4096 is a 14.6 mm texel: four samples across
+    // a bollard instead of a quarter of one.
+    this.rig = makeLightRig(scene, { timeOfDay: 'morning', radius: 30, shadowMapSize: 4096 });
     // The morning preset is tuned for an interior. Outdoors, at 21 degrees, the
     // sun has to be the dominant source or the frame collapses into mid-grey and
     // fails checklist item 8 (p5 <= 70, p95 >= 140).
@@ -666,6 +760,63 @@ export class MenuMode extends Mode {
     this.sunPatch = m;
   }
 
+  /**
+   * A north point set into the forecourt paving.
+   *
+   * Crime 12 is "50.2 m² of unshaded glazing facing DUE SOUTH", and a critic
+   * pointed out the obvious: nothing anywhere in the frame said which way south
+   * was, so the best-argued tag in the schedule was asking the player to take
+   * the orientation on trust. This is the missing fact, and it is a real thing —
+   * a compass rose inlaid in a forecourt is ordinary, unlike a HUD arrow.
+   *
+   * The project compass is north = -Z (src/analysis/daylight.js). The plane is
+   * rotated -90 deg about X, which maps texture +V to world -Z, so an arrow
+   * drawn pointing UP on the canvas points north in the world. It sits at
+   * (1.0, 8.2) — inside the gap in the hedge, so the hero camera has a clear
+   * sight line to it, and it is 6 m from the glazing it is talking about.
+   */
+  _buildNorthPoint(scene) {
+    const S = 256;
+    const cv = document.createElement('canvas');
+    cv.width = S; cv.height = S;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, S, S);
+    const c = S / 2;
+    g.strokeStyle = '#3a3531';
+    g.lineWidth = 5;
+    g.beginPath(); g.arc(c, c, 104, 0, Math.PI * 2); g.stroke();
+    g.lineWidth = 3;
+    g.beginPath(); g.arc(c, c, 92, 0, Math.PI * 2); g.stroke();
+    // the needle: solid half to the north, open half to the south
+    g.beginPath();
+    g.moveTo(c, 26); g.lineTo(c + 26, c + 16); g.lineTo(c, c - 4); g.closePath();
+    g.fillStyle = '#3a3531'; g.fill();
+    g.beginPath();
+    g.moveTo(c, 26); g.lineTo(c - 26, c + 16); g.lineTo(c, c - 4); g.closePath();
+    g.fillStyle = '#f0e9dd'; g.fill();
+    g.lineWidth = 4; g.strokeStyle = '#3a3531';
+    g.beginPath();
+    g.moveTo(c, 26); g.lineTo(c + 26, c + 16); g.lineTo(c - 26, c + 16); g.closePath();
+    g.stroke();
+    g.fillStyle = '#3a3531';
+    g.font = 'bold 44px "Helvetica Neue", Helvetica, Arial, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('N', c, c + 62);
+    const tex = new CanvasTexture(cv);
+    tex.colorSpace = SRGBColorSpace;
+    tex.anisotropy = 4;
+    const geo = new PlaneGeometry(2.3, 2.3);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(1.0, 0.05, 8.2);
+    const m = new Mesh(geo, new MeshBasicMaterial({
+      map: tex, transparent: true, opacity: 0.72, depthWrite: false, fog: true,
+    }));
+    m.name = 'north-point';
+    m.renderOrder = 1;
+    scene.add(m);
+    this.northPoint = m;
+  }
+
   // -- lettering ------------------------------------------------------------
 
   _buildLettering() {
@@ -720,33 +871,46 @@ export class MenuMode extends Mode {
 
   // -- surveyor's tags ------------------------------------------------------
 
+  /**
+   * The twelve tags: a numbered disc, a hairline leader and a dot ON the defect.
+   *
+   * ROUND 2 PUT THE DISC ON `at`, which means every disc covered the thing it was
+   * diagnosing. Worse, it was billboarded ONCE, to the resting camera's axis, on
+   * the argument that "the camera drifts by a couple of degrees". That was true
+   * while the camera never went anywhere; the moment a crime's own framing exists
+   * (CRIMES[].view) the camera swings 40 m round the building and a fixed
+   * billboard turns edge-on. So the quads are rebuilt every frame from the live
+   * camera basis — 24 quads, 96 vertex writes, and it is still one draw call.
+   *
+   * The disc now floats at `at + off` with a 1 px leader running back to a small
+   * dot at `at`. That is what an annotation over a photograph does, and it is the
+   * difference between "there is a number near this corner" and "THIS is the
+   * defect". Disc, dot and leader for one crime share a single alpha.
+   */
   _buildTags(scene) {
     const crimes = this.building.crimes;
+    const N = crimes.length;
     const tex = numberAtlas(crimes.map((c) => String(c.n)));
     const size = 0.62;
+    const dotSize = 0.20;
+    this.tagSize = size;
+    this.tagDotSize = dotSize;
+
+    // 24 quads in one buffer: discs 0..N-1, then the subject dots N..2N-1. UVs
+    // are baked (cell i for a disc, the atlas's last cell — a plain filled disc —
+    // for every dot); only the positions move.
     const quads = [];
-    // Billboarded once, to the camera's own axis. The camera drifts by a couple
-    // of degrees, which is far too little for a fixed billboard to read wrong.
-    // A right-handed basis with +Z toward the camera. Getting `right` backwards
-    // here mirrors every numeral on every tag, which is exactly what it did.
-    const fwd = new Vector3().subVectors(CAM.eye, CAM.look).normalize();
-    const right = new Vector3(fwd.z, 0, -fwd.x).normalize();
-    const up = new Vector3().crossVectors(fwd, right).normalize();
-    const m = new Vector3();
-    crimes.forEach((c, i) => {
-      const g = new PlaneGeometry(size, size);
+    const cell = (g, idx) => {
       const uv = g.getAttribute('uv');
-      const col = i % 4, row = Math.floor(i / 4);
-      for (let k = 0; k < uv.count; k++) {
-        uv.setXY(k, (uv.getX(k) + col) / 4, (uv.getY(k) + (3 - row)) / 4);
-      }
-      // orient the quad to face the camera, then move it to the crime
-      g.applyMatrix4(new Matrix4().makeBasis(right, up, fwd));
-      m.copy(c.at).addScaledVector(fwd, 0.42);
-      g.translate(m.x, m.y, m.z);
-      quads.push(g);
-    });
+      const col = idx % 4, row = Math.floor(idx / 4);
+      for (let k = 0; k < uv.count; k++) uv.setXY(k, (uv.getX(k) + col) / 4, (uv.getY(k) + (3 - row)) / 4);
+      return g;
+    };
+    for (let i = 0; i < N; i++) quads.push(cell(new PlaneGeometry(size, size), i));
+    for (let i = 0; i < N; i++) quads.push(cell(new PlaneGeometry(dotSize, dotSize), 15));
     const merged = mergeGeometries(quads, false);
+    for (const g of quads) g.dispose();
+
     // Per-tag opacity, carried as vertex alpha so twelve independently fading
     // tags still cost one draw call and one texture.
     //
@@ -760,13 +924,34 @@ export class MenuMode extends Mode {
     for (let i = 0; i < vcount; i++) { cols[i * 4] = 1; cols[i * 4 + 1] = 1; cols[i * 4 + 2] = 1; cols[i * 4 + 3] = TAG_DIM; }
     merged.setAttribute('color', new BufferAttribute(cols, 4));
     this.tagAlpha = crimes.map(() => TAG_DIM);
-    this.tagVerts = vcount / crimes.length;
+    this.tagVerts = 4;                       // every quad, disc or dot
     const mat = new MeshBasicMaterial({ map: tex, vertexColors: true, transparent: true, depthWrite: false, depthTest: false, fog: false, side: DoubleSide });
     const mesh = new Mesh(merged, mat);
     mesh.renderOrder = 4;
     mesh.name = 'surveyor-tags';
+    mesh.frustumCulled = false;
     scene.add(mesh);
     this.tagMesh = mesh;
+
+    // The leaders. One LineSegments, one draw call, RGBA vertex colours so a
+    // leader fades with its disc. They are hairlines on purpose: a leader that
+    // competes with the building is a worse annotation than no leader.
+    const lgeo = new BufferGeometry();
+    lgeo.setAttribute('position', new BufferAttribute(new Float32Array(N * 6), 3));
+    const lcol = new Float32Array(N * 8);
+    const ink = new Color(TAG_FACE);
+    for (let i = 0; i < N * 2; i++) {
+      lcol[i * 4] = ink.r; lcol[i * 4 + 1] = ink.g; lcol[i * 4 + 2] = ink.b; lcol[i * 4 + 3] = TAG_DIM;
+    }
+    lgeo.setAttribute('color', new BufferAttribute(lcol, 4));
+    const leaders = new LineSegments(lgeo, new LineBasicMaterial({
+      vertexColors: true, transparent: true, depthWrite: false, depthTest: false, fog: false,
+    }));
+    leaders.renderOrder = 3;
+    leaders.name = 'surveyor-leaders';
+    leaders.frustumCulled = false;
+    scene.add(leaders);
+    this.tagLeaders = leaders;
 
     // a single ring that hops to whichever tag is hovered
     const ring = new Mesh(new RingGeometry(size * 0.62, size * 0.74, 20), new MeshBasicMaterial({ color: new Color(COLORS.paper), transparent: true, opacity: 0.9, depthWrite: false, depthTest: false, fog: false, side: DoubleSide }));
@@ -774,7 +959,64 @@ export class MenuMode extends Mode {
     ring.renderOrder = 5;
     scene.add(ring);
     this.tagRing = ring;
-    this._tagBasis = { fwd, right, up };
+    this._tagTmp = { fwd: new Vector3(), right: new Vector3(), up: new Vector3(), a: new Vector3(), b: new Vector3() };
+    this._billboardTags();
+  }
+
+  /** Where the numbered disc for crime `i` floats, in world metres. */
+  _tagPos(i, out) {
+    const c = this.building.crimes[i];
+    return out.copy(c.at).add(c.off || ZERO);
+  }
+
+  /**
+   * Rebuild every tag quad and every leader against the camera's current basis.
+   * Called once per frame; 24 quads and 12 segments, so it is 120 vertex writes.
+   */
+  _billboardTags() {
+    if (!this.tagMesh) return;
+    const T = this._tagTmp;
+    const N = this.building.crimes.length;
+    // A right-handed basis with +Z toward the camera — read off the camera's own
+    // orientation, which is the pose actually rendered (drift and dock pan
+    // included), not the pose we asked for. Getting `right` backwards here
+    // mirrors every numeral on every tag, which is exactly what it once did.
+    T.fwd.set(0, 0, 1).applyQuaternion(this.camera.quaternion).normalize();
+    T.right.set(T.fwd.z, 0, -T.fwd.x).normalize();
+    T.up.crossVectors(T.fwd, T.right).normalize();
+    const pos = this.tagMesh.geometry.getAttribute('position');
+    const lpos = this.tagLeaders.geometry.getAttribute('position');
+    // PlaneGeometry winds TL, TR, BL, BR
+    const corner = [[-1, 1], [1, 1], [-1, -1], [1, -1]];
+    const put = (base, centre, half) => {
+      for (let k = 0; k < 4; k++) {
+        const [cx, cy] = corner[k];
+        pos.setXYZ(base + k,
+          centre.x + T.right.x * cx * half + T.up.x * cy * half,
+          centre.y + T.right.y * cx * half + T.up.y * cy * half,
+          centre.z + T.right.z * cx * half + T.up.z * cy * half);
+      }
+    };
+    for (let i = 0; i < N; i++) {
+      const c = this.building.crimes[i];
+      // both ends lifted toward the camera so nothing z-fights the facade
+      T.a.copy(c.at).addScaledVector(T.fwd, 0.10);                 // the defect
+      this._tagPos(i, T.b).addScaledVector(T.fwd, 0.42);           // the disc
+      put(i * 4, T.b, this.tagSize * 0.5);
+      put((N + i) * 4, T.a, this.tagDotSize * 0.5);
+      // the leader stops short of the disc so it does not run under the numeral
+      const d = T.b.distanceTo(T.a) || 1;
+      const k = Math.max(0, 1 - (this.tagSize * 0.56) / d);
+      lpos.setXYZ(i * 2, T.a.x, T.a.y, T.a.z);
+      lpos.setXYZ(i * 2 + 1, T.a.x + (T.b.x - T.a.x) * k, T.a.y + (T.b.y - T.a.y) * k, T.a.z + (T.b.z - T.a.z) * k);
+    }
+    pos.needsUpdate = true;
+    lpos.needsUpdate = true;
+    // Raycaster does a bounding-sphere test before it touches a triangle, and
+    // the sphere was computed once at merge time. Without this the tags stop
+    // being hoverable the moment the camera flies anywhere — 96 vertices, so
+    // recomputing it is free.
+    this.tagMesh.geometry.computeBoundingSphere();
   }
 
   // -- lifecycle ------------------------------------------------------------
@@ -783,9 +1025,10 @@ export class MenuMode extends Mode {
     super.enter(params);
     this.lobby?.show();
     // The sun does not move and nothing that moves casts, so the shadow map is
-    // rendered once instead of sixty times a second. Profiled at 12 ms of a
-    // 104 ms frame for the depth pass alone at 2048; the map is 1024 now and the
-    // pass runs on exactly one frame per enter().
+    // rendered once instead of sixty times a second. That is what makes the map
+    // SIZE free: the depth pass runs on exactly one frame per enter() — 5.6 ms,
+    // once — so the map is 4096 (see _buildLights) and every frame after this
+    // one pays only for the lookup.
     const r = this.ctx?.engine?.renderer;
     if (r) {
       this._shadowAuto = r.shadowMap.autoUpdate;
@@ -819,21 +1062,10 @@ export class MenuMode extends Mode {
     this.t += dt;
     const t = this.t;
 
-    // slow drift: a 96 s lateral swing and a 61 s rise, plus a whisper of mouse
-    // parallax. Amplitudes are small on purpose — the shot is composed, and a
-    // camera that wanders spoils a composition.
-    const input = this.ctx?.input;
-    const px = input ? MathUtils.clamp(input.ndc.x, -1, 1) : 0;
-    const py = input ? MathUtils.clamp(input.ndc.y, -1, 1) : 0;
-    const swing = Math.sin(t * (Math.PI * 2 / 96));
-    const rise = Math.sin(t * (Math.PI * 2 / 61));
-    this.camera.position.set(
-      CAM.eye.x + swing * 0.85 + px * 0.42,
-      CAM.eye.y + rise * 0.30 + py * 0.24,
-      CAM.eye.z + swing * -0.40,
-    );
-    this.camera.lookAt(CAM.look.x + swing * 0.25, CAM.look.y + rise * 0.10, CAM.look.z);
-
+    // Order matters: the tags are billboarded to the pose the camera has just
+    // taken, and _pick raycasts them, so they have to be rebuilt between the two.
+    this._flyCamera(dt, t);
+    this._billboardTags();
     this._motion(dt, t);
     this._pick();
     this._tweenLines(dt);
@@ -878,6 +1110,82 @@ export class MenuMode extends Mode {
     if (this.interior) this.interior.intensity = 90 + Math.sin(t * 0.7) * 6;
   }
 
+  /**
+   * The camera. It rests at the hero shot and flies to a crime's own framing
+   * when one is pinned.
+   *
+   * WHY IT HAS TO MOVE AT ALL. Round 2 shot all twelve crimes from one pose 27 m
+   * away. Six of them — the 400 mm handrail, the balcony, the 150 mm of window
+   * frame behind a slab, the scupper, the orientation of the south glazing, and
+   * the escape stair's top landing, which faces away from that camera — simply
+   * were not legible in the frame. The writing on those tags is the best thing
+   * in the piece and it was being delivered over a picture that did not show
+   * what it was talking about. Clicking a tag, or walking the schedule in the
+   * report, now flies here in 0.85 s.
+   *
+   * Three things are layered, in this order:
+   *   1  the FLIGHT, an eased lerp of eye, look and fov between two framings.
+   *      Restarting mid-flight re-seats `from` at the live pose, so tag-to-tag
+   *      steps never snap.
+   *   2  the DRIFT, a 96 s lateral swing and a 61 s rise plus a whisper of mouse
+   *      parallax. It runs at a quarter amplitude while a crime is pinned — the
+   *      point of that framing is to hold still on a 150 mm detail.
+   *   3  the DOCK PAN. With the report open down the left of the screen, the
+   *      building has to sit in what is left. Panning the camera left by
+   *      halfWidth * dockPx / viewW slides the image right by exactly half the
+   *      panel, which keeps the framing rectilinear — rotating instead would
+   *      shear a facade the player is being asked to read as an elevation.
+   */
+  _flyCamera(dt, t) {
+    const want = (this.pinnedTag >= 0 && this.building.crimes[this.pinnedTag]?.view)
+      || CAM;
+    if (want !== this.camWant) {
+      this.camFrom.eye.copy(this.camEye);
+      this.camFrom.look.copy(this.camLook);
+      this.camFrom.fov = this.camFov;
+      this.camWant = want;
+      this.camT = 0;
+    }
+    this.camT = Math.min(1, this.camT + dt / FLY);
+    const k = this.camT * this.camT * (3 - 2 * this.camT);      // smoothstep
+    this.camEye.lerpVectors(this.camFrom.eye, want.eye, k);
+    this.camLook.lerpVectors(this.camFrom.look, want.look, k);
+    this.camFov = this.camFrom.fov + (want.fov - this.camFrom.fov) * k;
+
+    const input = this.ctx?.input;
+    const px = input ? MathUtils.clamp(input.ndc.x, -1, 1) : 0;
+    const py = input ? MathUtils.clamp(input.ndc.y, -1, 1) : 0;
+    const amp = this.pinnedTag >= 0 ? 0.25 : 1;
+    const swing = Math.sin(t * (Math.PI * 2 / 96)) * amp;
+    const rise = Math.sin(t * (Math.PI * 2 / 61)) * amp;
+    const eye = this._flyTmp.eye.set(
+      this.camEye.x + swing * 0.85 + px * 0.42 * amp,
+      this.camEye.y + rise * 0.30 + py * 0.24 * amp,
+      this.camEye.z + swing * -0.40,
+    );
+    const look = this._flyTmp.look.set(
+      this.camLook.x + swing * 0.25, this.camLook.y + rise * 0.10, this.camLook.z,
+    );
+
+    if (this.dockPx > 0 && this.viewW > 1) {
+      const d = eye.distanceTo(look) || 1;
+      const aspect = this.viewW / Math.max(1, this.viewH);
+      const halfW = Math.tan(MathUtils.degToRad(this.camFov) * 0.5) * d * aspect;
+      const fwd = this._flyTmp.fwd.subVectors(look, eye).normalize();
+      const right = this._flyTmp.right.set(fwd.z, 0, -fwd.x).normalize().negate();
+      const pan = -halfW * (this.dockPx / this.viewW);
+      eye.addScaledVector(right, pan);
+      look.addScaledVector(right, pan);
+    }
+
+    this.camera.position.copy(eye);
+    this.camera.lookAt(look);
+    if (Math.abs(this.camera.fov - this.camFov) > 1e-4) {
+      this.camera.fov = this.camFov;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
   /** Raycast the signage and the tags. */
   _pick() {
     const input = this.ctx?.input;
@@ -895,25 +1203,37 @@ export class MenuMode extends Mode {
     // test, no raycast against 24 000 triangles.
     this.overBuilding = this.buildingBox ? this.ray.ray.intersectsBox(this.buildingBox) : false;
 
-    // tags first: they are small and they sit in front of everything
+    // Tags first: they are small and they sit in front of everything. The mesh
+    // now holds 2N quads — N discs then N subject dots — so `% N` maps a dot
+    // back onto its crime and the dot is hoverable too.
+    const N = this.building.crimes.length;
     let tag = -1;
     if (this.tagMesh) {
       const hit = this.ray.intersectObject(this.tagMesh, false)[0];
-      if (hit) tag = Math.floor(hit.faceIndex / 2);
+      if (hit) tag = Math.floor(hit.faceIndex / 2) % N;
     }
     if (tag !== this.hoverTag) {
       this.hoverTag = tag;
       if (tag >= 0) {
-        const c = this.building.crimes[tag];
-        this.lobby?.showTag(c, this._project(c.at));
-        this.tagRing.position.copy(c.at).addScaledVector(this._tagBasis.fwd, 0.44);
-        this.tagRing.quaternion.copy(this.camera.quaternion);
+        this._showTagCard(tag);
         this.tagRing.visible = true;
         this.ctx?.audio?.play('ui.click-soft');
       } else if (this.pinnedTag < 0) {
         this.lobby?.hideTag();
         this.tagRing.visible = false;
+      } else {
+        this._showTagCard(this.pinnedTag);
       }
+    }
+    // the ring rides the hovered (or pinned) disc, which is now a moving target
+    const ringOn = this.hoverTag >= 0 ? this.hoverTag : this.pinnedTag;
+    if (ringOn >= 0) {
+      const fwd = this._tagTmp.fwd;
+      this._tagPos(ringOn, this.tagRing.position).addScaledVector(fwd, 0.44);
+      this.tagRing.quaternion.copy(this.camera.quaternion);
+      this.tagRing.visible = true;
+    } else {
+      this.tagRing.visible = false;
     }
 
     let item = -1;
@@ -931,10 +1251,42 @@ export class MenuMode extends Mode {
         this.ctx?.audio?.play('ui.click');
         this._act(this.lines[item].id);
       } else if (tag >= 0) {
-        this.pinnedTag = this.pinnedTag === tag ? -1 : tag;
-        this.lobby?.openReport(tag);
+        // Clicking a tag PINS it and flies the camera to that crime's framing.
+        // Round 2 threw the full report modal open over the scene instead, which
+        // is the one thing guaranteed to hide the defect you just asked about.
+        this.focusCrime(this.pinnedTag === tag ? -1 : tag);
+      } else if (this.pinnedTag >= 0) {
+        this.focusCrime(-1);          // click anywhere else and the camera goes home
       }
     }
+  }
+
+  /**
+   * Pin crime `i` (or -1 to release): the camera flies to its framing and its
+   * diagnosis stays on screen until the player lets go. This is the single entry
+   * point — the tag click, the report's rows and the card's own stepper all come
+   * through here, so there is one place where "which crime are we looking at"
+   * lives.
+   */
+  focusCrime(i) {
+    const n = this.building?.crimes?.length || 0;
+    const next = (i >= 0 && i < n) ? i : -1;
+    if (next === this.pinnedTag) return;
+    this.pinnedTag = next;
+    if (next >= 0) {
+      this._showTagCard(next);
+      this.ctx?.audio?.play('ui.click');
+    } else {
+      this.lobby?.hideTag();
+      this.tagRing.visible = false;
+      this.ctx?.audio?.play('ui.click-soft');
+    }
+  }
+
+  _showTagCard(i) {
+    const c = this.building.crimes[i];
+    const p = this._tagPos(i, this._tagTmp.b);
+    this.lobby?.showTag(c, this._project(p), i === this.pinnedTag);
   }
 
   /** Twelve tags, three states: dim, awake, hovered. */
@@ -943,18 +1295,28 @@ export class MenuMode extends Mode {
     const k = 1 - Math.exp(-dt * 9);
     const awake = this.tagsHot || this.overBuilding;
     const attr = this.tagMesh.geometry.getAttribute('color');
+    const N = this.tagAlpha.length;
+    const lattr = this.tagLeaders?.geometry.getAttribute('color');
     let dirty = false;
-    for (let i = 0; i < this.tagAlpha.length; i++) {
+    for (let i = 0; i < N; i++) {
       const target = (i === this.hoverTag || i === this.pinnedTag) ? 1
         : awake ? TAG_AWAKE : TAG_DIM;
       const a = this.tagAlpha[i] + (target - this.tagAlpha[i]) * k;
       if (Math.abs(a - this.tagAlpha[i]) < 0.0015) continue;
       this.tagAlpha[i] = a;
-      for (let v = 0; v < this.tagVerts; v++) attr.setW(i * this.tagVerts + v, a);
+      // one alpha drives three things: the disc, the dot on the defect and the
+      // leader between them, or the annotation comes apart as it fades
+      for (let v = 0; v < 4; v++) {
+        attr.setW(i * 4 + v, a);
+        attr.setW((N + i) * 4 + v, a);
+      }
+      if (lattr) { lattr.setW(i * 2, a * 0.85); lattr.setW(i * 2 + 1, a * 0.85); lattr.needsUpdate = true; }
       dirty = true;
     }
     if (dirty) attr.needsUpdate = true;
-    if (this.tagRing) this.tagRing.material.opacity = 0.9 * (this.hoverTag >= 0 ? 1 : 0);
+    if (this.tagRing) {
+      this.tagRing.material.opacity = 0.9 * ((this.hoverTag >= 0 || this.pinnedTag >= 0) ? 1 : 0);
+    }
   }
 
   _setHover(i) {
@@ -1035,12 +1397,16 @@ export class MenuMode extends Mode {
   }
 
   dispose() {
+    if (this._onKey) window.removeEventListener('keydown', this._onKey);
     this.lobby?.dispose();
     this.poolStatic?.dispose();
     this.poolLive?.dispose();
     this.rig?.dispose();
     for (const l of this.lines) l.material.dispose();
     this.tagMesh?.material?.map?.dispose();
+    this.tagLeaders?.geometry?.dispose();
+    this.tagLeaders?.material?.dispose();
+    this.northPoint?.material?.map?.dispose();
     super.dispose();
   }
 }
@@ -1069,15 +1435,17 @@ function boxAt(cx, cy, cz, w, h, d) {
 }
 
 /**
- * One 512 x 512 canvas holding up to 16 numbered survey tags in a 4 x 4 grid.
- * Twelve tags therefore cost one texture and, merged, one draw call.
+ * One 512 x 512 canvas holding up to 15 numbered survey tags in a 4 x 4 grid,
+ * plus one unnumbered filled disc in the last cell — that one is the dot every
+ * leader ends on, sitting ON the defect. Twelve tags, twelve dots and one
+ * texture, and merged it is still a single draw call.
  */
 function numberAtlas(labels) {
   const cv = document.createElement('canvas');
   cv.width = 512; cv.height = 512;
   const g = cv.getContext('2d');
   g.clearRect(0, 0, 512, 512);
-  for (let i = 0; i < labels.length && i < 16; i++) {
+  for (let i = 0; i < labels.length && i < 15; i++) {
     const cx = (i % 4) * 128 + 64;
     const cy = Math.floor(i / 4) * 128 + 64;
     g.beginPath();
@@ -1092,6 +1460,17 @@ function numberAtlas(labels) {
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText(labels[i], cx, cy + 3);
+  }
+  // cell 15: the leader's end dot — pale core, dark rule, no numeral
+  {
+    const cx = 3 * 128 + 64, cy = 3 * 128 + 64;
+    g.beginPath();
+    g.arc(cx, cy, 40, 0, Math.PI * 2);
+    g.fillStyle = TAG_INK;
+    g.fill();
+    g.lineWidth = 16;
+    g.strokeStyle = TAG_RULE;
+    g.stroke();
   }
   const tex = new CanvasTexture(cv);
   tex.colorSpace = SRGBColorSpace;

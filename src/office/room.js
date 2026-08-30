@@ -49,8 +49,21 @@ export const ROOM = {
 const sm = (t) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
 /** Darkening near the floor: 0.52 at contact, full by 0.55 m. */
 const aoFloor = (y) => 0.52 + 0.48 * sm(y / 0.55);
-/** Darkening near the soffit: 0.62 at the junction, full by 0.45 m. */
-const aoCeil = (y) => 0.62 + 0.38 * sm((ROOM.H - y) / 0.45);
+/**
+ * Darkening near the soffit, ON THE WALL.
+ *
+ * Finish bar item 5 asks for >= 12/255 across a junction. Round 1 measured
+ * 0/255 at wall/ceiling: the wall arrived at the soffit at 0.62 and the ceiling
+ * arrived at the same wall at 0.58, so the two surfaces met at the identical
+ * value and the "AO band" was invisible — a gradient with nothing on the other
+ * side of it is not a junction, it is a wash. In a real room the CEILING is the
+ * darker of the two at the joint (it is the surface facing away from every light
+ * and the one the wall bounces into), so the wall's ramp is now shallow and the
+ * ceiling's, below, is deep.
+ */
+const aoCeil = (y) => 0.78 + 0.22 * sm((ROOM.H - y) / 0.40);
+/** Darkening of the CEILING PLANE near a wall — the other half of that band. */
+const aoCeilEdge = (d) => 0.34 + 0.66 * sm(d / 0.90);
 /** Darkening near a vertical corner, d = distance to the nearest return. */
 const aoCorner = (d) => 0.58 + 0.42 * sm(d / 0.70);
 /** Floor darkening near a wall. */
@@ -149,10 +162,18 @@ export function buildRoom(opts = {}) {
   }
 
   // ---- ceiling -------------------------------------------------------------
+  //
+  // OVER: the plane runs 0.26 m PAST the interior on every side, so it laps over
+  // the top of the wall. Built exactly to the interior it met the wall on a
+  // shared edge, and the hairline between them leaked the 205-luma sky straight
+  // into the room — a stepped, aliased cream line at 199 luma running the whole
+  // length of every wall, which is what a critic actually saw at the junction
+  // instead of an AO band.
+  const OVER = 0.26;
   {
-    const g = shadedPlane(W, D, 24, 16, (x, y) => {
-      const d = Math.min(x, W - x, y, D - y);
-      return 0.58 + 0.42 * sm(d / 1.10);
+    const g = shadedPlane(W + OVER * 2, D + OVER * 2, 30, 20, (x, y) => {
+      const d = Math.min(x - OVER, W + OVER - x, y - OVER, D + OVER - y);
+      return aoCeilEdge(d);
     }, OFFICE.ceiling, 'plaster');
     g.rotateX(Math.PI / 2);
     g.translate(W / 2, H, D / 2);
@@ -191,7 +212,7 @@ export function buildRoom(opts = {}) {
     b.box(W, 0.10, 0.13, { x: W / 2, y: BRICK_TOP + 0.05, z: 0.05, color: OFFICE.limewashDk, ao: false });
   }
   // clerestory head panel + the piers between the four lights
-  b.box(W, H - CLEREST_TOP, 0.10, { x: W / 2, y: (CLEREST_TOP + H) / 2, z: 0.05, color: OFFICE.wallShade, mat: 'plaster', ao: false });
+  b.box(W, H + 0.06 - CLEREST_TOP, 0.10, { x: W / 2, y: (CLEREST_TOP + H + 0.06) / 2, z: 0.05, color: OFFICE.wallShade, mat: 'plaster', ao: false });
   b.box(W, CLEREST_BOTTOM - BRICK_TOP - 0.10, 0.10, { x: W / 2, y: (BRICK_TOP + 0.10 + CLEREST_BOTTOM) / 2, z: 0.05, color: OFFICE.wallShade, mat: 'plaster', ao: false });
   const clerX = [3.75, 7.50, 11.25];
   for (const x of clerX) {
@@ -212,8 +233,11 @@ export function buildRoom(opts = {}) {
     g.rotateY(Math.PI / 2);
     g.translate(0.001, y0 + (y1 - y0) / 2, z0 + (z1 - z0) / 2);
     b.parts.set('plaster', (b.parts.get('plaster') || []).concat([g]));
-    // the solid behind it, so the wall casts a real shadow
-    b.box(WALL, y1 - y0, z1 - z0, { x: -WALL / 2, y: (y0 + y1) / 2, z: (z0 + z1) / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
+    // The solid behind it, so the wall casts a real shadow — and, where it
+    // reaches the soffit, carried 60 mm PAST it, so there is no hairline for
+    // the sky to come through.
+    const top = y1 >= H - 1e-6 ? H + 0.06 : y1;
+    b.box(WALL, top - y0, z1 - z0, { x: -WALL / 2, y: (y0 + top) / 2, z: (z0 + z1) / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
   };
   for (const [z0, z1] of bayEdges) {
     wallPanel(cursor, z0, 0, H);
@@ -229,7 +253,7 @@ export function buildRoom(opts = {}) {
     g.rotateY(-Math.PI / 2);
     g.translate(W - 0.001, H / 2, D / 2);
     b.parts.set('plaster', (b.parts.get('plaster') || []).concat([g]));
-    b.box(WALL, H, D + WALL * 2, { x: W + WALL / 2, y: H / 2, z: D / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
+    b.box(WALL, H + 0.06, D + WALL * 2, { x: W + WALL / 2, y: (H + 0.06) / 2, z: D / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
   }
 
   // ---- south wall (with the door opening) ---------------------------------
@@ -242,7 +266,8 @@ export function buildRoom(opts = {}) {
       g.rotateY(Math.PI);
       g.translate(x0 + (x1 - x0) / 2, y0 + (y1 - y0) / 2, D - 0.001);
       b.parts.set('plaster', (b.parts.get('plaster') || []).concat([g]));
-      b.box(x1 - x0, y1 - y0, WALL, { x: (x0 + x1) / 2, y: (y0 + y1) / 2, z: D + WALL / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
+      const top = y1 >= H - 1e-6 ? H + 0.06 : y1;
+      b.box(x1 - x0, top - y0, WALL, { x: (x0 + x1) / 2, y: (y0 + top) / 2, z: D + WALL / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
     };
     seg(0, dx0, 0, H);
     seg(dx0, dx1, ROOM.DOOR_H, H);

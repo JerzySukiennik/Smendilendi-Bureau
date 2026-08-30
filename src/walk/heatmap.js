@@ -322,19 +322,35 @@ export class Heatmap {
     for (const d of nav.doors) if (d.levelIdx === levelIdx) leafArc(d);
 
     // 5. labels
+    //
+    // On a plate, because the heat is painted over the plan and the room the
+    // drawing is ABOUT is by definition the one under the hottest band: the
+    // corridor's own area figure was the single illegible number on the sheet.
+    // The plate is the sheet's own paper colour at 88 %, so it reads as part of
+    // the drawing and still lets the band show through around it.
     if (showNames) {
       g.textAlign = 'center';
       g.textBaseline = 'middle';
+      const NAME_FONT = '600 12px "Inter", Helvetica, Arial, sans-serif';
+      const AREA_FONT = '11px ui-monospace, Menlo, monospace';
       for (const r of list) {
         const a = nav.roomPoint(r.id);
         if (!a) continue;
-        const label = nav.labelOf(r.id);
+        const label = nav.labelOf(r.id).toUpperCase();
+        const area = `${r.area.toFixed(1)} m²`;
+        g.font = NAME_FONT;
+        const wName = g.measureText(label).width;
+        g.font = AREA_FONT;
+        const wArea = g.measureText(area).width;
+        const w = Math.max(wName, wArea) + 10;
+        g.fillStyle = 'rgba(243,236,225,0.88)';
+        g.fillRect(X(a.x) - w / 2, Z(a.z) - 16, w, 31);
         g.fillStyle = '#2b2825';
-        g.font = '600 12px "Inter", Helvetica, Arial, sans-serif';
-        g.fillText(label.toUpperCase(), X(a.x), Z(a.z) - 7);
+        g.font = NAME_FONT;
+        g.fillText(label, X(a.x), Z(a.z) - 7);
         g.fillStyle = '#7a736a';
-        g.font = '11px ui-monospace, Menlo, monospace';
-        g.fillText(`${r.area.toFixed(1)} m²`, X(a.x), Z(a.z) + 8);
+        g.font = AREA_FONT;
+        g.fillText(area, X(a.x), Z(a.z) + 8);
       }
     }
 

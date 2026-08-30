@@ -1,6 +1,6 @@
 {
  "note": "sha256 per exported GLB, with the measurements taken at the same moment. `approved` is set by hand when a model has been signed off, and pins that approval to THIS hash. Rewrite with `node tools/blender/verify.mjs --manifest`.",
- "written": "2026-08-28",
+ "written": "2026-08-29",
  "models": {
   "chair-dining": {
    "sha256": "26433302b9fed084b9ff942ecddb1cb6c9cd264f99c6ea61b9ddc34f84ad96e4",
@@ -323,7 +323,7 @@
    "approved": null
   },
   "wardrobe-hinged-1000": {
-   "sha256": "7a1f1c9e91b057a900576a5caf09933d9a7ef83cb8a3e15730aa698b620a1d32",
+   "sha256": "657bd75f3355d1a47063022a200003e2558c14510b71623565607a0371bd92f5",
    "bbox": [
     1,
     2.1,
@@ -340,14 +340,14 @@
    "approved": null
   },
   "wardrobe-sliding-1800": {
-   "sha256": "38691ffff8dcbfc1efe94cfdbcb5048b834622b3c839392c62a32626444d6e68",
+   "sha256": "dda35eb36cf57964a40672b4257eae3596f7895bd240eb930f52fefec8cd958f",
    "bbox": [
     1.8,
     2.4,
     0.65
    ],
-   "tris": 520,
-   "parts": 14,
+   "tris": 476,
+   "parts": 13,
    "bodies": 1,
    "materials": [
     "graphite",
@@ -548,7 +548,7 @@
    "approved": null
   },
   "wc-floor": {
-   "sha256": "885a47ac81ed0e780e842f75e84236e31b16f9c37f68559be0cf7c1006f0c8be",
+   "sha256": "a5632de0caa40e54e9f13445c81e6e1a7db2f2962b3cfe661710920d67c27e81",
    "bbox": [
     0.38,
     0.79,
@@ -580,7 +580,7 @@
    "approved": null
   },
   "wc-accessible": {
-   "sha256": "64bbd2b166545378c51f3637e07885cdffe04437246adcf7ad55e650a8eaee87",
+   "sha256": "ccc23036f61bf3137df2df1ec961c3e5a450124d87f4f13105c78b8ed57a9251",
    "bbox": [
     0.38,
     0.82,
@@ -613,14 +613,14 @@
    "approved": null
   },
   "basin-vanity-800": {
-   "sha256": "d0067dd55d265ca9cda2fe4b21f3742aa85c0fc2357768801b2fb611206fde9e",
+   "sha256": "5b14b2229f289fe6ac6d469a840f3042a10d97103f734005d5fc6bcf41c07848",
    "bbox": [
     0.8,
     1.07,
     0.48
    ],
-   "tris": 860,
-   "parts": 14,
+   "tris": 1020,
+   "parts": 15,
    "bodies": 1,
    "materials": [
     "graphite",
@@ -754,14 +754,14 @@
    "approved": null
   },
   "kitchen-base-600": {
-   "sha256": "debaa8064cc46b9b8e3a3dfeda3de7d7dfeb1666581e96354baa08d6400b635c",
+   "sha256": "2ff83a710b96794c711b3b25960469a4a261c3b3d022f0171ca67c758f589269",
    "bbox": [
     0.6,
     0.9,
     0.6
    ],
-   "tris": 352,
-   "parts": 8,
+   "tris": 308,
+   "parts": 7,
    "bodies": 1,
    "materials": [
     "graphite",
@@ -772,14 +772,14 @@
    "approved": null
   },
   "kitchen-base-sink-800": {
-   "sha256": "971228a27e27bfa15373f99bcdef32cb7c36e0532fcab341b085d3ab73bc126b",
+   "sha256": "a26ec0d06dd12ccb0271fdb2e7f53e16876b1204925b8cd14ec2b9ffaab6f4b3",
    "bbox": [
     0.8,
     1.12,
     0.6
    ],
-   "tris": 860,
-   "parts": 14,
+   "tris": 1020,
+   "parts": 15,
    "bodies": 1,
    "materials": [
     "graphite",
@@ -791,14 +791,14 @@
    "approved": null
   },
   "kitchen-base-corner": {
-   "sha256": "84c4a0aaa52b4526d2aca834836abb8c407db225383aaa15c19c7f3d1b5e371d",
+   "sha256": "c677f72f1ba52482d15eca6203925f2e3cadc34e03502e9196daf5591558a7e3",
    "bbox": [
     0.9,
     0.9,
     0.9
    ],
-   "tris": 352,
-   "parts": 8,
+   "tris": 308,
+   "parts": 7,
    "bodies": 1,
    "materials": [
     "graphite",
@@ -912,14 +912,14 @@
    "approved": null
   },
   "kitchen-island-1800": {
-   "sha256": "f886a3c4c7ee26ab9709e12aff0f9dfd8a6f3363d67851184ec4c8e3887b4c52",
+   "sha256": "c727f0baf5bb68612073b8e8aa208052b85ba8670ea7a8329a73b5f18e523453",
    "bbox": [
     1.8,
     0.9,
     0.9
    ],
-   "tris": 440,
-   "parts": 10,
+   "tris": 484,
+   "parts": 11,
    "bodies": 1,
    "materials": [
     "graphite",
@@ -979,13 +979,13 @@
    "approved": null
   },
   "door-glazed-900": {
-   "sha256": "318c5a0c3076941675a5fe70ab8ec884e48f1a1eca567b77d65c8da44f67f7e8",
+   "sha256": "b147cb07bd9457a16aa930766d7449f163514652aa33ed46711b24295f443138",
    "bbox": [
     0.9,
     2.05,
     0.15
    ],
-   "tris": 764,
+   "tris": 896,
    "parts": 10,
    "bodies": 1,
    "materials": [
@@ -1048,13 +1048,13 @@
    "approved": null
   },
   "door-entrance-1000": {
-   "sha256": "ac8a73ff75b6cb5e7fbfb2b45c53f9c4e596bea4b86d5c69452b6a82da61909e",
+   "sha256": "fba861c6713e66fcdb4bd75029ab2f636c496f3861a1b16db7bfaf5d28f66b29",
    "bbox": [
     1,
     2.1,
     0.18
    ],
-   "tris": 852,
+   "tris": 984,
    "parts": 12,
    "bodies": 1,
    "materials": [
@@ -1209,24 +1209,23 @@
    "approved": null
   },
   "rooflight-1000": {
-   "sha256": "389f3e071182424e31c37b931e6c0e70c6a4159776cace462a8b1c697b3c7198",
+   "sha256": "60d2a003d6e8bc340931ae97538df98fd1d4f3a435f9768a3d6268d002e9fc34",
    "bbox": [
     1,
     1,
     0.2
    ],
-   "tris": 376,
-   "parts": 4,
+   "tris": 332,
+   "parts": 3,
    "bodies": 1,
    "materials": [
     "tint",
-    "glass",
-    "accent"
+    "glass"
    ],
    "approved": null
   },
   "window-shopfront-3000": {
-   "sha256": "9ede112bd5401fe64c7102f03ce584a733d1bb2beda3e6d0905e2c893796be20",
+   "sha256": "db6e3464bf37dafd3cd8c13e21e36949f5cf99cb25534625f25fd2d0a383bdc5",
    "bbox": [
     3,
     2.4,
@@ -1419,14 +1418,14 @@
    "approved": null
   },
   "planter-trough-1200": {
-   "sha256": "58cb3629d75a89a60d1be46b898f21f5454c3740c8ba29c0b67b3053a5560fb6",
+   "sha256": "f37a748d82c8a58199366601d3c46beb96c24aa92ab658e9036424ff569ab24a",
    "bbox": [
     1.2,
     0.6,
     0.4
    ],
-   "tris": 676,
-   "parts": 58,
+   "tris": 1048,
+   "parts": 102,
    "bodies": 1,
    "materials": [
     "tint",
@@ -1457,14 +1456,14 @@
    "approved": null
   },
   "desk-reception": {
-   "sha256": "db669ddbe9bff7aa9ce79bbdb22f9dbaf3c3142b913c52a2af8b31b43ae4c870",
+   "sha256": "ee220563355d8f98d881377b19a3cbc2a74c85f65aca7a123c701989e65c2072",
    "bbox": [
     2.2,
     1.1,
     0.8
    ],
-   "tris": 1332,
-   "parts": 26,
+   "tris": 1356,
+   "parts": 28,
    "bodies": 1,
    "materials": [
     "tint",
@@ -1494,7 +1493,7 @@
    "approved": null
   },
   "whiteboard-2000": {
-   "sha256": "93008f3f78eb8384de78f1f9870fbb4c50780be7d738d4fba602203baf005926",
+   "sha256": "ac83d4f0105dca0ca91a28796872ed836386bfbf4b964ceb6e134588da361c50",
    "bbox": [
     2,
     1.2,
@@ -1547,13 +1546,13 @@
    "approved": null
   },
   "water-cooler": {
-   "sha256": "2a13982bb349d4437455cdd216e8a7245656c009f7cf67b536ca73ce18c76e97",
+   "sha256": "a89272cb5cd3661456f67e75a63e1ba3c9c97fd765fa94e4fab4f7a9b0a74073",
    "bbox": [
     0.35,
     1.3,
     0.35
    ],
-   "tris": 468,
+   "tris": 436,
    "parts": 7,
    "bodies": 1,
    "materials": [
@@ -1565,7 +1564,7 @@
    "approved": null
   },
   "counter-till": {
-   "sha256": "09e24ba923bbc2afafdf9d51e9d4a65f5807c20332d7a1d55086966292b843eb",
+   "sha256": "929ec6b2a0b241ca2fa3d7e69aa75241900b7fd0bb4e61fa6ab739ef9ee7b383",
    "bbox": [
     1.6,
     1.05,
@@ -1584,7 +1583,7 @@
    "approved": null
   },
   "counter-cafe-3000": {
-   "sha256": "7561f7fa227a7e471815262cbfe7f763af08aca50f9f12131f0987d41c43e2c7",
+   "sha256": "d613cb84bf4627d16a1022a9b8abbc755d23200c66b01b01615743ab492a03ce",
    "bbox": [
     3,
     1.1,
@@ -1604,7 +1603,7 @@
    "approved": null
   },
   "espresso-machine": {
-   "sha256": "11289a95be4522e76b60ce0834f611cf737eddf818b7d6b4e7a0f94a7edfcb0e",
+   "sha256": "c637963fce0472d94f557b1cf7ccd58da6e4e0a0575538fa067df5c627b5b2dc",
    "bbox": [
     0.75,
     0.55,
@@ -1623,13 +1622,13 @@
    "approved": null
   },
   "display-fridge-glass": {
-   "sha256": "9c981cdde69ed856ca1a59e2bb77e29711ecf5642f64dd331079bd30ec332f97",
+   "sha256": "1538667e5a4d767c9f81f0350be9264e09d4b5c347b72e29f5f57bb1ede48207",
    "bbox": [
     0.9,
     2,
     0.7
    ],
-   "tris": 532,
+   "tris": 648,
    "parts": 11,
    "bodies": 1,
    "materials": [
@@ -1805,7 +1804,7 @@
    "approved": null
   },
   "kids-wc": {
-   "sha256": "d704c1c7f1ed780e7bac25e4b84024afd311b9767f44ea90579c48cc0414af4e",
+   "sha256": "ea25d7a8136a8a1712088f80bb233e6fad3d6dd026c7f76cb279f381898cd3d9",
    "bbox": [
     0.34,
     0.6,
@@ -1821,14 +1820,14 @@
    "approved": null
   },
   "kids-basin-row": {
-   "sha256": "8e161a44ff52bae6242d20d2ebf277e3d421a3b44ee29d4e96f34d55ceeb3053",
+   "sha256": "2f9f90a1b562ae3f25fd0aecec5a0382530669f7d5e449ea2bdde9ac30d3e129",
    "bbox": [
     1.2,
     0.77,
     0.4
    ],
-   "tris": 1072,
-   "parts": 17,
+   "tris": 1276,
+   "parts": 19,
    "bodies": 1,
    "materials": [
     "graphite",
@@ -1894,17 +1893,16 @@
    "approved": null
   },
   "treatment-trolley": {
-   "sha256": "958ffc3861434ab74d1169b86ee3884bb12b716eb0df18e75466467116d19058",
+   "sha256": "2510cc71614ee04505994536e2d0d99b7c4e5603f1870b97c2caeafaaa8c232c",
    "bbox": [
     0.6,
     0.9,
     0.45
    ],
-   "tris": 808,
-   "parts": 22,
+   "tris": 764,
+   "parts": 21,
    "bodies": 1,
    "materials": [
-    "graphite",
     "metal",
     "paper",
     "rubber"
@@ -1929,14 +1927,14 @@
    "approved": null
   },
   "scales-column": {
-   "sha256": "ca68d2f7d1fb99f17099a770208209a073936739668fe9152c08e9c770125c36",
+   "sha256": "95c4957bb21e0f9457bffff3bb4f83b974a9d07c62b0e94e64558dde1366c459",
    "bbox": [
     0.4,
     1.4,
     0.55
    ],
-   "tris": 304,
-   "parts": 8,
+   "tris": 260,
+   "parts": 7,
    "bodies": 1,
    "materials": [
     "metal",
@@ -2083,7 +2081,7 @@
    "approved": null
   },
   "piano-upright": {
-   "sha256": "aed9f09f023cacde6f53b258687560e2d8fa2f5d3c40609073acaf27c8e8f4ce",
+   "sha256": "2992e6f9e47bf187ce684cb90e27c8b75937711e924edab1fffa5ae46f41a178",
    "bbox": [
     1.5,
     1.25,
@@ -2093,8 +2091,8 @@
    "parts": 28,
    "bodies": 1,
    "materials": [
-    "tint",
     "woodDark",
+    "tint",
     "ceramic",
     "graphite",
     "chrome"

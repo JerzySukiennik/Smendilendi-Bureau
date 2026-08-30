@@ -82,6 +82,9 @@ export class EditorMode extends Mode {
     // The ground of the plot is a surface you can point AT: with it in this
     // list a cursor over the site reads "On Face" instead of saying nothing.
     this.editor.siteFaces = this.siteFaces || [];
+    // The trees the plan has to show as SYMBOLS rather than as objects: the plot
+    // owns them, plan.js draws them, and this is the one place the two meet.
+    this.editor.plan.setSite({ trees: this.commission?.plot?.trees || [] });
     // And Zoom Extents will not park the camera inside a lime tree.
     this.editor.cameras.obstacles = () => this.crowns || [];
     this.camera = this.editor.cameras.camera;
@@ -261,12 +264,23 @@ export class EditorMode extends Mode {
     if (dirty) mesh.instanceMatrix.needsUpdate = true;
   }
 
-  /** Show or hide the site content that stands above the plan cut. */
+  /**
+   * Show or hide the site content that stands above the plan cut.
+   *
+   * The TRUNK goes too, not only the canopy. A trunk is 2.6 m of solid timber
+   * standing well above the 1.20 m cut and above the drawing's own linework, so
+   * in plan it printed a filled brown disc over whatever it happened to stand
+   * on — in one case across a dimension string and its figure. plan.js draws
+   * the tree properly instead: canopy outline, centre cross, lightest weight,
+   * bottom layer.
+   */
   _siteForView(mode) {
     const plan = mode === 'plan';
     for (const o of this.aboveCut || []) o.visible = !plan;
-    const crown = this.treePool?.entries.get('crown');
-    if (crown?.mesh) crown.mesh.visible = !plan;
+    for (const kind of ['crown', 'trunk']) {
+      const e = this.treePool?.entries.get(kind);
+      if (e?.mesh) e.mesh.visible = !plan;
+    }
   }
 
   // -- mode plumbing -------------------------------------------------------

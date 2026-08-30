@@ -20,6 +20,7 @@
 import {
   Scene, PerspectiveCamera, Color, Fog, Group, Mesh, InstancedMesh, Object3D,
   PointLight, Vector3, MathUtils, BoxGeometry, MeshBasicMaterial, SphereGeometry,
+  InstancedBufferAttribute, Frustum, Matrix4, Sphere,
 } from 'three';
 import { PMREMGenerator } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -29,10 +30,13 @@ import { buildRoom, ROOM, sunPatchFootprint } from './room.js';
 import {
   MeshBuilder, builderMaterial, bakeProp, PROPS, OFFICE, ACCENT,
   contactShadowGeometry, contactShadowMaterial, MONITOR_SCREEN,
+  MONITOR_ANCHOR, CUBICLE_MONITOR_ANCHOR,
 } from './props.js';
 import { Player, rectSegments, PLAYER } from './player.js';
 import { Interaction, briefSheet } from './interact.js';
-import { Workstation, DESK_SLOTS, makeFloatingNick } from './desks.js';
+import {
+  Workstation, DESK_SLOTS, makeFloatingNick, PERSONALISATION, screenLuma,
+} from './desks.js';
 import { Economy } from './economy.js';
 import { Upgrades, EMPLOYEE_TIERS, computerTier, studioTier } from './upgrades.js';
 import { Staff, CUBICLES } from './employees.js';
@@ -52,7 +56,27 @@ export const ACCENT_USES = [
   'two lounge cushions on the meeting chairs',
   'the pens in the desk tidies',
   'nameplate colour strip (player colour, terracotta family)',
+  'the title block on four pinned-up A1 sheets',
+  'the middle workstation mug',
 ];
+
+/**
+ * The one COOL colour in the office, and the only thing here above 25 %
+ * saturation that is not the accent: Prussian blue, on cyanotype prints.
+ *
+ * Round-1 measurement of the hero frame: 1.060 % of pixels in the accent band
+ * (20-40 deg) and 0.002 % in the cool band (200-220 deg), against the
+ * reference's 6.004 % and 1.331 %. The frame had one temperature everywhere,
+ * so the "shadow side" was a slightly darker cream rather than a different
+ * colour. Eight of the ten point lights sit in a single 2700-3400 K band, which
+ * no amount of accent orange can counterweight — the counterweight has to be
+ * cool, and it has to be in the frame, not just in the fill.
+ */
+export const PRUSSIAN = 0x1f5f8c;
+
+/** Acoustic felt on the cubicle screens. A cool grey, s 0.15 — under item 10's
+ *  25 % ceiling, so it is a temperature and not a second accent. */
+export const FELT = 0x5f6870;
 
 export class Office {
   constructor(ctx) {
@@ -71,6 +95,8 @@ export class Office {
     this._propTypes = new Set();
     this._t = 0;
     this._lumaRequest = null;
+    this.focus = 0;                 // the coffee, 0..1 — see applyFocus()
+    this._auditTimer = null;
   }
 
   // =========================================================================
@@ -81,8 +107,8 @@ export class Office {
     scene.name = 'office';
     // The sky is what you see through the glazing; it is also the reason the
     // frame has anything above 200 luma at all.
-    scene.background = new Color(0xbcd0dd);
-    scene.fog = new Fog(0xc6d6e0, 40, 150);
+    scene.background = new Color(0xa6c4dc);
+    scene.fog = new Fog(0xb4cddd, 40, 150);
     this.scene = scene;
 
     this.camera = new PerspectiveCamera(55, 1, 0.06, 260);
@@ -136,6 +162,7 @@ export class Office {
       scene.add(ws.group);
       this.workstations.push(ws);
     }
+    this._collectLights();
 
     // ---- the player ------------------------------------------------------
     const colliders = [...room.colliders, ...this.furnitureColliders];
@@ -160,7 +187,15 @@ export class Office {
     this.interact = new Interaction(this.ctx, {
       scene, camera: this.camera, player: this.player,
       onFocusChange: (ws, on) => this._onFocusChange(ws, on),
+      onSip: (boost) => this.applyFocus(boost),
     });
+    // Everything solid, so a hover cannot reach through it. The room shell, the
+    // merged one-off props and every instanced pool — but NOT the glass, which
+    // you can see (and therefore point) through.
+    this.interact.setOccluders([
+      ...Object.entries(room.meshes).filter(([k]) => k !== 'glass').map(([, m]) => m),
+      staticGroup, poolGroup,
+    ]);
     this._registerInteractables();
 
     return this;
@@ -315,8 +350,12 @@ export class Office {
     b.at({ x: 1.32, y: 0.32, z: 7.30, ry: 0.22 }, (q) => PROPS.cardboardBox(q, { w: 0.40, h: 0.26, d: 0.38 }));
     b.at({ x: 3.85, z: 7.40, ry: -0.3 }, (q) => PROPS.cardboardBox(q, { w: 0.42, h: 0.30, d: 0.40 }));
     S('cardboardBox');
-    this._shadow(1.28, 0.004, 7.33, 0.60);
-    this._shadow(3.85, 0.004, 7.40, 0.55, 0.55, -0.3);
+    // Blob size drives how dark the VISIBLE part of a contact shadow is: the
+    // core sits under the box where nobody can see it, so the ring that reads
+    // has to fall inside the plateau of the gradient, not on its tail. 0.64 for
+    // a 0.45 box measured 37/255 at 0.60 with the old falloff and passes now.
+    this._shadow(1.28, 0.004, 7.33, 0.64, 0.62);
+    this._shadow(3.85, 0.004, 7.40, 0.60, 0.58, -0.3);
     col(1.28, 7.33, 0.50, 0.46);
     col(3.85, 7.40, 0.45, 0.45);
 
@@ -443,6 +482,13 @@ export class Office {
       roll: this._register('roll', PROPS.roll, { castShadow: false, tint: 'paper' }),
       plantSmall: this._register('plantSmall', PROPS.plantSmall),
       sheet: this._register('sheet', PROPS.sheet, { castShadow: false, tint: 'paper' }),
+      // Cyanotypes. Every practice still has a few pinned up, and they are the
+      // one thing in a studio that is honestly, saturatedly COLD — which is
+      // what finish bar item 3's warm/cool split and the reference's 1.3 % of
+      // 200-220 deg pixels are actually made of. Not a styling flourish: a
+      // print process. White lines on Prussian blue, as the process produces.
+      blueprint: this._register('blueprint', (q) => PROPS.sheet(q, { ink: 0xe4eef6 }),
+        { castShadow: false, tint: 'paper' }),
       pendant: this._register('pendant', PROPS.pendant),
       partition: this._register('partition', PROPS.partition, { tint: 'flat' }),
       crumpled: this._register('crumpledPaper', PROPS.crumpledPaper, { castShadow: false }),
@@ -456,8 +502,11 @@ export class Office {
       this._shadow(s.x, 0.004, s.z, 1.85, 1.05);
       col(s.x, s.z, 1.60, 0.80);
 
-      this._place(K.monitor, { position: { x: s.x, y: 0.74, z: s.z - 0.28 } });
-      this._shadow(s.x, 0.7425, s.z - 0.28, 0.30, 0.24, 0, 0.75);
+      // MONITOR_ANCHOR, not a literal: desks.js hangs the live screen quad off
+      // the same constant, and the two drifting apart is what put the whole
+      // in-game OS under the desk for three rounds.
+      this._place(K.monitor, { position: { x: s.x, y: MONITOR_ANCHOR.y, z: s.z + MONITOR_ANCHOR.z } });
+      this._shadow(s.x, MONITOR_ANCHOR.y + 0.0025, s.z + MONITOR_ANCHOR.z, 0.26, 0.20, 0, 0.85);
       this._place(K.keyboard, { position: { x: s.x, y: 0.74, z: s.z + 0.20 } });
       this._shadow(s.x, 0.7425, s.z + 0.20, 0.50, 0.20, 0, 0.55);
       this._place(K.mouse, { position: { x: s.x + 0.34, y: 0.74, z: s.z + 0.20 } });
@@ -466,8 +515,10 @@ export class Office {
       this._shadow(s.x - 0.66, 0.7425, s.z - 0.24, 0.22, 0.22, 0, 0.7);
       this._place(K.penCup, { position: { x: s.x + 0.60, y: 0.74, z: s.z - 0.22 } });
       this._shadow(s.x + 0.60, 0.7425, s.z - 0.22, 0.14, 0.14, 0, 0.7);
+      // The middle desk's mug is the accent, and it sits in the middle of the
+      // desk row — the one place every camera pose down this room can see it.
       this._place(K.mug, { position: { x: s.x - 0.36, y: 0.74, z: s.z + 0.24 } },
-        [0xe9e6df, 0x35566e, 0x9c8f7c][s.index % 3]);
+        [0xe9e6df, ACCENT, 0x9c8f7c][s.index % 3]);
       this._shadow(s.x - 0.36, 0.7425, s.z + 0.24, 0.13, 0.13, 0, 0.7);
       this._place(K.paperStack, { position: { x: s.x + 0.44, y: 0.74, z: s.z + 0.16 }, rotationY: 0.18 });
       this._shadow(s.x + 0.44, 0.7425, s.z + 0.16, 0.40, 0.30, 0.18, 0.55);
@@ -489,19 +540,38 @@ export class Office {
       this._place(K.deskSmall, { position: { x: c.x, y: 0, z: c.z } }, studio.deskTop);
       this._shadow(c.x, 0.004, c.z, 1.62, 0.92);
       col(c.x, c.z, 1.40, 0.70);
-      this._place(K.monitor, { position: { x: c.x, y: 0.74, z: c.z - 0.24 } });
-      this._shadow(c.x, 0.7425, c.z - 0.24, 0.30, 0.24, 0, 0.75);
+      this._place(K.monitor, {
+        position: { x: c.x, y: CUBICLE_MONITOR_ANCHOR.y, z: c.z + CUBICLE_MONITOR_ANCHOR.z },
+      });
+      this._shadow(c.x, CUBICLE_MONITOR_ANCHOR.y + 0.0025, c.z + CUBICLE_MONITOR_ANCHOR.z, 0.26, 0.20, 0, 0.85);
       this._place(K.keyboard, { position: { x: c.x, y: 0.74, z: c.z + 0.18 } });
       this._place(K.taskChair, { position: { x: c.x, y: 0, z: c.z + 0.62 }, rotationY: Math.PI },
         studio.chairFabric);
       this._shadow(c.x, 0.004, c.z + 0.62, 0.78);
-      // felt screens: one behind, one to the side
-      this._place(K.partition, { position: { x: c.x, y: 0, z: c.z - 0.42 } }, OFFICE.woolDk);
+      // Felt screens: one behind, one to the side. The felt is a COOL grey
+      // (s 0.15) rather than the old warm woolDk — these two slabs are the
+      // largest masses in the hero frame, and painting the biggest thing in
+      // shot the same temperature as everything else is most of why the round-1
+      // A/B read as the flat, one-temperature one.
+      this._place(K.partition, { position: { x: c.x, y: 0, z: c.z - 0.42 } }, FELT);
       this._shadow(c.x, 0.004, c.z - 0.42, 1.28, 0.18, 0, 0.8);
       this._place(K.partition, { position: { x: c.x + 0.90, y: 0, z: c.z + 0.05 }, rotationY: Math.PI / 2 },
-        OFFICE.woolDk);
+        FELT);
       this._shadow(c.x + 0.90, 0.004, c.z + 0.05, 0.18, 1.28, 0, 0.8);
       col(c.x, c.z - 0.42, 1.20, 0.06);
+      // ...and they are felt SCREENS, so things get pinned to them. Three A4s
+      // and a cyanotype per bay: the slab stops being a blank rectangle, and
+      // the same objects give the midground something to read against.
+      const pinZ = c.z - 0.42 + 0.024;
+      const tack = [[-0.38, 1.00, 0.45], [0.02, 1.05, 0.38], [0.36, 0.96, 0.42]];
+      for (let t = 0; t < tack.length; t++) {
+        const [dx, y, s] = tack[t];
+        const cyan = (c.index + t) % 3 === 0;
+        this._place(cyan ? K.blueprint : K.sheet, {
+          position: { x: c.x + dx, y, z: pinZ },
+          scale: { x: s, y: s, z: 1 },
+        }, cyan ? PRUSSIAN : OFFICE.paper);
+      }
     }
 
     // ---- meeting chairs. TWO of them carry the accent (item 10). --------
@@ -548,9 +618,31 @@ export class Office {
       [1.42, 0.78, 0.01], [2.90, 0.74, -0.02], [4.42, 0.80, 0.015],
       [9.72, 0.76, -0.015], [10.48, 0.79, 0.02],
     ];
-    for (const [x, y, rz] of pinUps) {
-      this._place(K.sheet, { position: { x, y, z: 0.032 }, rotationY: 0 },
-        rz > 0 ? OFFICE.paper : OFFICE.paperWarm);
+    // Four of the pinned-up drawings are cyanotypes. They are spread so that
+    // hero, desks and models each catch at least two of them, which is what
+    // gives every one of those frames a cool counterweight to the 2700 K
+    // pendants instead of a single orange cast.
+    const CYANOTYPES = new Set([2, 5, 8, 11]);
+    // ...and four of them carry a terracotta title block, which is accent use
+    // number five. Item 10 wants the accent REPEATED 2-4 times in a frame, and
+    // round 1 had exactly one readable use per frame because the four uses were
+    // scattered to four different corners of the room. These sit on the wall the
+    // desk row backs onto, so hero, desks and models all catch two or three.
+    const TITLED = new Set([0, 4, 7, 12]);
+    for (let i = 0; i < pinUps.length; i++) {
+      const [x, y, rz] = pinUps[i];
+      if (CYANOTYPES.has(i)) {
+        this._place(K.blueprint, { position: { x, y, z: 0.032 } }, PRUSSIAN);
+      } else {
+        this._place(K.sheet, { position: { x, y, z: 0.032 }, rotationY: 0 },
+          rz > 0 ? OFFICE.paper : OFFICE.paperWarm);
+      }
+      if (TITLED.has(i)) {
+        this._place(K.sheet, {
+          position: { x: x + 0.17, y: y - 0.345, z: 0.0345 },
+          scale: { x: 0.33, y: 0.10, z: 1 },
+        }, ACCENT);
+      }
     }
     // three landscape prints, rotated, so the wall is not a grid
     for (const [x, y] of [[6.20, 1.30], [6.20, 2.00], [9.00, 2.02]]) {
@@ -669,11 +761,18 @@ export class Office {
     // Fill is deliberately mean. Finish bar item 8 wants p5 <= 70 and item 7
     // wants a light patch with a readable edge; both die the moment the ambient
     // terms are generous enough to fill the shadows back in.
-    rig.hemi.intensity = 0.34;
-    rig.hemi.color.setHex(0xb6cfe6);      // a cool sky, so shadows go blue...
+    // ...but not so mean that the shadow side ends up being the same cream as
+    // the lit side, which is what the round-1 A/B against shot-09 caught: one
+    // temperature everywhere, a shadow that was only a darker version of the
+    // light. The sky term is now strong enough and blue enough to be a SECOND
+    // colour rather than a dimmer of the first, and the flat ambient — the one
+    // term that cannot carry direction or hue information — is cut to make room
+    // for it. p5 has 40 points of headroom before item 8's <= 70 is at risk.
+    rig.hemi.intensity = 0.62;
+    rig.hemi.color.setHex(0x93b8e2);      // a cool sky, so shadows go blue...
     rig.hemi.groundColor.setHex(0x6a6055);
-    rig.ambient.intensity = 0.09;
-    rig.ambient.color.setHex(0xd8dfe8);
+    rig.ambient.intensity = 0.05;
+    rig.ambient.color.setHex(0xc3d4e6);
     this.rig = rig;
 
     this.sunDir = new Vector3().subVectors(rig.key.target.position, rig.key.position).normalize();
@@ -698,14 +797,20 @@ export class Office {
       this.lights.lamps.push(l);
     }
 
-    // bounce off the sunlit floor
+    // Bounce off the sunlit floor. These used to sit 0.42 m up, which put a
+    // round specular hot spot on the polished concrete they are supposed to be
+    // bouncing OFF — visible twice in the round-1 hero frame, and exactly the
+    // tell that a bounce light is a cheat. At 1.15 m the same energy lands on
+    // the undersides of the desks and the wall above the cill, where real
+    // bounce goes, and the highlight it leaves on the slab is wide enough to be
+    // indistinguishable from the sun patch it sits inside.
     this.lights.bounce = [];
     for (const bay of this.room.glazing.slice(0, 3)) {
       const fp = sunPatchFootprint({ ...bay, sill: ROOM.SILL, head: ROOM.HEAD }, this.sunDir);
       if (!fp) continue;
       const mid = fp.near.clone().lerp(fp.far, 0.5);
-      const l = new PointLight(0xffc07a, 2.6, 6.5, 1.6);
-      l.position.set(mid.x, 0.42, mid.z);
+      const l = new PointLight(0xffc07a, 2.2, 7.5, 1.4);
+      l.position.set(mid.x, 1.15, mid.z);
       this.scene.add(l);
       this.lights.bounce.push(l);
     }
@@ -723,11 +828,74 @@ export class Office {
     this.lights.floor = fl;
   }
 
+  // -- light culling ---------------------------------------------------------
+  //
+  // Every visible PointLight is evaluated for EVERY fragment of every
+  // MeshStandardMaterial in a forward renderer, whether or not it can reach the
+  // pixel. Measured on the target GPU (AMD Radeon Pro 5500M) at 2160x1215:
+  // p50 10.5 ms, p95 27.2 ms with ten of them, and the engine's own quality
+  // controller stepped the pixel ratio down three times before settling.
+  //
+  // A point light has a finite `distance`, so it is a sphere, and a sphere
+  // outside the view frustum contributes nothing. Culling them per frame costs
+  // one Frustum build and N sphere tests and typically halves the count — and
+  // it is the reason the three monitor glows could be turned up to a real
+  // intensity without making the budget worse.
+  //
+  // `wantOn` is the switch state (the lamp toggle, the studio tier, soloSun);
+  // `visible` is `wantOn && in frustum` and is owned entirely by _cullLights().
+
+  _collectLights() {
+    const all = [
+      ...this.lights.pendants, ...this.lights.lamps, ...(this.lights.bounce || []),
+      this.lights.tea, this.lights.floor,
+      ...this.workstations.map((w) => w.glow),
+    ].filter(Boolean);
+    for (const l of all) if (l.userData.wantOn === undefined) l.userData.wantOn = l.visible;
+    this._cullable = all;
+    this._frustum = new Frustum();
+    this._frustumM = new Matrix4();
+    this._lightSphere = new Sphere();
+    return all;
+  }
+
+  /** Set a light's switch state. Never write `.visible` on a culled light. */
+  setLightOn(light, on) {
+    if (!light) return;
+    light.userData.wantOn = !!on;
+    light.visible = !!on;      // _cullLights re-decides on the next frame
+  }
+
+  _cullLights() {
+    if (!this._cullable) return 0;
+    this.camera.updateMatrixWorld();
+    this._frustumM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+    this._frustum.setFromProjectionMatrix(this._frustumM);
+    let on = 0;
+    for (const l of this._cullable) {
+      if (!l.userData.wantOn) { l.visible = false; continue; }
+      l.getWorldPosition(this._lightSphere.center);
+      this._lightSphere.radius = l.distance || 8;
+      l.visible = this._frustum.intersectsSphere(this._lightSphere);
+      if (l.visible) on++;
+    }
+    return on;
+  }
+
   // -- contact shadows -------------------------------------------------------
 
   _buildContactShadows() {
     const n = this.shadowPoints.length;
-    const mesh = new InstancedMesh(contactShadowGeometry(), contactShadowMaterial(), Math.max(1, n));
+    const geo = contactShadowGeometry();
+    // Per-instance strength. Every shadow point has carried one since the first
+    // draft and nothing read it, so a mug lid and a plan chest cast the same
+    // pool of dark. It is an instanced attribute rather than instanceColor
+    // because what has to vary is alpha, not colour (see props.js).
+    const strength = new Float32Array(Math.max(1, n)).fill(1);
+    for (let i = 0; i < n; i++) strength[i] = MathUtils.clamp(this.shadowPoints[i].strength ?? 1, 0.15, 1);
+    geo.setAttribute('aStrength', new InstancedBufferAttribute(strength, 1));
+
+    const mesh = new InstancedMesh(geo, contactShadowMaterial(), Math.max(1, n));
     mesh.name = 'contact-shadows';
     mesh.frustumCulled = false;
     mesh.renderOrder = 2;
@@ -775,11 +943,11 @@ export class Office {
       const lamp = this._proxy(ws.slot.x - 0.66, 0.98, ws.slot.z - 0.24, 0.30, 0.48, 0.30);
       I.register({
         id: `lamp-${ws.slot.index}`, mesh: lamp, label: 'Desk lamp',
-        verb: this.lights.lamps[ws.slot.index].visible ? 'Switch off' : 'Switch on',
+        verb: this.lights.lamps[ws.slot.index].userData.wantOn ? 'Switch off' : 'Switch on',
         onUse: (it) => {
           const l = this.lights.lamps[ws.slot.index];
-          l.visible = !l.visible;
-          it.verb = l.visible ? 'Switch off' : 'Switch on';
+          this.setLightOn(l, !l.userData.wantOn);
+          it.verb = l.userData.wantOn ? 'Switch off' : 'Switch on';
           this.ctx?.audio?.play('sfx.light-switch', { position: { x: lamp.position.x, y: 1.0, z: lamp.position.z } });
           this.hud?.setPrompt(`${it.verb} — ${it.label}`);
         },
@@ -911,10 +1079,12 @@ export class Office {
     } else {
       const spec = studioTier(tier);
       for (let i = 0; i < this.lights.pendants.length; i++) {
-        this.lights.pendants[i].visible = i < spec.pendants;
+        this.setLightOn(this.lights.pendants[i], i < spec.pendants);
         this.lights.pendants[i].color.setHex(spec.lampWarmth);
       }
-      for (let i = 0; i < this.lights.lamps.length; i++) this.lights.lamps[i].visible = i < spec.deskLamps;
+      for (let i = 0; i < this.lights.lamps.length; i++) {
+        this.setLightOn(this.lights.lamps[i], i < spec.deskLamps);
+      }
       this.toast(`Studio upgraded: ${spec.name}.`);
       this.invalidateShadows();
     }
@@ -929,12 +1099,50 @@ export class Office {
   assignPlayers(players) {
     const list = (players || []).filter(Boolean);
     for (let i = 0; i < this.workstations.length; i++) {
+      const ws = this.workstations[i];
       const p = list[i] || null;
-      if (this.workstations[i].player?.id === p?.id) continue;
-      this.workstations[i].assign(p, { tier: this.upgrades.computer });
+      // `ws.assigned` is the whole point of this line. Comparing `ws.player?.id`
+      // with `p?.id` treats "never assigned" and "assigned nobody" as the same
+      // state, so an empty desk was skipped every time and never got a screen.
+      if (ws.assigned && (ws.player?.id ?? null) === (p?.id ?? null)) continue;
+      ws.assign(p, { tier: this.upgrades.computer }).then(() => this._auditScreens());
     }
     this._syncAvatars(list.slice(1));
     this.refreshHud();
+  }
+
+  /**
+   * Assert that no monitor in this room is a black rectangle.
+   *
+   * A screen that never lights is the one defect a screenshot cannot show you,
+   * because "black screen" and "no screen" look identical, and createScreen()
+   * used to swallow the difference silently. This samples the actual canvas the
+   * OS is painting once the machines have had time to boot, and says so in the
+   * console if any of them is uniformly dark. Cheap, runs twice per session.
+   */
+  _auditScreens(delay = 9000) {
+    clearTimeout(this._auditTimer);
+    this._auditTimer = setTimeout(() => {
+      const rows = this.workstations.map((ws) => {
+        const l = screenLuma(ws.os);
+        return {
+          desk: ws.slot.index + 1,
+          player: ws.player?.nick || 'empty',
+          mean: l ? +l.mean.toFixed(1) : null,
+          max: l ? Math.round(l.max) : null,
+          glow: ws.glow.intensity,
+        };
+      });
+      const dead = rows.filter((r) => r.mean === null || r.mean < 12);
+      if (dead.length) {
+        console.warn('[office] monitor(s) painting nothing — the in-game OS is not '
+          + 'reaching the desk. This is finish bar item 1 AND the signature '
+          + 'interaction failing at once:', dead, 'all desks:', rows);
+      } else {
+        console.info('[office] screens live:', rows.map((r) => `desk ${r.desk} ${r.player} luma ${r.mean}`).join(', '));
+      }
+      this._screenAudit = rows;
+    }, delay);
   }
 
   _syncAvatars(remote) {
@@ -1001,10 +1209,14 @@ export class Office {
     this.interact.update(dt, input);
 
     if (input?.pressed('office.drop') && this.interact.carry) {
-      this.interact.setDownMug(this.scene, 0.74);
+      // No fixed y: setDownMug looks for a surface. Standing in open floor and
+      // pressing G used to leave a mug hanging at desk height over nothing.
+      const r = this.interact.setDownMug(this.scene);
+      if (!r) this.toast('Nothing to put it down on.');
     }
     if (input?.pressed('cancel') && this.player.seat && !this.interact.focus) this.stand();
 
+    this._decayFocus(dt);
     for (const ws of this.workstations) ws.update(dt, true);
     this.staff.update(dt, this.camera.position);
     if (this.avatars) {
@@ -1014,7 +1226,42 @@ export class Office {
       }
     }
 
+    this._cullLights();
     this.hudEl?.classList.toggle('hover', !!this.interact.hover);
+  }
+
+  // -- focus (the coffee) ----------------------------------------------------
+  //
+  // DESIGN-DECISIONS.md: "Coffee machine -> carry a mug -> sip for a focus
+  // boost". sip() computed a boost from the mug temperature and RETURNED it,
+  // and the one caller threw the value away, so the whole clause was decoration.
+  // It now drives a real, decaying office statistic that (a) shows on the HUD,
+  // (b) is published to state.office.focus, which is where the editor reads its
+  // preview speed and undo depth from, and (c) speeds up the staff, who are the
+  // only thing in the office itself that produces work per second.
+
+  applyFocus(boost) {
+    if (!(boost > 0)) return 0;
+    this.focus = MathUtils.clamp((this.focus || 0) + boost, 0, 1);
+    this.ctx?.state?.set('office.focus', +this.focus.toFixed(3));
+    this.staff?.setFocus?.(this.focus);
+    this.refreshHud();
+    this.toast(`Focus ${(1 + this.focus * 0.5).toFixed(2)}x — the good stuff.`);
+    return this.focus;
+  }
+
+  _decayFocus(dt) {
+    if (!this.focus) return;
+    // Half-life of about three minutes: one cup carries you through a working
+    // stretch of the editor, not through the whole commission.
+    const next = this.focus * Math.exp(-dt / 260);
+    const changed = Math.abs(next - this.focus) > 0.004;
+    this.focus = next < 0.005 ? 0 : next;
+    if (changed || this.focus === 0) {
+      this.ctx?.state?.set('office.focus', +this.focus.toFixed(3));
+      this.staff?.setFocus?.(this.focus);
+      this.refreshHud();
+    }
   }
 
   // =========================================================================
@@ -1093,6 +1340,7 @@ export class Office {
       this.chip(GLYPH.chip, 'Computers', `${c.name}`),
       this.chip(GLYPH.chair, 'Studio', `Tier ${s.tier}`),
       this.chip(GLYPH.staff, 'Staff', `${this.staff.list.length} / ${CUBICLES.length}`),
+      this.focus > 0.01 ? this.chip(GLYPH.focus, 'Focus', `${(1 + this.focus * 0.5).toFixed(2)}x`, true) : '',
     ].join('');
     const code = this.ctx?.state?.get('session.code');
     this.trEl.innerHTML = [
@@ -1125,6 +1373,13 @@ export class Office {
         <div class="blurb">${escapeHtml(String(r[1]))}</div><div></div></div>`).join(''));
   }
 
+  /** The local architect's own desk, or null in a spectator/harness case. */
+  myWorkstation() {
+    const me = this.ctx?.state?.get('session.playerId');
+    return this.workstations.find((w) => w.player && (!me || w.player.id === me))
+      || this.workstations.find((w) => w.player) || null;
+  }
+
   showManagement() {
     const money = this.economy.format();
     const rows = [];
@@ -1144,7 +1399,46 @@ export class Office {
         <div class="price">${this.economy.format(t.hire)}</div>
         <button data-hire="${t.id}">Hire</button></div>`);
     }
+    // Desk personalisation. DESIGN-DECISIONS.md asks for four choices "visible
+    // to other players"; until now PERSONALISATION was an exported list with no
+    // consumer and no way to change anything. Each button steps its category,
+    // rebuilds the geometry on the desk and publishes the choice, so the other
+    // architects in the session see the duck appear.
+    const mine = this.myWorkstation();
+    if (mine) {
+      const p = mine.personal;
+      const step = (key, label, value) => `<div class="row"><div><div class="name">${escapeHtml(label)}</div>
+        <div class="blurb">On your desk, and on everybody else's screen.</div></div>
+        <div class="price">${escapeHtml(String(value))}</div>
+        <button data-personal="${key}">Change</button></div>`;
+      rows.push(step('plant', 'Desk plant', p.plant));
+      rows.push(step('figurine', 'Figurine', p.figurine));
+      rows.push(step('poster', 'Pinned print', p.poster));
+      rows.push(step('mugColor', 'Mug colour', `#${PERSONALISATION.mugColors[p.mugColor % PERSONALISATION.mugColors.length].toString(16).padStart(6, '0')}`));
+    }
+
     this.openPanel('Practice management', `Bank ${money} — one shared account.`, rows.join(''));
+    this.panelEl.querySelectorAll('[data-personal]').forEach((btn) => {
+      btn.onclick = () => {
+        const key = btn.dataset.personal;
+        const ws = this.myWorkstation();
+        if (!ws) return;
+        const lists = {
+          plant: PERSONALISATION.plants, figurine: PERSONALISATION.figurines,
+          poster: PERSONALISATION.posters,
+        };
+        if (key === 'mugColor') {
+          ws.setPersonal({ mugColor: (ws.personal.mugColor + 1) % PERSONALISATION.mugColors.length });
+        } else {
+          const list = lists[key];
+          const i = Math.max(0, list.indexOf(ws.personal[key]));
+          ws.setPersonal({ [key]: list[(i + 1) % list.length] });
+        }
+        this.ctx?.state?.set(`office.personal.${ws.player?.id || 'local'}`, { ...ws.personal });
+        this.invalidateShadows();
+        this.showManagement();
+      };
+    });
     this.panelEl.querySelectorAll('[data-buy]').forEach((btn) => {
       btn.onclick = () => {
         const r = this.upgrades.buy(btn.dataset.buy);
@@ -1193,12 +1487,18 @@ export class Office {
   // midground (the desk row), and a bright background (the glazed wall) with the
   // brick pin-up wall closing the top left.
 
+  // teapoint and models were re-aimed after round 1: both failed item 8 on the
+  // LOW end (p5 84 and 94 against a bar of <= 70) because both were pointed at
+  // plaster and slab with no dark mass anywhere in frame — the teapoint one was
+  // 60 % blank wall. A pose is a claim about how the room photographs, so an
+  // indefensible one is worse than no pose at all. Both now have foreground
+  // furniture and a dark object in shot; the numbers are in the round-2 report.
   static POSES = {
     hero:     { x: 12.85, z: 8.72, yaw: 53, pitch: -3 },
     window:   { x: 9.20, z: 5.40, yaw: 74, pitch: -10 },
     desks:    { x: 7.70, z: 6.60, yaw: 4, pitch: -4 },
-    teapoint: { x: 12.40, z: 7.30, yaw: -74, pitch: -2 },
-    models:   { x: 4.60, z: 7.60, yaw: 40, pitch: -12 },
+    teapoint: { x: 11.10, z: 6.10, yaw: -80, pitch: -4 },
+    models:   { x: 5.90, z: 8.55, yaw: 57, pitch: -6 },
   };
 
   pose(name = 'hero') {
@@ -1215,10 +1515,15 @@ export class Office {
 
   /** Kill every fill so only the sun is left — the way to prove item 7. */
   soloSun(on = true) {
-    this.scene.traverse((o) => { if (o.isPointLight) o.visible = !on && o.userData.wasOn !== false; });
-    this.rig.hemi.intensity = on ? 0.03 : 0.50;
-    this.rig.ambient.intensity = on ? 0.01 : 0.14;
-    this.scene.environmentIntensity = on ? 0.02 : 0.30;
+    this.scene.traverse((o) => {
+      if (!o.isPointLight) return;
+      if (on && o.userData.wasOn === undefined) o.userData.wasOn = o.userData.wantOn ?? o.visible;
+      this.setLightOn(o, on ? false : (o.userData.wasOn ?? true));
+      if (!on) o.userData.wasOn = undefined;
+    });
+    this.rig.hemi.intensity = on ? 0.03 : 0.62;
+    this.rig.ambient.intensity = on ? 0.01 : 0.05;
+    this.scene.environmentIntensity = on ? 0.02 : 0.22;
   }
 
   // =========================================================================
@@ -1276,6 +1581,7 @@ const GLYPH = {
   staff: '<svg viewBox="0 0 16 16" fill="none" stroke="#f3ece1" stroke-width="1.3"><circle cx="6" cy="5.5" r="2.4"/><path d="M1.8 13.6c0-2.4 1.9-3.9 4.2-3.9s4.2 1.5 4.2 3.9"/><path d="M10.8 3.6a2.4 2.4 0 0 1 0 4.4M11.6 9.9c1.6.4 2.7 1.7 2.7 3.7"/></svg>',
   clock: '<svg viewBox="0 0 16 16" fill="none" stroke="#f3ece1" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M8 4.4V8l2.6 1.6"/></svg>',
   key: '<svg viewBox="0 0 16 16" fill="none" stroke="#f3ece1" stroke-width="1.3"><circle cx="5" cy="8" r="2.8"/><path d="M7.8 8H14M12 8v2.6M10 8v2"/></svg>',
+  focus: '<svg viewBox="0 0 16 16" fill="none" stroke="#f3ece1" stroke-width="1.3"><path d="M3.2 6h7.2v4.1a3.6 3.6 0 0 1-7.2 0Z"/><path d="M10.4 6.8h1.5a1.6 1.6 0 0 1 0 3.2h-1.5"/><path d="M5.2 3.4c0-.8.8-.8.8-1.6M8 3.4c0-.8.8-.8.8-1.6"/></svg>',
 };
 
 function escapeHtml(s) {

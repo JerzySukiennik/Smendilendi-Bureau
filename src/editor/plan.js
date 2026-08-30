@@ -24,6 +24,7 @@ const PAPER = 0xf3ece1;
 const DIM = 0x6f6a63;
 const GLASS = 0x4d7f96;
 const FURN = 0x5d574f;         // furniture is drawn a weight lighter than the fabric
+const PLANT = 0x9aa886;        // planting: the lightest thing on the sheet
 const CUT_HEIGHT = 1.20;       // the horizontal section this drawing is taken at
 
 // Heights above the floor. The paper and the poché sit on the floor; the
@@ -31,6 +32,7 @@ const CUT_HEIGHT = 1.20;       // the horizontal section this drawing is taken a
 // swing arc and a room's area are drawn OVER the furniture, the way they are on
 // a real drawing — a sofa does not hide the number an architect is reading.
 const PLAN_Y = 0.010;          // the paper
+const SITE_Y = 0.012;          // planting symbols — UNDER everything the drawing says
 const POCHE_Y = 0.014;         // filled walls
 const LINE_Y = 1.180;          // linework: outlines, swing arcs, dimension strings
 const LABEL_Y = 1.190;         // room names, areas, dimension figures, the north point
@@ -56,6 +58,18 @@ export class PlanDrawing {
     this.poche.renderOrder = 2;
     this.group.add(this.poche);
 
+    // PLANTING IS THE BOTTOM LAYER OF THE SHEET, and it is drawn as an outline.
+    // The trees used to reach the plan as their 3D selves: a solid brown trunk
+    // standing 2.6 m up, i.e. ABOVE the 1.20 m cut and above the linework, so a
+    // retained lime printed a filled disc across the second dimension string and
+    // sat on the figure next to it. A drawing shows a tree as a canopy circle
+    // and a centre cross, in the lightest weight on the sheet, and a dimension
+    // always wins — hence its own layer, under the poché and under the lines.
+    this.site = new LineSegments(new BufferGeometry(), new LineBasicMaterial({ vertexColors: true }));
+    this.site.position.y = SITE_Y;
+    this.site.renderOrder = 2;
+    this.group.add(this.site);
+
     this.lines = new LineSegments(new BufferGeometry(), new LineBasicMaterial({ vertexColors: true }));
     this.lines.position.y = LINE_Y;
     this.lines.renderOrder = 3;
@@ -66,6 +80,16 @@ export class PlanDrawing {
 
     this.version = -1;
     this.levelId = null;
+    this.siteData = null;      // { trees: [{ x, z, radius, protected }] }
+  }
+
+  /**
+   * The site the drawing stands on. The plot owns the trees, so the mode hands
+   * them over once when it builds the site; the drawing turns them into symbols.
+   */
+  setSite(site) {
+    this.siteData = site && site.trees?.length ? site : null;
+    this.version = -1;                  // the next build picks them up
   }
 
   set visible(v) { this.group.visible = v; }
@@ -268,6 +292,25 @@ export class PlanDrawing {
     this._uploadTris(tris);
     this._uploadSegs(segs);
     this._uploadLabels(labels);
+    this._uploadSite(this._siteSegs());
+  }
+
+  /** The planting symbols, clipped to the sheet so nothing is drawn off the paper. */
+  _siteSegs() {
+    const out = [];
+    const s = this.sheet;
+    if (!this.siteData || !s) return out;
+    for (const t of this.siteData.trees || []) {
+      const r = Math.max(0.6, t.radius || 3);
+      if (t.x + r < s.minX || t.x - r > s.maxX || t.z + r < s.minZ || t.z - r > s.maxZ) continue;
+      circle(out, t.x, t.z, r, 40, PLANT);
+      // A retained tree is drawn twice, the way a survey marks one that stays.
+      if (t.protected) circle(out, t.x, t.z, r * 0.93, 40, PLANT);
+      circle(out, t.x, t.z, 0.24, 10, PLANT);
+      out.push({ a: [t.x - 0.42, t.z], b: [t.x + 0.42, t.z], color: PLANT });
+      out.push({ a: [t.x, t.z - 0.42], b: [t.x, t.z + 0.42], color: PLANT });
+    }
+    return out;
   }
 
   _uploadTris(tris) {
@@ -282,7 +325,10 @@ export class PlanDrawing {
     this.poche.geometry = g;
   }
 
-  _uploadSegs(segs) {
+  _uploadSegs(segs) { this._uploadInto(this.lines, segs); }
+  _uploadSite(segs) { this._uploadInto(this.site, segs); }
+
+  _uploadInto(target, segs) {
     const n = segs.length;
     const pos = new Float32Array(n * 6);
     const col = new Float32Array(n * 6);
@@ -297,8 +343,8 @@ export class PlanDrawing {
     g.setAttribute('position', new BufferAttribute(pos, 3));
     g.setAttribute('color', new BufferAttribute(col, 3));
     g.computeBoundingSphere();
-    this.lines.geometry.dispose();
-    this.lines.geometry = g;
+    target.geometry.dispose();
+    target.geometry = g;
   }
 
   _uploadLabels(labels) {
@@ -324,6 +370,8 @@ export class PlanDrawing {
     this.poche.material.dispose();
     this.lines.geometry.dispose();
     this.lines.material.dispose();
+    this.site.geometry.dispose();
+    this.site.material.dispose();
     this.paper.geometry.dispose();
     this.paper.material.dispose();
     this.group.parent?.remove(this.group);
@@ -577,6 +625,18 @@ function planLabel(text, sub, size, color = '#2b2825') {
     new MeshBasicMaterial({ map: tex, transparent: true, side: DoubleSide, depthWrite: false }),
   );
   return m;
+}
+
+/** A circle as a closed polyline, in world (x, z). */
+function circle(segs, cx, cz, r, steps, color) {
+  for (let i = 0; i < steps; i++) {
+    const t0 = (i / steps) * Math.PI * 2, t1 = ((i + 1) / steps) * Math.PI * 2;
+    segs.push({
+      a: [cx + Math.cos(t0) * r, cz + Math.sin(t0) * r],
+      b: [cx + Math.cos(t1) * r, cz + Math.sin(t1) * r],
+      color,
+    });
+  }
 }
 
 function colorTriplet(hex) {

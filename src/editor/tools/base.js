@@ -44,6 +44,20 @@ export class Tool {
   flash(msg) { this.ed.hud?.flash(msg); }
   setDisplay(v) { this.ed.measurements.setDisplay(v); }
 
+  /**
+   * TRUE WHILE A NUMBER IS BEING TYPED — and then every printable key belongs
+   * to the Measurements box, not to the tool.
+   *
+   * editor.js gives the tool first refusal on every key so a tool can own a
+   * modifier, and a tool that owns a key UNCONDITIONALLY steals it out of the
+   * middle of a number: the Door tool ate the comma of "900,2100" (its own
+   * label asks for "Width, height") and committed a 9 002 100 mm door, the Wall
+   * tool's [ and ] would eat the brackets of a typed coordinate, the Slab tool's
+   * R would eat the r of "4r". Every tool key that is a character the box can
+   * accept is guarded on this.
+   */
+  get typing() { return !!this.ed.measurements.typing; }
+
   /** Refuse, and say why on the error line of the Measurements box. */
   refuse(msg) {
     this.ed.measurements.setError(msg);

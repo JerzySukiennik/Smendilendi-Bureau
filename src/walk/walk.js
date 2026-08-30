@@ -39,10 +39,11 @@ import { buildMeshes, disposeBuilt } from '../model/geometry.js';
 import { buildProcShape } from '../model/proc-shapes.js';
 import { entry as catalogEntry, tryEntry } from '../model/catalog.js';
 import { entryOf } from '../analysis/catalogue.js';
+import { canonicalKey } from '../analysis/classify.js';
 import { runAnalysis } from '../analysis/index.js';
 
 import { buildNav, PERSON_WIDTH, PASSING_WIDTH } from './navmesh.js';
-import { buildPopulation, rosterKeyFor, rngFrom, nextGoal, dwellFor, GOALS } from './roles.js';
+import { buildPopulation, rosterKeyFor, rngFrom, nextGoal, dwellFor, fitDayToBuilding, GOALS } from './roles.js';
 import { Crowd } from './npc.js';
 import { Heatmap } from './heatmap.js';
 import { Stats, renderReport } from './stats.js';
@@ -225,8 +226,12 @@ export class WalkthroughMode extends Mode {
 
     const q = new URLSearchParams(location.search);
     const brokenDemo = q.get('walk') === 'broken';
+    // `?walk=pinch` is the CLEAR WIDTH fixture: the same house with a 120 mm
+    // pilaster in the corridor, which takes it from 1.20 m to a hand-measured
+    // 0.700 m over 120 mm of its length. Asserted in src/walk/check-widths.mjs.
+    const pinchDemo = q.get('walk') === 'pinch';
     const kg = q.get('plan') === 'kindergarten';
-    const fallbackModel = () => (kg ? demoKindergarten({ broken: brokenDemo }) : demoModel({ broken: brokenDemo }));
+    const fallbackModel = () => (kg ? demoKindergarten({ broken: brokenDemo }) : demoModel({ broken: brokenDemo, pinch: pinchDemo }));
     const fallbackBrief = () => (kg ? kindergartenCommission(brokenDemo) : demoCommission(brokenDemo));
     this.model = params.model || this.ctx?.state?.get('model') || fallbackModel();
     this.commission = params.commission || this.ctx?.state?.get('commission') || fallbackBrief();
@@ -442,6 +447,22 @@ export class WalkthroughMode extends Mode {
       cap: want || cap,
       want,
     });
+    // The roster is written for a BUILDING TYPE; the timetable has to fit THIS
+    // DRAWING. A goal whose rooms the client never asked for and the architect
+    // never drew is dropped here, before anybody sets off — see the note on
+    // `fitDayToBuilding`. What is NOT dropped is a goal whose room the brief
+    // does list: walking to a study the client asked for and finding it missing
+    // is the finding, and it still happens.
+    const briefKinds = new Set();
+    for (const line of this.brief?.program ?? []) {
+      const k = canonicalKey(line?.key ?? line?.name);
+      if (k) briefKinds.add(k);
+    }
+    const fitted = fitDayToBuilding(this.population, {
+      has: (kind) => this.nav.roomsOfKind(kind).length > 0,
+      asked: (kind) => briefKinds.has(kind),
+    });
+    this._droppedGoals = fitted.dropped;
     // TWO grids, and they are not the same measurement.
     //
     // `heat` is MOVEMENT: metres walked, fed only by addPath. It is what the
@@ -934,8 +955,18 @@ export class WalkthroughMode extends Mode {
     if (room !== this._lastRoom) {
       this._lastRoom = room;
       this.el.roomName.textContent = room ? this.nav.labelOf(room) : 'outside';
+      // The clear width where he is standing, measured the way the report
+      // measures it — a SPAN across the passage, not this cell's own distance
+      // to the nearest obstruction. `widthAt` is the distance transform: stand
+      // 350 mm off the skirting of a 1.40 m corridor and it reads 0.70 m, and
+      // the HUD would be contradicting the post-occupancy sheet in the same
+      // building, in the same room, on the same grid.
+      const cell = this.nav.indexAt(this.player.x, this.player.z, this.playerLevel);
+      const clear = cell >= 0
+        ? this.nav.passageWidth(cell, 0, 0)
+        : this.nav.widthAt(this.player.x, this.player.z, this.playerLevel);
       this.el.roomArea.textContent = room
-        ? `${this.nav.areaOf(room).toFixed(1)} m²  ·  clear ${(this.nav.widthAt(this.player.x, this.player.z, this.playerLevel)).toFixed(2)} m`
+        ? `${this.nav.areaOf(room).toFixed(1)} m²  ·  clear ${clear.toFixed(2)} m`
         : '';
     }
 

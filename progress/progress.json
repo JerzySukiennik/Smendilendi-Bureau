@@ -607,7 +607,162 @@
    "status": "fail",
    "headline": "6.5/10 — the four signed-off levels are genuinely correct end-to-end (verified independently, measured on the live gain nodes, 0 divergences over 55 call sites), but the verifier that is supposed to k",
    "at": "2026-08-28T23:23:14.550Z"
+  },
+  {
+   "piece": "os",
+   "role": "critic",
+   "round": 1,
+   "status": "pass",
+   "headline": "19/20 on the authenticity checklist. Win/Platinum chrome is pixel-exact against the reference PNGs (title 18/22 px, caption 16x14, Start button 54x22 at the same coordinates, Platinum title column byte-identical to macos8-03). Fails #15: Programs/Documents cascades carry no mnemonics. Major bug: clicking a Start-menu cascade closes the parent menu (os.js:569) and hover never opens one. Close-box X is 1 px where Win95 is 2 px; toolbar buttons flat on the Win95-era tier; one font across all four OSes.",
+   "shot": "shots/crit-os-r1-ab.png",
+   "at": "2026-08-29T19:02:46.285Z"
+  },
+  {
+   "piece": "os",
+   "role": "critic",
+   "round": 1,
+   "status": "pass",
+   "headline": "19/20 — Behaviour, not pixels. The Start-menu cascade is broken: os.js:569 sets `this.startOpen = false` before opening a submenu, so clicking \"Programs\" makes the parent Start menu vanish and leaves ",
+   "at": "2026-08-29T19:04:22.121Z"
+  },
+  {
+   "piece": "editor",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "6/6 click benchmarks met (3/3/2/3/4/3 vs 6/3/6/3/5/3) and every inference names itself in the right colour, but three typed-entry defects put wrong geometry in the model silently: Rectangle post-hoc retype draws a SECOND overlapping rectangle (4 walls -> 12), Rectangle+Alt doubles a typed 6000,4000 into 12000x8000 off-centre, and the Door tool eats the comma its own Width,height label asks for (900,2100 -> 9002100 mm).",
+   "shot": "shots/critE-07-rect-posthoc-corruption.png",
+   "at": "2026-08-29T19:15:43.071Z"
+  },
+  {
+   "piece": "editor",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "6/6 click benchmarks met — The keyboard is always live, but it is not always *right*. Three typed entries put geometry into the model that is not what the architect typed, silently and with no error: ",
+   "at": "2026-08-29T19:18:29.095Z"
+  },
+  {
+   "piece": "office",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "12/15 finish bar. Blocker: monitor screen quad sits 0.74 m low (world y 0.402) so the OS renders under the desk and clicking flies the camera to 0.40 m under the desk; empty workstations are never assigned so 2 of 3 screens are dead black. Bar fails 4 (boxes have no contact shadow), 5 (wall/ceiling junction has a bright 199-luma seam instead of an AO band, delta 0/255), 10 (accent readable once, not 2-4x). A/B gives us away as the flat one.",
+   "shot": "shots/office-hero.png",
+   "at": "2026-08-29T19:26:13.256Z"
+  },
+  {
+   "piece": "menu",
+   "role": "critic",
+   "round": 2,
+   "status": "fail",
+   "headline": "13/15 on the look; the 20 fps is a measurement artefact — a menu frame costs 4.2 ms and is resolution-independent, while engine._adapt has driven dpr 1.75->1.00 for nothing",
+   "shot": "shots/crit-menu-r2-base.png",
+   "gap": "6 of the 12 crimes are not legible at the default menu framing, and untagged apparent defects make deliberate wrongness indistinguishable from sloppiness",
+   "detail": "renderer.render offscreen with gl.finish: 4.1-4.2 ms at 0.09/0.36/1.44/4.41 Mpx (49x pixel range, flat). 20 identical frames: 77 draws, 0 texImage2D, 0 bufferData, 0 compileShader, 0 bindFramebuffer. shadowMap.autoUpdate=false. mode.update 0.2-0.5 ms. engine.js:324+344 frameMs = performance.now() - rafTimestamp = scheduling latency; quality.stepCount=3, _rejected=260, pixelRatio 1.75->1.00 floor. luma p5 36.2 p95 212.2. Contact shadows: 14/26 instances pass, all 5 bollards fail (delta 0.5-5.4) due to 1024 map = 58.6 mm/texel; 4096 measured free (steady 5.2->5.2 ms, one-off bake 5.6 ms). lobby.js:137 says orange tags, in-world discs sample #3E7899.",
+   "files": [
+    "src/menu/menu.js",
+    "src/menu/lobby.js",
+    "src/menu/bad-building.js",
+    "src/core/engine.js"
+   ],
+   "metrics": {
+    "lookScore": "13/15",
+    "renderMsOffscreen": 4.2,
+    "drawCalls": 77,
+    "triangles": 158880,
+    "lumaP5": 36.2,
+    "lumaP95": 212.2,
+    "contactShadowPassRate": "14/26",
+    "crimesLegibleFromRender": "3 clear + 3 partial of 12"
+   },
+   "at": "2026-08-29T19:28:03.855Z"
+  },
+  {
+   "piece": "office",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "12/15 — The retro-OS screen quad is parented to the workstation Group at floor level but positioned with MONITOR_SCREEN.y = 0.4025, which is a MONITOR-LOCAL offset. Measured at runtime: screen world p",
+   "at": "2026-08-29T19:28:44.010Z"
+  },
+  {
+   "piece": "walkthrough",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "Pathfinding is honest — 0 wall crossings and 0 furniture overlaps across 59,849 agent-frame samples in three plans the code had never seen, and the annoyed NPC stops 0.3 m from the door I deleted. But navmesh.js passageWidth() takes a MAXIMUM over the cell quarters, so a 1.40 m corridor pinched to a hand-measured 0.700 m still reports 1.400 m, and an 0.80 m corridor reports 7.800 m opposite a doorway; and the report bills the architect for a study the generated house brief never asked for.",
+   "shot": "shots/crit-walk-B-missing-door.png",
+   "at": "2026-08-29T19:29:50.507Z"
+  },
+  {
+   "piece": "menu",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "13/15 — The joke does not survive the framing it ships in. Working blind from the render I could name only 3 of the 12 crimes cleanly (5 short column, 8 window heads, 10 chimney) and 3 partially (2 fi",
+   "at": "2026-08-29T19:30:04.890Z"
+  },
+  {
+   "piece": "walk",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "Navmesh truth 9/10 · NPC roles & schedule 9/10 · Statistics honesty 5/10 · Heatmap 9/10 · Ageing 9/10 · Transition 10/10 · Performance 9/10 · Console 10/10 — overall 7/10 — `passageWidth()` (src/walk/",
+   "at": "2026-08-29T19:31:45.942Z"
+  },
+  {
+   "piece": "audio-levels",
+   "role": "builder",
+   "round": 3,
+   "status": "pass",
+   "headline": "Three more ways to move a signed-off level found and closed (setVolume with optional chaining, audio.volumes write, audio.mix write) — mix deep-frozen, volumes is a read-only copy, scanner regex fixed; 22/22 checks, 12/12 known attacks now exit 1, 69 paths measured on live gain nodes with 0 divergences",
+   "shot": "shots/audio-levels-r2.png",
+   "at": "2026-08-29T19:34:32.209Z"
+  },
+  {
+   "piece": "editor",
+   "role": "builder",
+   "round": 2,
+   "status": "pass",
+   "headline": "Rectangle post-hoc revision, Alt-from-centre halving, door comma freed, finish names, one-line Measurements box, planting as plan symbols, typed vectors honoured",
+   "shot": "shots/editor-r2.png",
+   "at": "2026-08-29T20:04:25.700Z"
+  },
+  {
+   "piece": "audio-levels",
+   "role": "critic",
+   "round": 3,
+   "status": "fail",
+   "headline": "Four signed-off gains exact and honoured at all 77 call sites (0 divergences, review chip bit-exact to 1e-12, office-ambient-2 now plays as playlist track 2). BLOCKER: verify-signoff.mjs is blind to AudioBus construction — new AudioBus({mix}) / {manifestPath} restate every level permanently and all checks still pass; measured 0.0567 vs the promised 0.127575.",
+   "shot": "shots/crit-audio-r3-levels.png",
+   "at": "2026-08-29T20:05:09.028Z"
+  },
+  {
+   "piece": "audio-levels",
+   "role": "critic",
+   "round": 2,
+   "status": "fail",
+   "headline": "7/10 — the four signed-off levels are exact and are honoured at every one of the 77 playback paths I found independently; the sign-off GUARANTEE is still defeatable, in the same shape as rounds 2/4/5.",
+   "at": "2026-08-29T20:06:50.624Z"
+  },
+  {
+   "piece": "os",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "19/20 on the authenticity checklist — chrome is pixel-exact against the reference (18px caption, 16x14 caption buttons, 16px scrollbar with a 7x4 triangle, 54x22 Start, 20px menu items, 12 distinct colours vs win95-09s 17, exact 12-row Platinum pinstripe). Two real defects: setTier(sameTier,{boot:false}) early-returns so the offices skipBoot() is a silent no-op (empty desks play the full 5s boot), and the 32x32 icons are flat 3-colour glyphs with no dithered highlight — they are what lost the blind A/B.",
+   "shot": "shots/crit2-os-ab.png",
+   "at": "2026-08-29T20:38:44.769Z"
+  },
+  {
+   "piece": "os",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "19/20 — The 32x32 icon art. Every geometric and chromatic measurement in the chrome matches the reference to the pixel, but the icons are flat 3-4 colour front-on glyphs where Win95's are 4-bit, 3/4-p",
+   "at": "2026-08-29T20:40:36.344Z"
   }
  ],
- "updated": "2026-08-28T23:23:14.550Z"
+ "updated": "2026-08-29T20:40:36.344Z"
 }

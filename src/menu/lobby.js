@@ -132,9 +132,15 @@ export class Lobby {
     root.appendChild(tools);
 
     // --- bottom right: the hint -------------------------------------------
+    // BLUE, not orange. The discs in the scene are survey blue (#3f6a86, set by
+    // TAG_FACE in menu.js) and have been since the round that moved them off the
+    // accent; this sentence was not updated with them and spent a whole round
+    // telling the player to look for a colour that is not there. The chips in
+    // the report panel are orange, which is why it read as true to whoever wrote
+    // it — but this line points at the scene, not at the panel.
     const hint = el('div', 'mn-hint');
     hint.innerHTML = `The signage is the menu — hover a line.<br>
-      <span class="mn-dim">The orange tags are the defects. There are ${this.crimes.length}.</span>`;
+      <span class="mn-dim">The blue tags are the ${this.crimes.length} defects. Click one and the camera goes there.</span>`;
     root.appendChild(hint);
     this.hint = hint;
 
@@ -194,13 +200,43 @@ export class Lobby {
 
   // -- the surveyor's tag tooltip -------------------------------------------
 
-  /** `at` is {x, y} in 0..1 viewport space, from the mode's projection. */
-  showTag(crime, at) {
+  /**
+   * `at` is {x, y} in 0..1 viewport space, from the mode's projection.
+   *
+   * Two states. HOVERING, the card chases the disc and stays off the defect it
+   * is diagnosing. PINNED — the camera has flown to that crime's own framing —
+   * it parks in the top-left corner and grows a `‹ 4 / 12 ›` stepper, because
+   * once the camera is doing the work the card must stop moving and must offer
+   * a way through the schedule without going back to the hero shot each time.
+   */
+  showTag(crime, at, pinned = false) {
+    const i = this.crimes.indexOf(crime);
+    this.tagCard.classList.toggle('mn-tag-pinned', !!pinned);
     this.tagCard.innerHTML = `
       <div class="mn-tag-head"><b>${crime.n}</b>${esc(crime.title)}</div>
       <p>${esc(crime.text)}</p>
-      <div class="mn-tag-code">${esc(crime.code)}</div>`;
+      <div class="mn-tag-code">${esc(crime.code)}</div>
+      ${pinned ? `<div class="mn-step">
+        <button class="mn-step-b" data-step="-1" aria-label="Previous defect">&#8249;</button>
+        <span>${i + 1} / ${this.crimes.length}</span>
+        <button class="mn-step-b" data-step="1" aria-label="Next defect">&#8250;</button>
+        <button class="mn-step-x" data-step="0">Back to the street</button>
+      </div>` : ''}`;
     this.tagCard.hidden = false;
+    if (pinned) {
+      // A fixed berth. Nothing here may follow the pointer: the player is
+      // reading, and the camera is already moving.
+      this.tagCard.style.left = '';
+      this.tagCard.style.top = '';
+      this.tagCard.querySelectorAll('[data-step]').forEach((b) => {
+        b.addEventListener('click', () => {
+          const d = Number(b.dataset.step);
+          const n = this.crimes.length;
+          this.opts.onCrimeFocus?.(d === 0 ? -1 : (i + d + n) % n);
+        });
+      });
+      return;
+    }
     const w = window.innerWidth, h = window.innerHeight;
     // The card goes on the side of the pin with room for it, so it never lands
     // on the defect it is diagnosing — round 1 put tag 2's card straight over the
@@ -214,7 +250,10 @@ export class Lobby {
     this.tagCard.style.top = `${Math.round(top)}px`;
   }
 
-  hideTag() { this.tagCard.hidden = true; }
+  hideTag() {
+    this.tagCard.hidden = true;
+    this.tagCard.classList.remove('mn-tag-pinned');
+  }
 
   // -- panels ---------------------------------------------------------------
 
@@ -226,10 +265,15 @@ export class Lobby {
       <div class="mn-body">${bodyHtml}</div>`;
     p.querySelector('.mn-x').addEventListener('click', () => this.closePanel());
     this.veil.appendChild(p);
+    this.veil.classList.toggle('mn-veil-dock', cls.includes('mn-dock'));
     this.veil.hidden = false;
     this._panel = p;
     this.opts.onBlock?.(true);
-    if (cls.includes('mn-wide')) this.opts.onTagsHot?.(true);
+    if (cls.includes('mn-wide') || cls.includes('mn-dock')) this.opts.onTagsHot?.(true);
+    // A docked panel tells the mode how much of the frame it has taken, and the
+    // camera pans so the building stands in the half that is left. A modal that
+    // covers the thing it is describing is the failure this round is fixing.
+    this.opts.onDock?.(cls.includes('mn-dock') ? (p.offsetWidth + 44) : 0);
     this.hideTag();
     this.ctx?.audio?.play('ui.window-open');
     return p;
@@ -240,8 +284,10 @@ export class Lobby {
     this._panel.remove();
     this._panel = null;
     this.veil.hidden = true;
+    this.veil.classList.remove('mn-veil-dock');
     this.opts.onBlock?.(false);
     this.opts.onTagsHot?.(false);
+    this.opts.onDock?.(0);
     this.ctx?.audio?.play('ui.window-close');
   }
 
@@ -459,6 +505,15 @@ export class Lobby {
 
   // -- the surveyor's report ------------------------------------------------
 
+  /**
+   * The schedule, DOCKED down the left rather than centred over the scene.
+   *
+   * Hovering a row already flew the camera to that crime — and the panel it flew
+   * behind was 880 px of opaque card in the middle of the screen, so the player
+   * read twelve diagnoses of a building they could not see. It is a 430 px
+   * column now, the veil no longer dims, and _openPanel hands the mode the width
+   * so the camera pans the building into the clear half of the frame.
+   */
   openReport(focus = -1) {
     const rows = this.crimes.map((c) => `
       <li data-n="${c.n}" class="${c.n - 1 === focus ? 'on' : ''}">
@@ -467,8 +522,9 @@ export class Lobby {
       </li>`).join('');
     const p = this._openPanel("Surveyor's report — 17 Ambition Road", `
       <p class="mn-lead">Condition survey, ${this.crimes.length} defects, all visible from the street.
-      Every one of them is a real thing a real building has done to a real architect.</p>
-      <ol class="mn-report">${rows}</ol>`, 'mn-wide');
+      Every one of them is a real thing a real building has done to a real architect.
+      Point at a line and the camera goes and stands in front of it.</p>
+      <ol class="mn-report">${rows}</ol>`, 'mn-dock');
     if (focus >= 0) {
       const li = p.querySelector(`li[data-n="${focus + 1}"]`);
       li?.scrollIntoView({ block: 'center' });

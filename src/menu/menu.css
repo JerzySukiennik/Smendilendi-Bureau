@@ -156,6 +156,52 @@
   place-items: center;
 }
 .mn-tag p { margin: 0; color: var(--text-dim); }
+
+/* Pinned: the camera has flown to this crime's own framing, so the card parks
+   and stops chasing the pointer. Top left, clear of the hint and the report
+   chip, and wider because it is now something you read rather than glance at. */
+.mn-tag.mn-tag-pinned {
+  left: 22px !important;
+  top: 96px !important;
+  width: 372px;
+  pointer-events: auto;
+}
+.mn-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.mn-step > span { font-family: var(--font-mono); letter-spacing: 0.04em; }
+.mn-step-b {
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  width: 26px; height: 24px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.mn-step-b:hover { background: var(--accent); color: #1c1b19; border-color: var(--accent); }
+.mn-step-x {
+  font: inherit;
+  font-size: 11.5px;
+  margin-left: auto;
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.mn-step-x:hover { color: var(--accent); }
 .mn-tag-code {
   margin-top: 8px;
   font-family: var(--font-mono);
@@ -176,6 +222,19 @@
 }
 .mn-veil[hidden] { display: none; }
 
+/* The surveyor's report docks down the left and does NOT dim the scene: the
+   whole point of the panel is that pointing at a line sends the camera to that
+   defect, and a 50 % veil over the answer defeats it. Everything else — the
+   settings, the credits, the multiplayer lobby — stays a centred modal, because
+   none of those are about something happening behind them. */
+.mn-veil.mn-veil-dock {
+  background: none;
+  place-items: stretch start;
+  padding: 22px;
+  pointer-events: none;
+}
+.mn-veil.mn-veil-dock > .mn-panel { pointer-events: auto; }
+
 .mn-panel {
   width: min(520px, 92vw);
   max-height: 88vh;
@@ -184,6 +243,11 @@
   overflow: hidden;
 }
 .mn-panel.mn-wide { width: min(880px, 94vw); }
+.mn-panel.mn-dock {
+  width: min(430px, 42vw);
+  max-height: none;
+  align-self: stretch;
+}
 .mn-panel header {
   display: flex;
   align-items: center;

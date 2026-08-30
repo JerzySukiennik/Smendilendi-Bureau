@@ -80,5 +80,52 @@ export const EYE_HEIGHT = 1.65;
 /** Undo history depth by in-game computer tier (DESIGN-DECISIONS.md). */
 export const HISTORY_BY_TIER = [8, 8, 24, 80, 250];
 
+/**
+ * WHAT A FINISH IS CALLED ON SCREEN.
+ *
+ * The palette used to caption its swatches with the catalogue key —
+ * "polishedConcrete", "timberFloor", "tileFloor" — which is a variable name, not
+ * a specification, and it was being read by an architect. Money and the classes
+ * themselves stay where they are (MATERIAL_PRICES in model/catalog.js,
+ * MATERIAL_CLASSES in core/palette.js, ARCHITECTURE.md rule 7); this table adds
+ * nothing but the words, and it is the editor's, because the editor is what
+ * shows them. Names are the ones that appear on a finishes schedule.
+ */
+export const MATERIAL_NAMES = {
+  plaster: 'Plaster',
+  'plaster-warm': 'Plaster',
+  paint: 'Paint',
+  brick: 'Exposed brick',
+  stone: 'Stone cladding',
+  concrete: 'Fair-faced concrete',
+  polishedConcrete: 'Polished concrete',
+  tile: 'Wall tiling',
+  terrazzo: 'Terrazzo',
+  wood: 'Timber boarding',
+  'wood-mid': 'Timber boarding',
+  render: 'External render',
+  metal: 'Metal cladding',
+  glass: 'Glazing',
+  screed: 'Cement screed',
+  timberFloor: 'Timber floor',
+  tileFloor: 'Ceramic tile floor',
+  vinyl: 'Vinyl',
+  carpet: 'Carpet',
+  decking: 'Timber decking',
+  grass: 'Grass',
+  paving: 'Paving',
+  gravel: 'Gravel',
+  asphalt: 'Asphalt',
+};
+
+/** The finish's name for a human; never the catalogue key. */
+export function materialName(id) {
+  if (!id) return '';
+  if (MATERIAL_NAMES[id]) return MATERIAL_NAMES[id];
+  // Last resort for an id nobody has named yet: camelCase / kebab-case -> words.
+  const words = String(id).replace(/[-_]+/g, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 export const DEFAULT_DOOR = 'door-internal-900';   // 0.90 x 2.05 m, the real leaf
 export const DEFAULT_WINDOW = 'window-1200x1400';  // 1.20 x 1.40 m, sill 0.85

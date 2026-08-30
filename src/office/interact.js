@@ -40,9 +40,14 @@ export class Interaction {
     this._v = new Vector3();
     this._q = new Quaternion();
 
-    // white hover outline, one object reused for everything
+    // White hover outline, one object reused for everything.
+    //
+    // depthTest stays ON. With it off the outline drew through walls, desks and
+    // partitions, so it advertised things the player could not see — and with
+    // the occlusion test below in place, a hover that survives to be drawn is by
+    // definition unoccluded, which means the outline never needs to cheat.
     this.outline = new LineSegments(new EdgesGeometry(new BoxGeometry(1, 1, 1)),
-      new LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthTest: false, toneMapped: false }));
+      new LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthTest: true, toneMapped: false }));
     this.outline.renderOrder = 10;
     this.outline.visible = false;
     this.scene.add(this.outline);
@@ -53,6 +58,31 @@ export class Interaction {
     this.carry = null;              // { mesh, kind, temp, sips }
     this.projectiles = [];
     this.litter = null;             // Group of thrown paper on the floor
+    this.onSip = opts.onSip || null;
+    this._occluders = [];           // solid geometry that blocks the hover ray
+    this._occRay = new Raycaster();
+  }
+
+  /**
+   * The solid world: the room shell, the merged prop batch and the instanced
+   * pools. The hover raycast tests only the ~19 registered interactable meshes,
+   * so without this NOTHING blocks it — a player seated at workstation 1 could
+   * hover and click the screens of workstations 0 and 2 straight through two
+   * desks and a partition, picking a different desk depending on pitch.
+   */
+  setOccluders(list) {
+    this._occluders = (list || []).filter((m) => m && m.isObject3D);
+    return this._occluders;
+  }
+
+  /** True if solid geometry stands between the camera and `distance` along the ray. */
+  _occluded(distance) {
+    if (!this._occluders.length) return false;
+    this._occRay.set(this.ray.ray.origin, this.ray.ray.direction);
+    this._occRay.near = 0.02;
+    this._occRay.far = Math.max(0.03, distance - 0.03);
+    const hit = this._occRay.intersectObjects(this._occluders, true)[0];
+    return !!hit;
   }
 
   register(item) {
@@ -86,7 +116,10 @@ export class Interaction {
     let found = null;
     for (const h of hits) {
       const it = h.object.userData.interact;
-      if (it && it.enabled && h.distance <= it.range) { found = it; break; }
+      if (!it || !it.enabled || h.distance > it.range) continue;
+      if (this._occluded(h.distance)) continue;
+      found = it;
+      break;
     }
     if (found !== this.hover) {
       this.hover = found;
@@ -177,6 +210,10 @@ export class Interaction {
 
   _updateFocus(dt, input) {
     const f = this.focus;
+    // Escape reverses the flight AT ANY POINT. This test used to live inside
+    // the `f.t >= 1` branch, so for the whole 0.85 s approach the player had no
+    // way out of a transition they had just triggered by accident.
+    if (f.dir > 0 && input?.pressed('cancel')) { this.releaseScreen(); return; }
     f.t = Math.min(1, f.t + dt / f.duration);
     const k = EASE(f.t);
     this.camera.position.lerpVectors(f.from.pos, f.to.pos, k);
@@ -266,23 +303,43 @@ export class Interaction {
       this.camera.remove(c.mesh);
       this.carry = null;
     }
+    // The office consumes this. It used to be returned into a discarded value,
+    // which made "sip for a focus boost" in DESIGN-DECISIONS.md a lie.
+    this.onSip?.(boost, c.temp);
     return { boost, temp: c.temp };
   }
 
-  /** Put the mug down on the surface in front of you. */
-  setDownMug(scene, y = 0.74) {
+  /**
+   * Put the mug down ON SOMETHING. A downward raycast against the real world
+   * picks the surface; there is no fixed height any more, because passing one
+   * meant that standing in open floor and pressing G left a mug floating at
+   * desk height over nothing.
+   */
+  setDownMug(scene, y = null) {
     const c = this.carry;
     if (!c) return false;
     const p = this.camera.getWorldPosition(new Vector3());
     const d = new Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
     d.y = 0; d.normalize();
-    const at = p.addScaledVector(d, 0.65);
+    const at = p.clone().addScaledVector(d, 0.65);
+
+    let surfaceY = y;
+    if (surfaceY == null) {
+      this._occRay.set(new Vector3(at.x, Math.max(p.y, 1.6), at.z), new Vector3(0, -1, 0));
+      this._occRay.near = 0;
+      this._occRay.far = 3.2;
+      const hit = this._occRay.intersectObjects(this._occluders, true)[0];
+      surfaceY = hit ? hit.point.y : 0;
+      // A mug goes on a desk, a counter or a plan chest — not on the floor and
+      // not on top of a bookcase you cannot reach over.
+      if (surfaceY < 0.30 || surfaceY > 1.25) return false;
+    }
     this.camera.remove(c.mesh);
-    c.mesh.position.set(at.x, y, at.z);
+    c.mesh.position.set(at.x, surfaceY + 0.002, at.z);
     c.mesh.rotation.set(0, Math.random() * 6.28, 0);
     c.mesh.scale.setScalar(1);
     scene.add(c.mesh);
-    this.audio?.play('sfx.mug-set-down', { position: { x: at.x, y, z: at.z } });
+    this.audio?.play('sfx.mug-set-down', { position: { x: at.x, y: surfaceY, z: at.z } });
     this.carry = null;
     return true;
   }

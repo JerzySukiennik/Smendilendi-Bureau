@@ -7,7 +7,8 @@
     "test": "node tools/smoke.mjs --quiet",
     "smoke": "node tools/smoke.mjs",
     "verify:audio": "node assets/audio/build/verify-signoff.mjs",
-    "verify:audio:fast": "node assets/audio/build/verify-signoff.mjs --fast"
+    "verify:audio:fast": "node assets/audio/build/verify-signoff.mjs --fast",
+    "verify:audio:attacks": "node assets/audio/build/attack-suite.mjs"
   },
   "keywords": [],
   "author": "",

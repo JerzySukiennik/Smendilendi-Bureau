@@ -120,7 +120,7 @@ def setup_world():
     fill.rotation_euler = (math.radians(66), 0, math.radians(-52))
 
 
-def render_one(glb, item, tile, out_png):
+def render_one(glb, item, tile, out_png, yaw_deg=-34.0, top=False):
     clear()
     setup_world()
     ground = mat('ground', (0.74, 0.72, 0.69), 0.95)
@@ -157,8 +157,12 @@ def render_one(glb, item, tile, out_png):
     # degrees, so the distance that actually fits `span` is span / (2 tan(fov/2)).
     fov = 2 * math.atan(18.0 / 50.0)
     radius = max(span_x, span_z, 0.9) / (2 * math.tan(fov / 2)) * 1.22
-    yaw = math.radians(-34)
+    yaw = math.radians(yaw_deg)
     cam_z = EYE if span_z < 2.2 else span_z * 0.72
+    if top:
+        # a look-down, for the things whose defect lives on a horizontal face:
+        # a bowl floor, a worktop, a drip tray, a seat.
+        cam_z = max(span_z, 1.2) + radius * 0.62
     cam_pos = target + Vector((math.sin(yaw) * -radius, -math.cos(yaw) * radius, 0))
     cam_pos.z = cam_z
     bpy.ops.object.camera_add(location=cam_pos)
@@ -172,7 +176,8 @@ def render_one(glb, item, tile, out_png):
     ink.use_nodes = True
     ink.node_tree.nodes['Principled BSDF'].inputs['Emission Color'].default_value = (0.05, 0.05, 0.06, 1)
     ink.node_tree.nodes['Principled BSDF'].inputs['Emission Strength'].default_value = 1.0
-    label(item['id'], cam, -0.290, 0.028, ink)
+    label(item['id'] + ('' if item.get('caption') is None else f"  {item['caption']}"),
+          cam, -0.290, 0.028, ink)
     label(f"{size.x:.2f} w x {size.z:.2f} h x {size.y:.2f} d m    "
           f"{item.get('tris', '?')} tris    {item.get('parts', '?')} parts, "
           f"{item.get('bodies', '?')} body", cam, -0.325, 0.019, ink)
@@ -191,6 +196,12 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--tile', type=int, default=560)
     ap.add_argument('--cols', type=int, default=0)
+    # One fixed camera angle is how an espresso machine passed review with all of
+    # its detail on one face: from the two angles you actually walk past it, it
+    # was a black slab. Every id can be asked for from several yaws, and `top`
+    # adds the look-down that shows a bowl floor or a worktop.
+    ap.add_argument('--yaw', default='-34',
+                    help='comma-separated camera azimuths in degrees, or "top"')
     ap.add_argument('ids', nargs='*')
     args = ap.parse_args(argv)
 
@@ -200,21 +211,27 @@ def main():
     tmp = HERE / '_tmp' / 'tiles'
     tmp.mkdir(parents=True, exist_ok=True)
 
+    views = [v.strip() for v in args.yaw.split(',') if v.strip()]
     tiles = []
     for item_id in ids:
         b = built.get(item_id)
         if not b:
             print(f'  skip {item_id}: not in the build report')
             continue
-        png = tmp / f'{item_id}.png'
-        render_one(ROOT / 'assets' / 'models' / f'{item_id}.glb',
-                   {'id': item_id, 'anchor': b['anchor'], 'tris': b['tris'],
-                    'parts': b['parts'], 'bodies': b['components']},
-                   args.tile, png)
-        tiles.append(png)
-        print(f'  rendered {item_id}')
+        for v in views:
+            top = (v == 'top')
+            yaw = 0.0 if top else float(v)
+            png = tmp / (f'{item_id}.png' if len(views) == 1 else f'{item_id}-{v}.png')
+            render_one(ROOT / 'assets' / 'models' / f'{item_id}.glb',
+                       {'id': item_id, 'anchor': b['anchor'], 'tris': b['tris'],
+                        'parts': b['parts'], 'bodies': b['components'],
+                        'caption': None if len(views) == 1 else
+                                   ('look down' if top else f'yaw {yaw:.0f} deg')},
+                       args.tile, png, yaw_deg=yaw, top=top)
+            tiles.append(png)
+            print(f'  rendered {item_id} {v}')
 
-    cols = args.cols or (4 if len(tiles) > 9 else 3)
+    cols = args.cols or (len(views) if len(views) > 1 else (4 if len(tiles) > 9 else 3))
     rows = math.ceil(len(tiles) / cols)
     t = args.tile
     sheet = np.ones((rows * t, cols * t, 4), dtype=np.float32)

@@ -1,0 +1,564 @@
+{
+ "amb.birds-outside|(base)": [
+  {
+   "at": "menu/menu.js:800",
+   "fn": "loop",
+   "dynamic": false
+  },
+  {
+   "at": "menu/menu.js:813",
+   "fn": "stopLoop",
+   "dynamic": false
+  }
+ ],
+ "amb.crowd-interior|(base)": [
+  {
+   "at": "walk/walk.js:316",
+   "fn": "stopLoop",
+   "dynamic": false
+  },
+  {
+   "at": "walk/walk.js:662",
+   "fn": "loop",
+   "dynamic": false
+  }
+ ],
+ "amb.office-room-tone|(base)": [
+  {
+   "at": "office/office-mode.js:50",
+   "fn": "loop",
+   "dynamic": false
+  },
+  {
+   "at": "office/office-mode.js:95",
+   "fn": "stopLoop",
+   "dynamic": false
+  }
+ ],
+ "amb.street-outside|(base)": [
+  {
+   "at": "office/office-mode.js:55",
+   "fn": "loop",
+   "dynamic": false
+  },
+  {
+   "at": "office/office-mode.js:96",
+   "fn": "stopLoop",
+   "dynamic": false
+  }
+ ],
+ "music.menu|(base)": [
+  {
+   "at": "menu/menu.js:799",
+   "fn": "music",
+   "dynamic": false
+  }
+ ],
+ "music.office-ambient-1|(base)": [
+  {
+   "at": "office/office-mode.js:59",
+   "fn": "musicPlaylist",
+   "dynamic": false
+  }
+ ],
+ "music.office-ambient-2|(base)": [
+  {
+   "at": "office/office-mode.js:59",
+   "fn": "musicPlaylist",
+   "dynamic": false
+  }
+ ],
+ "music.walkthrough|(base)": [
+  {
+   "at": "walk/walk.js:270",
+   "fn": "music",
+   "dynamic": false
+  }
+ ],
+ "radio.1|(base)": [
+  {
+   "at": "office/office.js:894",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "radio.2|(base)": [
+  {
+   "at": "office/office.js:894",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "radio.3|(base)": [
+  {
+   "at": "office/office.js:894",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "radio.4|(base)": [
+  {
+   "at": "office/office.js:894",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "radio.5|(base)": [
+  {
+   "at": "office/office.js:894",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "radio.6|(base)": [
+  {
+   "at": "office/office.js:894",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.bin-hit|(base)": [
+  {
+   "at": "office/interact.js:325",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.blinds|(base)": [
+  {
+   "at": "office/office.js:816",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.chair-roll|(base)": [
+  {
+   "at": "office/office.js:882",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.chair-sit|(base)": [
+  {
+   "at": "office/office.js:877",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.coffee-machine|(base)": [
+  {
+   "at": "office/office.js:794",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.coffee-pour|(base)": [
+  {
+   "at": "office/interact.js:240",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.door-close|(base)": [
+  {
+   "at": "walk/npc.js:233",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.door-open|drawer": [
+  {
+   "at": "office/office.js:853",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.door-open|door": [
+  {
+   "at": "walk/npc.js:218",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.footstep-carpet-1|office": [
+  {
+   "at": "office/office.js:150",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.footstep-carpet-2|office": [
+  {
+   "at": "office/office.js:150",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.footstep-carpet-3|office": [
+  {
+   "at": "office/office.js:150",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.footstep-carpet-4|office": [
+  {
+   "at": "office/office.js:150",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.footstep-tile-1|office": [
+  {
+   "at": "office/office.js:150",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.footstep-tile-2|office": [
+  {
+   "at": "office/office.js:150",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.footstep-tile-3|office": [
+  {
+   "at": "office/office.js:150",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.footstep-tile-4|office": [
+  {
+   "at": "office/office.js:150",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.footstep-carpet-1|walkthrough": [
+  {
+   "at": "walk/walk.js:770",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.footstep-carpet-2|walkthrough": [
+  {
+   "at": "walk/walk.js:770",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.footstep-carpet-3|walkthrough": [
+  {
+   "at": "walk/walk.js:770",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.footstep-carpet-4|walkthrough": [
+  {
+   "at": "walk/walk.js:770",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.footstep-tile-1|walkthrough": [
+  {
+   "at": "walk/walk.js:770",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.footstep-tile-2|walkthrough": [
+  {
+   "at": "walk/walk.js:770",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.footstep-tile-3|walkthrough": [
+  {
+   "at": "walk/walk.js:770",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.footstep-tile-4|walkthrough": [
+  {
+   "at": "walk/walk.js:770",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.keyboard-type-1|(base)": [
+  {
+   "at": "os/os.js:636",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.keyboard-type-2|(base)": [
+  {
+   "at": "os/os.js:636",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.keyboard-type-3|(base)": [
+  {
+   "at": "os/os.js:636",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.keyboard-type-4|(base)": [
+  {
+   "at": "os/os.js:636",
+   "fn": "play",
+   "dynamic": true
+  }
+ ],
+ "sfx.light-switch|(base)": [
+  {
+   "at": "office/office.js:783",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.mouse-click|(base)": [
+  {
+   "at": "os/os.js:559",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.mug-set-down|(base)": [
+  {
+   "at": "office/interact.js:285",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.paper-crumple|(base)": [
+  {
+   "at": "office/interact.js:309",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.paper-toss|(base)": [
+  {
+   "at": "office/interact.js:336",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "ui.click|(base)": [
+  {
+   "at": "menu/lobby.js:434",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "menu/menu.js:931",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "os/apps/chat.js:107",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "os/apps/settings.js:231",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "os/wm.js:241",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "ui.click-soft|(base)": [
+  {
+   "at": "menu/lobby.js:117",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "menu/lobby.js:419",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "menu/menu.js:912",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "office/interact.js:106",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "office/interact.js:264",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "os/apps/chat.js:59",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "ui.error|(base)": [
+  {
+   "at": "menu/lobby.js:302",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "os/apps/files.js:113",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "os/apps/files.js:135",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "os/apps/files.js:240",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "os/apps/mail.js:275",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "ui.mail-notify|(base)": [
+  {
+   "at": "os/apps/mail.js:103",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "ui.submit|(base)": [
+  {
+   "at": "menu/menu.js:1021",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "ui.tool-select|(base)": [
+  {
+   "at": "menu/menu.js:963",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "ui.window-close|(base)": [
+  {
+   "at": "menu/lobby.js:245",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "office/interact.js:174",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "os/wm.js:86",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "ui.window-open|(base)": [
+  {
+   "at": "menu/lobby.js:234",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "office/interact.js:163",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "os/wm.js:66",
+   "fn": "play",
+   "dynamic": false
+  },
+  {
+   "at": "walk/walk.js:1034",
+   "fn": "play",
+   "dynamic": false
+  }
+ ],
+ "sfx.door-open|(base)": [
+  {
+   "at": "office/office.js:853",
+   "fn": "via arg",
+   "dynamic": false
+  },
+  {
+   "at": "walk/npc.js:218",
+   "fn": "via arg",
+   "dynamic": false
+  }
+ ],
+ "os.boot-tier1|(base)": [
+  {
+   "at": "office/upgrades.js:19",
+   "fn": "via dispatch",
+   "dynamic": false
+  },
+  {
+   "at": "os/themes.js:957",
+   "fn": "via dispatch",
+   "dynamic": false
+  }
+ ],
+ "os.boot-tier2|(base)": [
+  {
+   "at": "office/upgrades.js:26",
+   "fn": "via dispatch",
+   "dynamic": false
+  },
+  {
+   "at": "os/themes.js:981",
+   "fn": "via dispatch",
+   "dynamic": false
+  }
+ ],
+ "os.boot-tier3|(base)": [
+  {
+   "at": "office/upgrades.js:33",
+   "fn": "via dispatch",
+   "dynamic": false
+  },
+  {
+   "at": "os/themes.js:1005",
+   "fn": "via dispatch",
+   "dynamic": false
+  }
+ ],
+ "os.boot-tier4|(base)": [
+  {
+   "at": "office/upgrades.js:40",
+   "fn": "via dispatch",
+   "dynamic": false
+  },
+  {
+   "at": "os/themes.js:1028",
+   "fn": "via dispatch",
+   "dynamic": false
+  }
+ ]
+}
