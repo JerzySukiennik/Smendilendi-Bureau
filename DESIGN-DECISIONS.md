@@ -114,15 +114,18 @@ The game is **English only**. Metric units throughout.
 
 ## Tech
 three.js, ES modules from CDN, **no build step**. Firebase RTDB for the shared session
-(**its own dedicated Firebase project**, `bureau-gzowo`, on the account
+(**its own dedicated Firebase project**, `bureau-gzowo-40531`, on the account
 **jerzysukiennik203@gmail.com**, created and managed through the Firebase CLI; Spark
 plan, no billing — so no anonymous auth: access is by a long office code, identity is a
-random id in localStorage). Deployed with **Firebase Hosting** to **bureau.gzowo.fun**.
+random id in localStorage). Deployed to **GitHub Pages** at **bureau.gzowo.fun** — the `*.gzowo.fun` wildcard
+already resolves to `jerzysukiennik.github.io`, so the subdomain needs no new DNS record,
+only a `CNAME` file in the repo. (Firebase Hosting is configured too, but purely as a
+throwaway staging mirror; production is Pages.)
 Display title keeps the Polish ł: "Smendiłendi Bureau".
 
-*Amended 2026-08-30 by Jurek, replacing the original plan of GitHub Pages at
-smendilendi-bureau.gzowo.fun on the shared `gzowos-games` project under
-gzowotesla@gmail.com. The consequence is worth stating, because it removes a standing
+*Amended 2026-08-30 by Jurek: the domain shortens to bureau.gzowo.fun and the backend
+moves off the shared `gzowos-games` project under gzowotesla@gmail.com onto its own.
+Hosting stays on GitHub Pages as originally planned. The consequence is worth stating, because it removes a standing
 hazard: a dedicated project means our database rules are no longer one instance-wide
 ruleset shared with SatisFarm, Ducks, Voidworks and the rest, so deploying them can no
 longer silently delete another game's rules. `firebase deploy --only database` is safe

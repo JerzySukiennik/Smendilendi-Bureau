@@ -80,3 +80,124 @@ export async function shot(name) {
 
 window.__shot = shot;
 export default shot;
+
+/**
+ * step(n, dt) — advance the engine by n frames, independently of rAF.
+ *
+ * ARCHITECTURE.md already warns that the Claude browser pane throttles
+ * requestAnimationFrame. It is worse than throttling: outside the instant a
+ * screenshot is taken the pane reports document.hidden === true, so rAF is
+ * SUSPENDED and the game does not advance between tool calls at all. Clicking
+ * a 3D menu item then depends on a frame that never comes.
+ *
+ * So the loop is driven by hand. `_tick(now)` takes its clock as an argument,
+ * which makes this exact: n frames of exactly dt seconds each, the same code
+ * path the rAF loop runs, input edges consumed frame by frame in order.
+ */
+export function step(n = 60, dt = 1 / 60) {
+  const e = window.SB?.engine;
+  if (!e) throw new Error('no engine');
+  const t0 = performance.now();
+  for (let i = 0; i < n; i++) e._tick(e.clockLast + dt * 1000);
+  return { frames: n, wallMs: +(performance.now() - t0).toFixed(1), simTime: +e.time.toFixed(2) };
+}
+
+/** Step for `seconds` of simulated time while letting real timers fire between chunks. */
+export async function run(seconds = 1, dt = 1 / 60) {
+  const chunks = Math.max(1, Math.round(seconds / 0.25));
+  for (let i = 0; i < chunks; i++) {
+    step(Math.round(0.25 / dt), dt);
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  return { seconds, simTime: +window.SB.engine.time.toFixed(2) };
+}
+
+window.__step = step;
+window.__run = run;
+
+/**
+ * pin(w, h) — freeze the page layout at a real viewport size.
+ *
+ * When the browser pane is not displayed, body.clientWidth is 0 and
+ * Engine.resize() falls all the way through to a 1 x 1 framebuffer, which
+ * silently ruins both the screenshots and any measurement taken between tool
+ * calls. Pinning the layout in CSS pixels keeps the canvas the size it is when
+ * the pane IS displayed, so a hidden pane changes nothing but the compositing.
+ */
+export function pin(w = 1280, h = 720) {
+  for (const el of [document.documentElement, document.body, document.getElementById('app')]) {
+    if (!el) continue;
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    el.style.minWidth = `${w}px`;
+    el.style.minHeight = `${h}px`;
+  }
+  window.SB?.engine?.resize();
+  return { w: window.SB?.engine?.width, h: window.SB?.engine?.height };
+}
+
+window.__pin = pin;
+
+// ---------------------------------------------------------------------------
+// Playing the game from here.
+//
+// The pane does not deliver its own clicks while it is not displayed, so the
+// play-through drives the SAME event listeners a human does: mousemove /
+// mousedown / mouseup on the canvas (src/core/input.js binds exactly those)
+// and keydown / keyup on the window. Coordinates are CSS pixels in the pinned
+// 1280 x 720 viewport, i.e. where the thing actually is on screen.
+//
+// The one thing that cannot be done this way is pointer lock: the browser only
+// grants it on a trusted gesture, so free-look in the office is unavailable to
+// this harness. Everything else — walking, F to sit, the in-world OS cursor,
+// every DOM button in the editor HUD — goes through the real path.
+
+function at(x, y) {
+  return document.elementFromPoint(x, y) || window.SB.engine.canvas;
+}
+
+function mouseEvent(type, x, y, extra = {}) {
+  return new MouseEvent(type, {
+    bubbles: true, cancelable: true, view: window,
+    clientX: x, clientY: y, button: 0, buttons: type === 'mouseup' ? 0 : 1,
+    ...extra,
+  });
+}
+
+export function move(x, y) {
+  const el = at(x, y);
+  el.dispatchEvent(mouseEvent('mousemove', x, y, { buttons: 0 }));
+  return el.id || el.className || el.tagName;
+}
+
+export function click(x, y, { steps = 4 } = {}) {
+  const el = at(x, y);
+  el.dispatchEvent(mouseEvent('mousemove', x, y, { buttons: 0 }));
+  el.dispatchEvent(mouseEvent('mousedown', x, y));
+  step(1);                                   // the frame that sees the press
+  window.dispatchEvent(mouseEvent('mouseup', x, y));
+  el.dispatchEvent(mouseEvent('mouseup', x, y));
+  if (el.click && el.tagName === 'BUTTON') el.click();
+  step(steps);
+  return el.textContent ? el.textContent.slice(0, 40) : (el.id || el.tagName);
+}
+
+/** Press and release a key, with one frame in between so the edge is seen. */
+export function tap(code, opts = {}) {
+  window.dispatchEvent(new KeyboardEvent('keydown', { code, key: opts.key || code, bubbles: true }));
+  step(2);
+  window.dispatchEvent(new KeyboardEvent('keyup', { code, key: opts.key || code, bubbles: true }));
+  step(1);
+  return code;
+}
+
+/** Hold a key down for `frames` frames — walking, in other words. */
+export function hold(code, frames = 30) {
+  window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code, bubbles: true }));
+  step(frames);
+  window.dispatchEvent(new KeyboardEvent('keyup', { code, key: code, bubbles: true }));
+  step(1);
+  return code;
+}
+
+Object.assign(window, { __move: move, __click: click, __tap: tap, __hold: hold });

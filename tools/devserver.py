@@ -14,7 +14,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 SHOT_DIR = "progress/shots"
-SHOT_NAME = re.compile(r"^[A-Za-z0-9._-]+\.(png|jpg|jpeg)$")
+SHOT_NAME = re.compile(r"^[A-Za-z0-9._-]+\.(png|jpg|jpeg|json|txt)$")
 
 
 class NoCacheHandler(SimpleHTTPRequestHandler):
