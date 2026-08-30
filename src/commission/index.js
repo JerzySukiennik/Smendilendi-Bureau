@@ -92,7 +92,11 @@ function writeBrief(ctx) {
     ? `On top of that it has to find room for ${joinList(secondaryPicks.map(n => `a ${n}`))}.`
     : '';
 
-  const plotSentence = `The plot runs to ${Math.round(plot.area)} m2 and is ${describePlot(plot)}; once the setbacks are taken off there is about ${Math.round(plot.buildableArea)} m2 left to build on.`;
+  // m2 vs m-squared: the client's brief and the analysis engine's issue text sit in
+  // the same Mail app, one under the other. The analysis uses the proper glyph, so
+  // the brief must too, or the architect reads two different unit conventions in
+  // one window.
+  const plotSentence = `The plot runs to ${Math.round(plot.area)} m\u00B2 and is ${describePlot(plot)}; once the setbacks are taken off there is about ${Math.round(plot.buildableArea)} m\u00B2 left to build on.`;
   const siteSentence = fill(pick(rng, bank.site), vars);
   const introSentence = fill(pick(rng, bank.intro), vars);
   const moneySentence = fill(pick(rng, bank.money), vars);
