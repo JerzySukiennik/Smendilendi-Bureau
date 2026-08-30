@@ -118,6 +118,70 @@ engine.onUpdate(() => {
     });
   }
 });
+// --- capture ---------------------------------------------------------------
+// The browser pane screenshots at pane resolution, which is too small to judge
+// a 5 mm chamfer or a 12/255 AO band. __shot renders the live scene at an
+// explicit size and POSTs the PNG to a local receiver, exactly as
+// tools/prop-sheet.html does, so progress/shots/ gets full-resolution frames.
+window.__shotPort = 5411;
+window.__shot = async (name, w = 1600, h = 900) => {
+  const r = engine.renderer;
+  const el = r.domElement;
+  const oldW = el.width, oldH = el.height, oldPr = r.getPixelRatio();
+  r.setPixelRatio(1);
+  r.setSize(w, h, false);
+  office.camera.aspect = w / h;
+  office.camera.updateProjectionMatrix();
+  mode.render(r);
+  const url = el.toDataURL('image/png');
+  const bin = atob(url.slice(url.indexOf(',') + 1));
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const blob = new Blob([buf], { type: 'image/png' });
+  let res = 'no receiver';
+  try {
+    const rr = await fetch(`http://localhost:${window.__shotPort}/save?name=${encodeURIComponent(name)}`,
+      { method: 'POST', body: blob });
+    res = await rr.text();
+  } catch (e) { res = 'ERR ' + e.message; }
+  r.setSize(oldW, oldH, false);
+  r.setPixelRatio(oldPr);
+  office.camera.aspect = oldW / oldH;
+  office.camera.updateProjectionMatrix();
+  return { name, bytes: blob.size, res };
+};
+
+/** Move to a named or explicit pose, settle the frame, and return the pose. */
+window.__go = (name, over = {}) => {
+  const p = { ...office.pose(name), ...over };
+  office.player.pos.set(p.x, 0, p.z);
+  office.player.yaw = p.yaw * Math.PI / 180;
+  office.player.pitch = p.pitch * Math.PI / 180;
+  office.player.enabled = false;
+  office.player.update(0.016, null);
+  return p;
+};
+
+/** Render at a size and report the numbers the finish bar asks for. */
+window.__probe = async (name, w = 1600, h = 900, col = 0.5) => {
+  const r = engine.renderer;
+  const el = r.domElement;
+  const oldW = el.width, oldH = el.height, oldPr = r.getPixelRatio();
+  r.setPixelRatio(1);
+  r.setSize(w, h, false);
+  office.camera.aspect = w / h;
+  office.camera.updateProjectionMatrix();
+  mode.render(r);
+  const luma = office.sampleLuma(r);
+  const band = Array.isArray(col) ? col.map((c) => office.junctionBand(r, c))
+    : office.junctionBand(r, col);
+  r.setSize(oldW, oldH, false);
+  r.setPixelRatio(oldPr);
+  office.camera.aspect = oldW / oldH;
+  office.camera.updateProjectionMatrix();
+  return { name, luma, band };
+};
+
 console.info('[harness] office only, pose', q.get('pose') || 'hero', pose);
 </script>
 </body>

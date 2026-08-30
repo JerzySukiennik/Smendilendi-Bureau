@@ -17,8 +17,8 @@
 
 import { makeTheme, tierConfig, TIERS, BOOT, grantsFor } from './themes.js';
 import { WindowManager, Win } from './wm.js';
-import { fill, checker, inside, VGA, text as drawText } from './widgets.js';
-import { SANS, SANS_BOLD } from './font.js';
+import { fill, frameRect, checker, inside, VGA, text as drawText } from './widgets.js';
+import { BODY, selectFaces, splitMnemonic } from './font.js';
 import { I16, icon32 } from './icons.js';
 import { MailApp } from './apps/mail.js';
 import { ChatApp } from './apps/chat.js';
@@ -33,6 +33,9 @@ export { TIERS, grantsFor };
 export { createOsSurface } from './surface.js';
 
 const DBL_MS = 380;
+// Win95's tooltip dwell. One frame, no animation, once the pointer has been
+// still on a toolbar button this long.
+const TIP_DELAY = 0.55;
 
 export class OS {
   constructor(ctx = {}) {
@@ -60,6 +63,7 @@ export class OS {
     this.startOpen = false;
     this.startMenuRect = null;
     this.startHot = null;
+    this.hoverT = 0;
     this.menuOwner = null;
     this.menuIndex = -1;
     this.pressed = null;
@@ -156,8 +160,12 @@ export class OS {
 
   registerBuiltins() {
     const mk = (Cls) => (ctx, os, win) => new Cls(ctx, os, win);
-    this.registerApp({ id: 'mail', title: 'Mail', icon: 'mail', desktopIcon32: 'mail', create: mk(MailApp), window: { w: 0.86, h: 0.74 }, quickLaunch: true });
-    this.registerApp({ id: 'files', title: 'Projects', icon: 'folder', desktopIcon32: 'folder', create: mk(FilesApp), window: { w: 0.62, h: 0.58 }, quickLaunch: true });
+    // menuLabel carries the "&" mnemonic every menu-borne copy of the name
+    // needs. Checklist 15 wants exactly one underlined letter per item and the
+    // letters unique within a list, so these are picked as a set, not per app:
+    // Mail, P_rojects, Cost Sheet, Studio Talk, Machi_ne.
+    this.registerApp({ id: 'mail', title: 'Mail', menuLabel: '&Mail', icon: 'mail', desktopIcon32: 'mail', create: mk(MailApp), window: { w: 0.86, h: 0.74 }, quickLaunch: true });
+    this.registerApp({ id: 'files', title: 'Projects', menuLabel: 'P&rojects', icon: 'folder', desktopIcon32: 'folder', create: mk(FilesApp), window: { w: 0.62, h: 0.58 }, quickLaunch: true });
     // The Cost Sheet's budget band is two columns of live numbers — a left
     // caption and a right-aligned figure on each of two lines. Measured at the
     // old default minimum (220x140) they overprinted each other
@@ -165,9 +173,9 @@ export class OS {
     // clipped header row. 360x240 is where the two strings stop touching at the
     // widest money this bill produces; below that the band also drops its right
     // column on its own (apps/cost.js), the way a Win95 status bar drops panes.
-    this.registerApp({ id: 'cost', title: 'Cost Sheet', icon: 'cost', desktopIcon32: 'cost', create: mk(CostApp), window: { w: 0.80, h: 0.66, minW: 360, minH: 240 } });
-    this.registerApp({ id: 'chat', title: 'Studio Talk', icon: 'chat', desktopIcon32: null, create: mk(ChatApp), window: { w: 0.52, h: 0.58, minW: 300, minH: 220 } });
-    this.registerApp({ id: 'settings', title: 'Machine', icon: 'settings', desktopIcon32: 'computer', create: mk(SettingsApp), window: { w: 0.62, h: 0.78, minW: 380, minH: 380 } });
+    this.registerApp({ id: 'cost', title: 'Cost Sheet', menuLabel: '&Cost Sheet', icon: 'cost', desktopIcon32: 'cost', create: mk(CostApp), window: { w: 0.80, h: 0.66, minW: 360, minH: 240 } });
+    this.registerApp({ id: 'chat', title: 'Studio Talk', menuLabel: '&Studio Talk', icon: 'chat', desktopIcon32: null, create: mk(ChatApp), window: { w: 0.52, h: 0.58, minW: 300, minH: 220 } });
+    this.registerApp({ id: 'settings', title: 'Machine', menuLabel: 'Machi&ne', icon: 'settings', desktopIcon32: 'computer', create: mk(SettingsApp), window: { w: 0.62, h: 0.78, minW: 380, minH: 380 } });
   }
 
   app(id) { return this.apps.get(id) ?? null; }
@@ -346,13 +354,13 @@ export class OS {
       if (!icon32(g, it.icon, it.x + 18, it.y, this.config.screenTint)) {
         I16[it.icon]?.draw(g, it.x + 26, it.y + 8);
       }
-      const label = SANS.ellipsis(it.label, it.w);
-      const tw = SANS.measure(label);
+      const label = BODY.ellipsis(it.label, it.w);
+      const tw = BODY.measure(label);
       const lx = it.x + ((it.w - tw) >> 1);
       const ly = it.y + 36;
       const on = this.selectedIcon === i;
       if (on) fill(g, lx - 2, ly - 1, tw + 4, 11, pal.hilite);
-      SANS.draw(g, label, lx, ly, on ? pal.hiliteText : (this.theme.family === 'platinum' ? '#000000' : '#FFFFFF'));
+      BODY.draw(g, label, lx, ly, on ? pal.hiliteText : (this.theme.family === 'platinum' ? '#000000' : '#FFFFFF'));
       it._rect = { x: it.x, y: it.y, w: it.w, h: 48 };
     });
   }
@@ -370,10 +378,10 @@ export class OS {
   startItems() {
     const apps = [...this.apps.values()].filter((a) => a.desktop !== false);
     const items = [
-      { label: '&Programs', icon: 'folder', submenu: apps.map((a) => ({ label: a.title, icon: a.icon, action: () => this.openApp(a.id) })) },
+      { label: '&Programs', icon: 'folder', submenu: apps.map((a) => ({ label: a.menuLabel ?? a.title, icon: a.icon, action: () => this.openApp(a.id) })) },
       { label: '&Documents', icon: 'docs', submenu: [
-        { label: 'Brief.txt', icon: 'doc', action: () => this.openApp('mail') },
-        { label: 'Cost sheet', icon: 'cost', action: () => this.openApp('cost') },
+        { label: '&Brief.txt', icon: 'doc', action: () => this.openApp('mail') },
+        { label: '&Cost sheet', icon: 'cost', action: () => this.openApp('cost') },
       ] },
       { label: '&Settings', icon: 'settings', action: () => this.openApp('settings') },
       { label: '&Find', icon: 'find', action: () => this.wm.dialog({ title: 'Find', message: 'Nothing here is lost.\nThe office is only three rooms.', icon: 'info' }) },
@@ -406,7 +414,7 @@ export class OS {
     apple.items = [
       { label: `About ${this.config.osName} ${this.config.osVersion}...`, action: () => this.about() },
       { sep: true },
-      ...[...this.apps.values()].map((a) => ({ label: a.title, icon: a.icon, action: () => this.openApp(a.id) })),
+      ...[...this.apps.values()].map((a) => ({ label: a.menuLabel ?? a.title, icon: a.icon, action: () => this.openApp(a.id) })),
       { sep: true },
       { label: 'Shut &Down...', action: () => this.shutdownDialog() },
     ];
@@ -489,10 +497,15 @@ export class OS {
     const g = this.g;
     g.imageSmoothingEnabled = false;
     const th = this.theme;
+    // Point the UI/BODY module bindings at this machine's typefaces before a
+    // single pixel is drawn. Everything downstream — chrome, widgets, apps —
+    // reads them live, so tiers 1-2 render in MS Sans Serif and tiers 3-4 in
+    // Chicago and Geneva without either side knowing about the other.
+    selectFaces(th.family);
 
     if (this.phase === 'off') {
       fill(g, 0, 0, th.w, th.h, '#000000');
-      SANS.draw(g, 'It is now safe to turn off your computer.', 20, th.h - 24, '#808080');
+      th.font.draw(g, this.offMessage(), 20, th.h - 24, '#808080');
       this.dirty = false;
       if (this.crt) this.composeCRT();
       return;
@@ -510,10 +523,54 @@ export class OS {
     th.paintShell(g, this);
     if (this.startOpen && this.startMenuRect) th.paintStartMenu(g, this, this.startHot);
     this.wm.paintMenus(g);
+    this.paintTip(g);
     if (this.focused && this.cursor.visible) this.paintCursor(g);
     this.dirty = false;
     this.syncForeign();
     if (this.crt) this.composeCRT();
+  }
+
+  /**
+   * What the pointer is resting on, if it is the kind of thing that gets a tip:
+   * a Quick Launch button, a taskbar button, or a toolbar button inside a
+   * window. Everything else answers null and no tip is drawn.
+   */
+  tipFor(x, y) {
+    if (this.wm.menu || this.startOpen || this.mouseDown) return null;
+    for (const q of this.quickLaunch) {
+      if (q._rect && inside(q._rect, x, y)) return { text: this.apps.get(q.id)?.title ?? q.id, rect: q._rect };
+    }
+    for (const win of this.wm.taskList()) {
+      if (win._taskRect && inside(win._taskRect, x, y)) return { text: win.title, rect: win._taskRect };
+    }
+    const win = this.wm.hitWindow(x, y);
+    for (const it of win?.app?.tools ?? []) {
+      if (!it.sep && it._rect && inside(it._rect, x, y) && it.tip) return { text: it.tip, rect: it._rect };
+    }
+    return null;
+  }
+
+  paintTip(g) {
+    if (this.hoverT < TIP_DELAY) return;
+    const tip = this.tipFor(this.cursor.x, this.cursor.y);
+    if (!tip) return;
+    const pal = this.theme.pal;
+    const f = this.theme.fontSmall;
+    const w = f.measure(tip.text) + 7;
+    const h = 17;
+    let x = Math.min(this.theme.w - w - 1, tip.rect.x + 2);
+    let y = tip.rect.y + tip.rect.h + 2;
+    if (y + h > this.theme.h) y = tip.rect.y - h - 2;
+    fill(g, x, y, w, h, pal.info);
+    frameRect(g, x, y, w, h, pal.dark);   // 1 px black, no shadow, no radius
+    f.draw(g, tip.text, x + 3, f.top(y, h), pal.infoText);
+  }
+
+  /** What the screen says once the machine is off. Not a Windows line on a Mac. */
+  offMessage() {
+    return this.theme.family === 'platinum'
+      ? 'It is now safe to switch off your Macintosh.'
+      : 'It is now safe to turn off your computer.';
   }
 
   paintCursor(g) {
@@ -582,10 +639,19 @@ export class OS {
     const ny = clamp(y, 0, this.theme.h - 1);
     if (nx === this.cursor.x && ny === this.cursor.y) return;
     this.cursor.x = nx; this.cursor.y = ny;
+    this.hoverT = 0;
     if (this.phase === 'desktop') {
       if (this.startOpen && this.startMenuRect) {
+        // While a cascade is open the parent row that opened it stays lit, even
+        // though the pointer has left the parent menu entirely — that is how a
+        // Win95 cascade reads as one connected object.
+        const pinned = this.wm.menu?.owner === 'start';
         const hot = this.startMenuRect.items.find((i) => !i.sep && inside(i._rect, nx, ny)) ?? null;
-        if (hot !== this.startHot) { this.startHot = hot; }
+        if (!pinned && hot !== this.startHot) this.startHot = hot;
+        else if (pinned && hot && hot !== this.startHot && !hot.submenu) {
+          this.wm.closeMenu();
+          this.startHot = hot;
+        }
       }
       this.wm.pointerMove(nx, ny, { down: this.mouseDown });
       this.cursor.kind = this.cursorFor(nx, ny);
@@ -626,16 +692,22 @@ export class OS {
         const it = r.items.find((i) => !i.sep && inside(i._rect, x, y));
         if (it) {
           if (it.submenu) {
-            this.startOpen = false;
+            // The parent STAYS OPEN behind its cascade, with the row that
+            // opened it still highlighted and the Start button still pressed.
+            // Round 2 closed it here, which left the submenu floating on bare
+            // desktop with nothing to explain where it came from — a popup with
+            // no parent is not something Windows 95 could draw.
+            this.startHot = it;
             this.wm.openMenu('start', null, -1, it.submenu, { x: r.x + r.w - 4, y: it._rect.y });
             return;
           }
           this.startOpen = false;
+          this.startHot = null;
           it.action?.(this);
           this.invalidate();
           return;
         }
-        if (!inside(r, x, y)) { this.startOpen = false; this.invalidate(); }
+        if (!inside(r, x, y) && !this.wm.menu) { this.startOpen = false; this.startHot = null; this.invalidate(); }
       }
       // task buttons
       for (const win of this.wm.taskList()) {
@@ -679,7 +751,10 @@ export class OS {
 
   key(ev) {
     if (this.phase === 'boot') { this.bootT = BOOT[this.tier].duration; return true; }
-    if (this.startOpen && ev.key === 'Escape') { this.startOpen = false; this.invalidate(); return true; }
+    if (this.startOpen && ev.key === 'Escape') { this.startOpen = false; this.startHot = null; this.invalidate(); return true; }
+    // Ctrl+Esc is how Windows 95 opened the Start menu from the keyboard.
+    if (ev.ctrl && ev.key === 'Escape' && this.theme.family === 'win') { this.toggleStart(); return true; }
+    if (ev.alt && !ev.ctrl && this.phase === 'desktop' && this.altMenu(ev)) return true;
     const handled = this.wm.key(ev);
     // You are sitting at a desk in front of a keyboard, so the keyboard makes a
     // noise. Only when the keystroke went somewhere (an app consumed it) and only
@@ -690,6 +765,37 @@ export class OS {
     return handled;
   }
 
+  /**
+   * Alt + a letter, the other half of checklist item 15.
+   *
+   * "Exactly one letter per menu item and per button label is underlined ...
+   * and the underlines are ALWAYS VISIBLE." A permanently drawn underline that
+   * does nothing is worse than no underline at all, so Alt has to arrive here
+   * (see surface.js and attachDOM) and open the matching menu.
+   *
+   * Windows tiers only — and that is the point. The Mac never had mnemonics,
+   * so tiers 3 and 4 draw no underlines (the Chicago face carries
+   * mnemonics:false) and answer no Alt.
+   */
+  altMenu(ev) {
+    if (this.theme.family !== 'win') return false;
+    const ch = String(ev.char || '').toLowerCase();
+    if (!ch || ch.length !== 1) return false;
+    const win = this.wm.focused;
+    const bar = win?.menu ?? [];
+    for (let i = 0; i < bar.length; i++) {
+      if (mnemonicOf(bar[i].label) !== ch) continue;
+      const L = this.theme.layout(win);
+      if (!L.menubar) return false;
+      const r = bar[i]._rect ?? { x: L.menubar.x, y: L.menubar.y, h: L.menubar.h };
+      this.wm.openMenu('win', win, i, bar[i].items, { x: r.x, y: L.menubar.y + L.menubar.h });
+      return true;
+    }
+    // ...and the Start button, whose label really is "Start".
+    if (ch === 's' && !bar.length) { this.toggleStart(); return true; }
+    return false;
+  }
+
   /** One keystroke. `dynamic` may only attenuate, so this is never louder than
    *  the level assets/audio/manifest.json declares for the sample. */
   typeSound() {
@@ -698,11 +804,16 @@ export class OS {
   }
 
   toggleStart() {
-    this.startOpen = !this.startOpen;
-    if (this.startOpen) {
+    const open = !this.startOpen;
+    // Closing the Start button closes anything cascading off it, and opening it
+    // clears whatever menu was up. Either way the two never disagree.
+    if (this.wm.menu?.owner === 'start') this.wm.closeMenu();
+    this.startOpen = open;
+    if (open) {
       this.startMenuRect = this.theme.startMenu(this);
       this.startHot = null;
-      this.wm.closeMenu();
+    } else {
+      this.startHot = null;
     }
     this.invalidate();
   }
@@ -728,8 +839,14 @@ export class OS {
       wheel: (e) => { this.wheel(Math.sign(e.deltaY) * 3); e.preventDefault(); },
       key: (e) => {
         if (!this.focused) return;
-        const handled = this.key({ key: e.key, char: e.key.length === 1 ? e.key : '', ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey });
-        if (handled || e.key === 'Tab') e.preventDefault();
+        const handled = this.key({
+          key: e.key,
+          char: e.key.length === 1 ? e.key : '',
+          ctrl: e.ctrlKey || e.metaKey,
+          shift: e.shiftKey,
+          alt: e.altKey,
+        });
+        if (handled || e.key === 'Tab' || (e.altKey && e.key.length === 1)) e.preventDefault();
       },
       resize: () => this.resizeToHost(),
     };
@@ -781,6 +898,14 @@ export class OS {
       for (const win of this.wm.windows) {
         if (win.app?.update?.(dt)) this.invalidate();
       }
+      // Tooltip dwell. Win95 waits, then the tip appears in one frame — no
+      // fade, no slide (checklist 19). It is the only use of the tooltip cream
+      // #FFFFE1 in the whole scheme, and round 2 defined the colour and then
+      // never drew anything with it.
+      if (this.hoverT < TIP_DELAY) {
+        this.hoverT += dt;
+        if (this.hoverT >= TIP_DELAY) this.invalidate();
+      }
     }
     if (this.dirty) this.paint();
   }
@@ -804,6 +929,12 @@ export class OS {
 }
 
 function clampTier(n) { return Math.max(1, Math.min(TIERS.length, n | 0)); }
+/** "S&ettings" -> "e". The letter the underline sits under. */
+function mnemonicOf(label) {
+  const { text, index } = splitMnemonic(label);
+  return index >= 0 ? text[index].toLowerCase() : null;
+}
+
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v | 0)); }
 
 /**

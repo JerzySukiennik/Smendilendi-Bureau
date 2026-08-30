@@ -4,9 +4,9 @@
 
 import {
   fill, hline, vline, bevel, checker, inside, text, textY, Scroll, scrollbar,
-  scrollbarGeom, scrollbarHit, SCROLLBAR, clipped,
+  scrollbarGeom, scrollbarHit, SCROLLBAR, clipped, focusRect,
 } from '../widgets.js';
-import { SANS, SANS_BOLD } from '../font.js';
+import { BODY, BODY_BOLD } from '../font.js';
 import { I16 } from '../icons.js';
 
 export const TOOLBAR_H = 26;
@@ -122,6 +122,8 @@ export class ListView {
     this.pane = new ScrollPane(rowH);
     this.rowH = rowH;
     this.sel = 0;
+    /** Does the keyboard live here? Drives the dotted focus rectangle. */
+    this.focused = true;
     this.onSelect = null;
     this.onActivate = null;
   }
@@ -143,6 +145,15 @@ export class ListView {
         const on = i === this.sel;
         if (on) fill(g, r.x, y, r.w, this.rowH, pal.hilite);
         drawRow(g, i, { x: r.x, y, w: r.w, h: this.rowH }, on);
+        // The focus rectangle. ANALYSIS.md's bonus tells: "A focused control
+        // shows a 1 px dotted black focus rectangle, inset 1 px, dots on
+        // alternating pixels" — and Win95 draws it around the focused row
+        // INSIDE the navy selection, in white, which is why the two are
+        // separate things. Round 2 exported focusRect and never called it.
+        if (on && this.focused) {
+          focusRect(g, r.x + 1, y + 1, r.w - 2, this.rowH - 2,
+            mac ? pal.hiliteText : pal.window);
+        }
       }
     });
     this.pane.paint(g, pal, mac);
@@ -152,6 +163,7 @@ export class ListView {
     if (this.pane.pointer(ev, pal)) return true;
     const gx = ev.gx, gy = ev.gy;
     if ((ev.type === 'down') && inside(this.body, gx, gy)) {
+      this.focused = true;
       const i = Math.floor((gy - this.body.y + this.pane.top) / this.rowH);
       if (i >= 0 && i < this.count) {
         const was = this.sel;

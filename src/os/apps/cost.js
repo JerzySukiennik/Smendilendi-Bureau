@@ -16,7 +16,7 @@ import {
   fill, hline, vline, bevel, field, headerRow, statusBar, inside, textY, clipped,
   checker, VGA, progress,
 } from '../widgets.js';
-import { SANS, SANS_BOLD } from '../font.js';
+import { BODY, BODY_BOLD, UI } from '../font.js';
 import { toolbar, toolbarHit, ScrollPane, TOOLBAR_H, money } from './common.js';
 
 const ROW = 15;
@@ -31,10 +31,10 @@ export class CostApp {
     this.sel = -1;
     this.groupByTrade = true;
     this.tools = [
-      { id: 'refresh', icon: 'cost' },
+      { id: 'refresh', tip: 'Recalculate', icon: 'cost' },
       { sep: true },
-      { id: 'print', icon: 'printer' },
-      { id: 'save', icon: 'floppy' },
+      { id: 'print', tip: 'Print bill', icon: 'printer' },
+      { id: 'save', tip: 'Save bill', icon: 'floppy' },
     ];
     this.toolState = {};
     this.menu = [
@@ -120,7 +120,7 @@ export class CostApp {
     const outer = { x: r.x + 2, y: gridTop, w: r.w - 4, h: gridH };
     const inner = field(g, outer.x, outer.y, outer.w, outer.h, pal);
     const cols = this.columns(inner.w - 16);
-    headerRow(g, inner.x, inner.y, inner.w, 17, cols, pal, SANS);
+    headerRow(g, inner.x, inner.y, inner.w, 17, cols, pal, UI);
 
     const bodyRect = { x: inner.x, y: inner.y + 17, w: inner.w, h: inner.h - 17 };
     const body = this.pane.layout(bodyRect, this.rows.length * ROW + 4);
@@ -140,9 +140,9 @@ export class CostApp {
         hline(g, body.x, y + ROW - 1, body.w, pal.face);
         if (row.kind === 'trade') {
           fill(g, body.x, y, body.w, ROW - 1, pal.face);
-          SANS_BOLD.draw(g, row.label.toUpperCase(), body.x + 4, textY(y, ROW), pal.text);
+          BODY_BOLD.draw(g, row.label.toUpperCase(), body.x + 4, textY(y, ROW), pal.text);
         } else if (row.kind === 'sub' || row.kind === 'total') {
-          const f = row.kind === 'total' ? SANS_BOLD : SANS_BOLD;
+          const f = row.kind === 'total' ? BODY_BOLD : BODY_BOLD;
           if (row.kind === 'total') { hline(g, body.x, y, body.w, pal.text); hline(g, body.x, y + ROW - 2, body.w, pal.text); }
           f.draw(g, row.label, body.x + 4, textY(y, ROW), pal.text);
           const t = money(row.total);
@@ -153,9 +153,9 @@ export class CostApp {
           let x = body.x;
           for (let ci = 0; ci < cols.length; ci++) {
             const cw = cols[ci].w;
-            const t = SANS.ellipsis(cells[ci], cw - 8);
-            if (cols[ci].align === 'right') SANS.draw(g, t, x + cw - 6 - SANS.measure(t), textY(y, ROW), fg);
-            else SANS.draw(g, t, x + 4, textY(y, ROW), fg);
+            const t = BODY.ellipsis(cells[ci], cw - 8);
+            if (cols[ci].align === 'right') BODY.draw(g, t, x + cw - 6 - BODY.measure(t), textY(y, ROW), fg);
+            else BODY.draw(g, t, x + 4, textY(y, ROW), fg);
             x += cw;
           }
         }
@@ -170,7 +170,7 @@ export class CostApp {
       const by = r.y + r.h - statusH - barH;
       const bx = r.x + 6, bw = r.w - 12;
       const right = `${money(c.total)} of ${budget ? money(budget) : '—'} credits`;
-      twoColumn(g, bx, by + 2, bw, SANS_BOLD, 'Cost against budget', SANS, right, pal.text, pal.text);
+      twoColumn(g, bx, by + 2, bw, BODY_BOLD, 'Cost against budget', BODY, right, pal.text, pal.text);
 
       const trough = { x: bx, y: by + 15, w: bw, h: 18 };
       const in2 = bevel(g, trough.x, trough.y, trough.w, trough.h, 'sunken', pal);
@@ -192,7 +192,7 @@ export class CostApp {
       : over ? `Over by ${money(c.total - budget)} credits (${(c.overrunPct ?? ((c.total - budget) / budget) * 100).toFixed(1)} %).`
         : `Inside the budget by ${money(budget - c.total)} credits.`;
     const perM2 = c.costPerM2 ? `${money(c.costPerM2)} credits/m²` : '';
-    twoColumn(g, bx, by + 35, bw, over ? SANS_BOLD : SANS, note, SANS, perM2,
+    twoColumn(g, bx, by + 35, bw, over ? BODY_BOLD : BODY, note, BODY, perM2,
       over ? VGA.maroon : pal.text, pal.text);
     }
 
@@ -200,7 +200,7 @@ export class CostApp {
       { w: 150, text: `${c.bill.length} priced items` },
       { w: 130, text: c.quantities ? `${c.quantities.floorArea ?? 0} m² floor` : '' },
       { w: -1, text: over ? 'OVER BUDGET' : 'Within budget' },
-    ], pal, SANS);
+    ], pal, BODY);
   }
 
   pointer(ev) {

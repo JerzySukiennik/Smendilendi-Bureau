@@ -99,10 +99,16 @@ export class PlanDrawing {
    * Rebuild from the model. Cheap enough to call on every model version bump.
    * `labels` is the editor's room naming (classification first, hash never).
    */
-  build(model, levelId, roomNames = null) {
-    if (this.version === model.version && this.levelId === levelId) return;
-    this.version = model.version;
+  build(model, levelId, roomNames = null, show = {}) {
+    // The cache key carries the visibility switches as well as the model
+    // version: turning the furniture tag off has to redraw the sheet, and the
+    // model has not changed one bit.
+    const stamp = `${model.version}/${show.furniture === false ? 0 : 1}${show.trees === false ? 0 : 1}`;
+    if (this.version === stamp && this.levelId === levelId) return;
+    this.version = stamp;
     this.levelId = levelId;
+    this._showFurniture = show.furniture !== false;
+    this._showTrees = show.trees !== false;
 
     const tris = [];
     const segs = [];       // { a:[x,z], b:[x,z], color }
@@ -204,7 +210,7 @@ export class PlanDrawing {
     // the one thing on this sheet that would tell an architect a programmer drew
     // it. Everything above the 1.20 m cut is left out, as it is on a real plan.
     const footprints = [];
-    for (const id in model.furniture) {
+    for (const id in (this._showFurniture ? model.furniture : {})) {
       const f = model.furniture[id];
       if (f.levelId !== levelId) continue;
       const entry = tryEntry(f.catalogId);
@@ -220,9 +226,17 @@ export class PlanDrawing {
     for (const id of rooms.order) {
       const r = rooms.rooms[id];
       const c = roomCentroid(r);
-      const text = (roomNames && roomNames.get(id)) || r.name;
-      const at = labelSpot(c, r, footprints, text);
-      labels.push({ text, sub: `${r.area.toFixed(2)} m²`, x: at.x, z: at.z, size: 0.34 });
+      // A room nobody has named yet prints its AREA AND NOTHING ELSE, in the
+      // secondary weight — never r.name, which is the internal hash, and never
+      // an invented "Room 2". On a sheet the client reads, a placeholder name
+      // standing next to "Living room" reads as a broken drawing; a bare area
+      // reads as a room still being worked out, which is the truth.
+      const name = (roomNames && roomNames.get(id)) || '';
+      const area = `${r.area.toFixed(2)} m²`;
+      const at = labelSpot(c, r, footprints, name || area);
+      labels.push(name
+        ? { text: name, sub: area, x: at.x, z: at.z, size: 0.34 }
+        : { text: area, sub: '', x: at.x, z: at.z, size: 0.26, color: '#6f6a63' });
     }
 
     // Dimensions. A drawing an architect can build from carries the running
@@ -299,7 +313,7 @@ export class PlanDrawing {
   _siteSegs() {
     const out = [];
     const s = this.sheet;
-    if (!this.siteData || !s) return out;
+    if (!this.siteData || !s || this._showTrees === false) return out;
     for (const t of this.siteData.trees || []) {
       const r = Math.max(0.6, t.radius || 3);
       if (t.x + r < s.minX || t.x - r > s.maxX || t.z + r < s.minZ || t.z - r > s.maxZ) continue;

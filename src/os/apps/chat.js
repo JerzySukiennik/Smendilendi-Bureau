@@ -14,7 +14,7 @@ import {
   fill, hline, vline, bevel, field, statusBar, inside, textY, clipped, button,
   focusRect, VGA,
 } from '../widgets.js';
-import { SANS, SANS_BOLD, wrap } from '../font.js';
+import { BODY, BODY_BOLD, UI, wrap } from '../font.js';
 import { I16 } from '../icons.js';
 import { ScrollPane } from './common.js';
 
@@ -136,23 +136,23 @@ export class ChatApp {
         if (ln.head) {
           if (this.stamps) {
             const ts = hhmm(ln.at);
-            SANS.draw(g, ts, x, y, pal.gray);
-            x += SANS.measure(ts) + 5;
+            BODY.draw(g, ts, x, y, pal.gray);
+            x += BODY.measure(ts) + 5;
           }
           const nick = ln.system ? '*' : `${ln.nick}:`;
-          SANS_BOLD.draw(g, nick, x, y, this.colorOf(ln.pid));
-          x += SANS_BOLD.measure(nick) + 4;
+          BODY_BOLD.draw(g, nick, x, y, this.colorOf(ln.pid));
+          x += BODY_BOLD.measure(nick) + 4;
         } else {
           x += this.indent;
         }
-        SANS.draw(g, ln.text, x, y, ln.system ? pal.gray : pal.text);
+        BODY.draw(g, ln.text, x, y, ln.system ? pal.gray : pal.text);
       }
     });
     this.pane.paint(g, pal, mac);
 
     // roster
     const rx = r.x + r.w - roster - 3;
-    SANS_BOLD.draw(g, 'In the office', rx, r.y + 3, pal.text);
+    BODY_BOLD.draw(g, 'In the office', rx, r.y + 3, pal.text);
     const rin = field(g, rx, r.y + 15, roster, outer.h - 12, pal);
     const players = this.players();
     players.forEach((p, i) => {
@@ -162,17 +162,17 @@ export class ChatApp {
       hline(g, rin.x + 4, y + 10, 7, pal.text);
       vline(g, rin.x + 3, y + 3, 7, pal.text);
       vline(g, rin.x + 11, y + 3, 7, pal.text);
-      SANS.draw(g, SANS.ellipsis(p.nick, roster - 22), rin.x + 15, y, pal.text);
+      BODY.draw(g, BODY.ellipsis(p.nick, roster - 22), rin.x + 15, y, pal.text);
     });
 
     // input line + Send
     const iy = r.y + r.h - statusH - inputH - 4;
     const bw = 54;
     const fin = field(g, r.x + 3, iy, r.w - 6 - bw - 4, inputH, pal);
-    const shown = SANS.ellipsis(this.input, fin.w - 8);
-    SANS.draw(g, shown, fin.x + 4, textY(fin.y, fin.h), pal.text);
+    const shown = BODY.ellipsis(this.input, fin.w - 8);
+    BODY.draw(g, shown, fin.x + 4, textY(fin.y, fin.h), pal.text);
     if (focused && this.caret) {
-      const cx = fin.x + 4 + SANS.measure(shown);
+      const cx = fin.x + 4 + BODY.measure(shown);
       fill(g, cx + 1, fin.y + 3, 1, fin.h - 6, pal.text);
     }
     button(g, { x: r.x + r.w - bw - 3, y: iy, w: bw, h: inputH }, {
@@ -185,7 +185,7 @@ export class ChatApp {
       { w: 132, text: `Office ${this.code()}` },
       { w: 96, text: `${players.length} connected` },
       { w: -1, text: this.net ? (this.net.kind === 'rtdb' ? 'Online' : 'Local session') : 'Local session' },
-    ], pal, SANS);
+    ], pal, BODY);
   }
 
   players() {
@@ -199,9 +199,9 @@ export class ChatApp {
     this.indent = 34;
     const out = [];
     for (const m of this.messages) {
-      const head = (this.stamps ? SANS.measure(hhmm(m.at)) + 5 : 0)
-        + SANS_BOLD.measure(m.system ? '*' : `${m.nick}:`) + 4;
-      const parts = wrap(SANS, m.text, Math.max(40, textW - head));
+      const head = (this.stamps ? BODY.measure(hhmm(m.at)) + 5 : 0)
+        + BODY_BOLD.measure(m.system ? '*' : `${m.nick}:`) + 4;
+      const parts = wrap(BODY, m.text, Math.max(40, textW - head));
       parts.forEach((t, i) => out.push({ ...m, text: t, head: i === 0 }));
       this.indent = Math.max(this.indent, 0);
     }

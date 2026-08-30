@@ -15,8 +15,9 @@
 // (reference/architect-life/ANALYSIS.md):
 //   * item 5 — a measurable AO band at every wall/floor and wall/ceiling
 //     junction. It is baked into vertex colour by aoFloor()/aoCeil()/aoCorner()
-//     below, ~45 % darkening over the last 0.55 m, so two pixels 20 px apart
-//     across a junction differ by far more than the 12/255 the bar requires.
+//     below: 48 % over the last 0.55 m at the floor, 40 % over the last 0.24 m
+//     at the soffit and 70 % over the ceiling's last 0.50 m, on a grid fine
+//     enough to resolve it — measured, not assumed, in Office.junctionBand().
 //   * item 7 — a hard directional light patch through an opening. The glazed
 //     bays are REAL GAPS in a shadow-casting wall, so the sun draws its own
 //     rectangles on the floor. Nothing here is a painted-on fake.
@@ -50,20 +51,30 @@ const sm = (t) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2
 /** Darkening near the floor: 0.52 at contact, full by 0.55 m. */
 const aoFloor = (y) => 0.52 + 0.48 * sm(y / 0.55);
 /**
- * Darkening near the soffit, ON THE WALL.
+ * Darkening near the soffit, ON THE WALL — and its partner aoCeilEdge, the
+ * darkening of the ceiling plane as it approaches a wall.
  *
- * Finish bar item 5 asks for >= 12/255 across a junction. Round 1 measured
- * 0/255 at wall/ceiling: the wall arrived at the soffit at 0.62 and the ceiling
- * arrived at the same wall at 0.58, so the two surfaces met at the identical
- * value and the "AO band" was invisible — a gradient with nothing on the other
- * side of it is not a junction, it is a wash. In a real room the CEILING is the
- * darker of the two at the joint (it is the surface facing away from every light
- * and the one the wall bounces into), so the wall's ramp is now shallow and the
- * ceiling's, below, is deep.
+ * In a real room the CEILING is the darker of the two at the joint: it faces
+ * away from every light and it is what the wall bounces into. So the wall's
+ * ramp is the shallower one and the ceiling's is deep.
+ *
+ * Round 3 numbers, and the third attempt at this. Round 1 had wall and ceiling
+ * arriving at the joint at the same value, so there was no junction at all.
+ * Round 2 made them differ (0.78 -> 1.00 over 0.40 m on the wall, 0.34 -> 1.00
+ * over 0.90 m on the ceiling) and still measured only 8.1 luma over 20 px on
+ * the shipped frame, against the bar's 12 — while wall/floor passed at 16.1.
+ * The missing factor was not depth, it was LENGTH and SUBDIVISION: item 5
+ * samples two pixels 20 px apart, and a gentle ramp spread over 0.90 m of a
+ * surface seen nearly edge-on puts both samples inside the same few luma —
+ * worse, the ceiling plane's 30 x 20 grid made its cells 0.52 m, so the whole
+ * band lived inside one quad and was interpolated flat. The band is now short
+ * (0.24 m on the wall, 0.50 m on the ceiling), deep, and drawn on a 0.25 m
+ * grid that can actually carry it. That is also the shadow a real soffit
+ * throws.
  */
-const aoCeil = (y) => 0.78 + 0.22 * sm((ROOM.H - y) / 0.40);
+const aoCeil = (y) => 0.60 + 0.40 * sm((ROOM.H - y) / 0.24);
 /** Darkening of the CEILING PLANE near a wall — the other half of that band. */
-const aoCeilEdge = (d) => 0.34 + 0.66 * sm(d / 0.90);
+const aoCeilEdge = (d) => 0.30 + 0.70 * sm(d / 0.50);
 /** Darkening near a vertical corner, d = distance to the nearest return. */
 const aoCorner = (d) => 0.58 + 0.42 * sm(d / 0.70);
 /** Floor darkening near a wall. */
@@ -171,7 +182,13 @@ export function buildRoom(opts = {}) {
   // instead of an AO band.
   const OVER = 0.26;
   {
-    const g = shadedPlane(W + OVER * 2, D + OVER * 2, 30, 20, (x, y) => {
+    // 0.25 m cells, not 0.52 m. The AO band is 0.50 m long, so at the old
+    // 30 x 20 subdivision the whole ramp fell inside ONE quad and was linearly
+    // interpolated away — the darkening existed in the vertex data and not on
+    // the screen. This is most of why the measured band was half the bar.
+    const nx = Math.round((W + OVER * 2) / 0.25);
+    const nz = Math.round((D + OVER * 2) / 0.25);
+    const g = shadedPlane(W + OVER * 2, D + OVER * 2, nx, nz, (x, y) => {
       const d = Math.min(x - OVER, W + OVER - x, y - OVER, D + OVER - y);
       return aoCeilEdge(d);
     }, OFFICE.ceiling, 'plaster');
@@ -179,12 +196,21 @@ export function buildRoom(opts = {}) {
     g.translate(W / 2, H, D / 2);
     b.parts.set('plaster', [g]);
   }
-  // five exposed downstand beams spanning the 9.6 m direction
+  // five exposed downstand beams spanning the 9.6 m direction.
+  // Chamfered: DESIGN-DECISIONS.md asks for softly bevelled edges and round 2
+  // put them on the props and nowhere else, so the biggest arrises in the room —
+  // five 9.6 m beams — met the soffit on a razor edge with no highlight facet.
   const beamX = [2.5, 5.0, 7.5, 10.0, 12.5];
   for (const x of beamX) {
-    b.box(0.25, 0.35, D, { x, y: H - 0.175, z: D / 2, color: 0xdcd4c6, mat: 'plaster', ao: false });
+    b.cbox(0.25, 0.35, D, { x, y: H - 0.175, z: D / 2, color: 0xdcd4c6, mat: 'plaster', ao: false, c: 0.010 });
     // a slightly darker underside sells the beam as a solid, not a stripe
     b.box(0.25, 0.004, D, { x, y: H - 0.352, z: D / 2, color: 0x9e978a, mat: 'plaster', ao: false });
+    // AO fillet where the beam meets the soffit, both sides — the same band
+    // item 5 wants at a wall/ceiling junction, and a downstand beam is one.
+    for (const sx of [-1, 1]) {
+      b.box(0.10, 0.002, D, { x: x + sx * 0.175, y: H - 0.0015, z: D / 2, color: 0x8f887c, mat: 'plaster', ao: false });
+      b.box(0.05, 0.002, D, { x: x + sx * 0.150, y: H - 0.0010, z: D / 2, color: 0x746e64, mat: 'plaster', ao: false });
+    }
   }
 
   // ---- north wall: limewashed brick + clerestory ---------------------------
@@ -207,37 +233,75 @@ export function buildRoom(opts = {}) {
       });
     }
     // backing plane = the mortar joints
-    b.box(W, BRICK_TOP, 0.02, { x: W / 2, y: BRICK_TOP / 2, z: -0.01, color: 0x8a8279, ao: false });
+    b.box(W, BRICK_TOP, 0.02, { x: W / 2, y: BRICK_TOP / 2, z: -0.018, color: 0x8a8279, ao: false });
     // brick-on-edge coping between brick and clerestory
-    b.box(W, 0.10, 0.13, { x: W / 2, y: BRICK_TOP + 0.05, z: 0.05, color: OFFICE.limewashDk, ao: false });
+    b.cbox(W, 0.10, 0.13, { x: W / 2, y: BRICK_TOP + 0.05, z: 0.05, color: OFFICE.limewashDk, ao: false, c: 0.006 });
   }
-  // clerestory head panel + the piers between the four lights
-  b.box(W, H + 0.06 - CLEREST_TOP, 0.10, { x: W / 2, y: (CLEREST_TOP + H + 0.06) / 2, z: 0.05, color: OFFICE.wallShade, mat: 'plaster', ao: false });
-  b.box(W, CLEREST_BOTTOM - BRICK_TOP - 0.10, 0.10, { x: W / 2, y: (BRICK_TOP + 0.10 + CLEREST_BOTTOM) / 2, z: 0.05, color: OFFICE.wallShade, mat: 'plaster', ao: false });
+  // Clerestory head panel. This 0.31 m strip is the north wall's whole
+  // wall/ceiling junction — it runs from 3.05 up to the soffit — and round 2
+  // drew it as one flat ao:false box at wallShade, i.e. 202 luma of cream
+  // arriving at the ceiling BRIGHTER than the wall below it. That is the
+  // "junction lighter than the wall" half of the item 5 failure. It now carries
+  // the same aoCeil ramp every other wall does, on its own front plane, and the
+  // solid behind it is shaded down so nothing bright can show in the seam.
+  b.box(W, H + 0.06 - CLEREST_TOP, 0.10, { x: W / 2, y: (CLEREST_TOP + H + 0.06) / 2, z: 0.030, color: OFFICE.wallShade, mat: 'plaster', ao: false, shade: 0.62 });
+  {
+    const y0 = CLEREST_TOP, y1 = H + 0.07;
+    const g = shadedPlane(W, y1 - y0, Math.round(W / 0.30), Math.max(2, Math.round((y1 - y0) / 0.07)),
+      (u, vv) => aoCeil(y0 + vv) * aoCorner(Math.min(u, W - u)), OFFICE.wallPaint, 'plaster');
+    g.translate(W / 2, y0 + (y1 - y0) / 2, 0.1005);
+    b.parts.set('plaster', (b.parts.get('plaster') || []).concat([g]));
+  }
+  b.cbox(W, CLEREST_BOTTOM - BRICK_TOP - 0.10, 0.10, { x: W / 2, y: (BRICK_TOP + 0.10 + CLEREST_BOTTOM) / 2, z: 0.05, color: OFFICE.wallShade, mat: 'plaster', ao: false, c: 0.006 });
   const clerX = [3.75, 7.50, 11.25];
   for (const x of clerX) {
-    b.box(0.16, CLEREST_TOP - CLEREST_BOTTOM, 0.14, { x, y: (CLEREST_BOTTOM + CLEREST_TOP) / 2, z: 0.05, color: OFFICE.wallShade, mat: 'plaster', ao: false });
+    b.cbox(0.16, CLEREST_TOP - CLEREST_BOTTOM, 0.14, { x, y: (CLEREST_BOTTOM + CLEREST_TOP) / 2, z: 0.05, color: OFFICE.wallShade, mat: 'plaster', ao: false, c: 0.005 });
   }
 
   // ---- west wall: three full-height glazed bays ----------------------------
   // Piers between and beside the bays, plus a head and a sill panel per bay.
+  //
+  // LINING. Every wall in this room is a visible FINISH PLANE (vertex-AO
+  // shaded) with an opaque SOLID behind it that casts the shadows. Round 2 put
+  // the solid's inner face exactly on the wall line, 1 mm behind the plane —
+  // and 1 mm is inside the depth buffer's resolution at 5 m, so the two
+  // surfaces Z-FOUGHT. That was invisible while both were nearly the same
+  // cream, and became a stepped, aliased bright line the moment round 3
+  // deepened the AO ramp at the soffit, because up there the plane is at 0.60
+  // and the ao:false solid is still at 1.00. Measured on the teapoint frame:
+  // the wall reads 93 luma and the stipple peaked at 211.
+  //
+  // So the solid now sits 20 mm further out. Same wall thickness, same shadow,
+  // no coincident faces anywhere in the shell.
+  const LINING = 0.02;
   const bayEdges = [];
   for (const [zc, bw] of BAYS) bayEdges.push([zc - bw / 2, zc + bw / 2]);
   let cursor = 0;
   const westShade = (yy) => aoFloor(yy) * aoCeil(yy);
   const wallPanel = (z0, z1, y0, y1) => {
     if (z1 - z0 < 0.001 || y1 - y0 < 0.001) return;
-    const g = shadedPlane(z1 - z0, y1 - y0, Math.max(1, Math.round((z1 - z0) * 4)), Math.max(1, Math.round((y1 - y0) * 4)),
+    // LAP. The finish plane runs 70 mm ABOVE the ceiling plane wherever it
+    // reaches the soffit. Built exactly to y = H it ended on the same line the
+    // ceiling starts on, and the 1 px rasterisation seam between two
+    // perpendicular planes sharing an edge showed the SOLID behind — which is
+    // wallShade at ao:false, i.e. 202 luma of cream. That is the stepped
+    // aliased line a critic photographed at 6x along the whole top of the
+    // frame (progress/shots/crop-seam.png) and mistook for a sky leak. Now the
+    // darkest end of the wall's own AO ramp is what fills the seam.
+    const y1x = y1 >= H - 1e-6 ? H + 0.07 : y1;
+    const per = 0.125;                        // resolve the 0.24 m AO band
+    const g = shadedPlane(z1 - z0, y1x - y0,
+      Math.max(1, Math.round((z1 - z0) / 0.30)), Math.max(1, Math.round((y1x - y0) / per)),
       (u, vv) => westShade(y0 + vv) * aoCorner(Math.min(z0 + u, D - (z0 + u))),
       OFFICE.wallPaint, 'plaster');
     g.rotateY(Math.PI / 2);
-    g.translate(0.001, y0 + (y1 - y0) / 2, z0 + (z1 - z0) / 2);
+    g.translate(0.001, y0 + (y1x - y0) / 2, z0 + (z1 - z0) / 2);
     b.parts.set('plaster', (b.parts.get('plaster') || []).concat([g]));
     // The solid behind it, so the wall casts a real shadow — and, where it
     // reaches the soffit, carried 60 mm PAST it, so there is no hairline for
     // the sky to come through.
     const top = y1 >= H - 1e-6 ? H + 0.06 : y1;
-    b.box(WALL, top - y0, z1 - z0, { x: -WALL / 2, y: (y0 + top) / 2, z: (z0 + z1) / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
+    b.box(WALL, top - y0, z1 - z0, { x: -WALL / 2 - LINING, y: (y0 + top) / 2, z: (z0 + z1) / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
   };
   for (const [z0, z1] of bayEdges) {
     wallPanel(cursor, z0, 0, H);
@@ -249,11 +313,13 @@ export function buildRoom(opts = {}) {
 
   // ---- east wall -----------------------------------------------------------
   {
-    const g = shadedPlane(D, H, 20, 14, (u, vv) => westShade(vv) * aoCorner(Math.min(u, D - u)), OFFICE.wallPaint, 'plaster');
+    const eh = H + 0.07;                       // same lap over the ceiling plane
+    const g = shadedPlane(D, eh, Math.round(D / 0.30), Math.round(eh / 0.125),
+      (u, vv) => westShade(vv) * aoCorner(Math.min(u, D - u)), OFFICE.wallPaint, 'plaster');
     g.rotateY(-Math.PI / 2);
-    g.translate(W - 0.001, H / 2, D / 2);
+    g.translate(W - 0.001, eh / 2, D / 2);
     b.parts.set('plaster', (b.parts.get('plaster') || []).concat([g]));
-    b.box(WALL, H + 0.06, D + WALL * 2, { x: W + WALL / 2, y: (H + 0.06) / 2, z: D / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
+    b.box(WALL, H + 0.06, D + WALL * 2, { x: W + WALL / 2 + LINING, y: (H + 0.06) / 2, z: D / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
   }
 
   // ---- south wall (with the door opening) ---------------------------------
@@ -261,29 +327,31 @@ export function buildRoom(opts = {}) {
     const dx0 = ROOM.DOOR_X - ROOM.DOOR_W / 2, dx1 = ROOM.DOOR_X + ROOM.DOOR_W / 2;
     const seg = (x0, x1, y0, y1) => {
       if (x1 - x0 < 0.001 || y1 - y0 < 0.001) return;
-      const g = shadedPlane(x1 - x0, y1 - y0, Math.max(1, Math.round((x1 - x0) * 3)), Math.max(1, Math.round((y1 - y0) * 4)),
+      const y1x = y1 >= H - 1e-6 ? H + 0.07 : y1;
+      const g = shadedPlane(x1 - x0, y1x - y0,
+        Math.max(1, Math.round((x1 - x0) / 0.30)), Math.max(1, Math.round((y1x - y0) / 0.125)),
         (u, vv) => westShade(y0 + vv) * aoCorner(Math.min(x0 + u, W - (x0 + u))), OFFICE.wallPaint, 'plaster');
       g.rotateY(Math.PI);
-      g.translate(x0 + (x1 - x0) / 2, y0 + (y1 - y0) / 2, D - 0.001);
+      g.translate(x0 + (x1 - x0) / 2, y0 + (y1x - y0) / 2, D - 0.001);
       b.parts.set('plaster', (b.parts.get('plaster') || []).concat([g]));
       const top = y1 >= H - 1e-6 ? H + 0.06 : y1;
-      b.box(x1 - x0, top - y0, WALL, { x: (x0 + x1) / 2, y: (y0 + top) / 2, z: D + WALL / 2, color: OFFICE.wallShade, mat: 'plaster', ao: false });
+      b.box(x1 - x0, top - y0, WALL, { x: (x0 + x1) / 2, y: (y0 + top) / 2, z: D + WALL / 2 + LINING, color: OFFICE.wallShade, mat: 'plaster', ao: false });
     };
     seg(0, dx0, 0, H);
     seg(dx0, dx1, ROOM.DOOR_H, H);
     seg(dx1, W, 0, H);
     // door lining + a closed leaf
-    b.box(ROOM.DOOR_W + 0.08, 0.06, 0.30, { x: ROOM.DOOR_X, y: ROOM.DOOR_H + 0.03, z: D + 0.03, color: OFFICE.charcoal, mat: 'ink', ao: false });
-    b.box(ROOM.DOOR_W, ROOM.DOOR_H, 0.045, { x: ROOM.DOOR_X, y: ROOM.DOOR_H / 2, z: D + 0.06, color: OFFICE.charcoal, mat: 'ink', ao: false });
-    b.box(0.02, 0.13, 0.05, { x: ROOM.DOOR_X - 0.35, y: 1.05, z: D + 0.03, color: OFFICE.steel, mat: 'metal', ao: false });
+    b.cbox(ROOM.DOOR_W + 0.08, 0.06, 0.30, { x: ROOM.DOOR_X, y: ROOM.DOOR_H + 0.03, z: D + 0.03, color: OFFICE.charcoal, mat: 'ink', ao: false, c: 0.005 });
+    b.cbox(ROOM.DOOR_W, ROOM.DOOR_H, 0.045, { x: ROOM.DOOR_X, y: ROOM.DOOR_H / 2, z: D + 0.06, color: OFFICE.charcoal, mat: 'ink', ao: false, c: 0.006 });
+    b.cbox(0.02, 0.13, 0.05, { x: ROOM.DOOR_X - 0.35, y: 1.05, z: D + 0.03, color: OFFICE.steel, mat: 'metal', ao: false, c: 0.004 });
   }
 
   // ---- skirting: 80 mm, dark. The AO band made physical. -------------------
   const sk = 0.08;
-  b.box(W, sk, 0.022, { x: W / 2, y: sk / 2, z: 0.011, color: OFFICE.skirting, mat: 'ink', ao: false });
-  b.box(W, sk, 0.022, { x: W / 2, y: sk / 2, z: D - 0.011, color: OFFICE.skirting, mat: 'ink', ao: false });
-  b.box(0.022, sk, D, { x: 0.011, y: sk / 2, z: D / 2, color: OFFICE.skirting, mat: 'ink', ao: false });
-  b.box(0.022, sk, D, { x: W - 0.011, y: sk / 2, z: D / 2, color: OFFICE.skirting, mat: 'ink', ao: false });
+  b.cbox(W, sk, 0.022, { x: W / 2, y: sk / 2, z: 0.011, color: OFFICE.skirting, mat: 'ink', ao: false, c: 0.005 });
+  b.cbox(W, sk, 0.022, { x: W / 2, y: sk / 2, z: D - 0.011, color: OFFICE.skirting, mat: 'ink', ao: false, c: 0.005 });
+  b.cbox(0.022, sk, D, { x: 0.011, y: sk / 2, z: D / 2, color: OFFICE.skirting, mat: 'ink', ao: false, c: 0.005 });
+  b.cbox(0.022, sk, D, { x: W - 0.011, y: sk / 2, z: D / 2, color: OFFICE.skirting, mat: 'ink', ao: false, c: 0.005 });
 
   // ---- glazing: frames (metal) + panes (glass) ----------------------------
   const glazing = [];
@@ -292,15 +360,15 @@ export function buildRoom(opts = {}) {
     const z0 = zc - bw / 2, z1 = zc + bw / 2;
     const hgt = HEAD - SILL;
     // outer frame
-    b.box(0.07, frame, bw, { x: 0.035, y: SILL + frame / 2, z: zc, color: 0xf2eee7, mat: 'metal', ao: false });
-    b.box(0.07, frame, bw, { x: 0.035, y: HEAD - frame / 2, z: zc, color: 0xf2eee7, mat: 'metal', ao: false });
-    b.box(0.07, hgt, frame, { x: 0.035, y: SILL + hgt / 2, z: z0 + frame / 2, color: 0xf2eee7, mat: 'metal', ao: false });
-    b.box(0.07, hgt, frame, { x: 0.035, y: SILL + hgt / 2, z: z1 - frame / 2, color: 0xf2eee7, mat: 'metal', ao: false });
+    b.cbox(0.07, frame, bw, { x: 0.035, y: SILL + frame / 2, z: zc, color: 0xf2eee7, mat: 'metal', ao: false, c: 0.004 });
+    b.cbox(0.07, frame, bw, { x: 0.035, y: HEAD - frame / 2, z: zc, color: 0xf2eee7, mat: 'metal', ao: false, c: 0.004 });
+    b.cbox(0.07, hgt, frame, { x: 0.035, y: SILL + hgt / 2, z: z0 + frame / 2, color: 0xf2eee7, mat: 'metal', ao: false, c: 0.004 });
+    b.cbox(0.07, hgt, frame, { x: 0.035, y: SILL + hgt / 2, z: z1 - frame / 2, color: 0xf2eee7, mat: 'metal', ao: false, c: 0.004 });
     // one mullion, one transom — slim, as an architect would specify
-    b.box(0.07, hgt, 0.045, { x: 0.035, y: SILL + hgt / 2, z: zc, color: 0xf2eee7, mat: 'metal', ao: false });
-    b.box(0.07, 0.045, bw, { x: 0.035, y: SILL + hgt * 0.66, z: zc, color: 0xf2eee7, mat: 'metal', ao: false });
+    b.cbox(0.07, hgt, 0.045, { x: 0.035, y: SILL + hgt / 2, z: zc, color: 0xf2eee7, mat: 'metal', ao: false, c: 0.004 });
+    b.cbox(0.07, 0.045, bw, { x: 0.035, y: SILL + hgt * 0.66, z: zc, color: 0xf2eee7, mat: 'metal', ao: false, c: 0.004 });
     // internal cill board
-    b.box(0.22, 0.035, bw + 0.10, { x: 0.11, y: SILL - 0.0175, z: zc, color: OFFICE.oakPale, mat: 'wood-light', ao: false });
+    b.cbox(0.22, 0.035, bw + 0.10, { x: 0.11, y: SILL - 0.0175, z: zc, color: OFFICE.oakPale, mat: 'wood-light', ao: false, c: 0.005 });
     glazing.push({ x: 0.05, y: SILL + hgt / 2, z: zc, w: bw, h: hgt, sill: SILL, head: HEAD, normal: new Vector3(1, 0, 0) });
   }
   // clerestory frames
@@ -308,8 +376,8 @@ export function buildRoom(opts = {}) {
     const x0 = i === 0 ? 0.10 : clerX[i - 1] + 0.08;
     const x1 = i === 3 ? W - 0.10 : clerX[i] - 0.08;
     const cw = x1 - x0, ch = CLEREST_TOP - CLEREST_BOTTOM;
-    b.box(cw, 0.04, 0.07, { x: (x0 + x1) / 2, y: CLEREST_BOTTOM + 0.02, z: 0.035, color: 0xf2eee7, mat: 'metal', ao: false });
-    b.box(cw, 0.04, 0.07, { x: (x0 + x1) / 2, y: CLEREST_TOP - 0.02, z: 0.035, color: 0xf2eee7, mat: 'metal', ao: false });
+    b.cbox(cw, 0.04, 0.07, { x: (x0 + x1) / 2, y: CLEREST_BOTTOM + 0.02, z: 0.035, color: 0xf2eee7, mat: 'metal', ao: false, c: 0.004 });
+    b.cbox(cw, 0.04, 0.07, { x: (x0 + x1) / 2, y: CLEREST_TOP - 0.02, z: 0.035, color: 0xf2eee7, mat: 'metal', ao: false, c: 0.004 });
     glazing.push({ x: (x0 + x1) / 2, y: (CLEREST_BOTTOM + CLEREST_TOP) / 2, z: 0.05, w: cw, h: ch, normal: new Vector3(0, 0, 1) });
   }
 

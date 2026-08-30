@@ -10,7 +10,7 @@
 import {
   fill, hline, vline, bevel, field, headerRow, statusBar, inside, textY, clipped,
 } from '../widgets.js';
-import { SANS, SANS_BOLD } from '../font.js';
+import { BODY, BODY_BOLD, UI } from '../font.js';
 import { I16 } from '../icons.js';
 import { toolbar, toolbarHit, ListView, ROW_H, dateShort } from './common.js';
 
@@ -23,12 +23,12 @@ export class FilesApp {
     this.list = new ListView(ROW_H);
     this.path = ['Projects'];
     this.tools = [
-      { id: 'up', icon: 'folderOpen' },
+      { id: 'up', tip: 'Up one level', icon: 'folderOpen' },
       { sep: true },
-      { id: 'save', icon: 'floppy' },
-      { id: 'delete', icon: 'bin' },
+      { id: 'save', tip: 'Save a copy', icon: 'floppy' },
+      { id: 'delete', tip: 'Delete', icon: 'bin' },
       { sep: true },
-      { id: 'design', icon: 'design' },
+      { id: 'design', tip: 'Open in the editor', icon: 'design' },
     ];
     this.toolState = {};
     this.menu = [
@@ -162,16 +162,16 @@ export class FilesApp {
 
     // the address line
     const ay = r.y + 28;
-    SANS.draw(g, 'Address', r.x + 4, ay + 3, pal.text);
+    BODY.draw(g, 'Address', r.x + 4, ay + 3, pal.text);
     const af = field(g, r.x + 52, ay, r.w - 58, 19, pal);
     I16.folder?.draw(g, af.x + 1, af.y - 1);
-    SANS.draw(g, this.path.join('\\'), af.x + 20, textY(af.y, af.h), pal.text);
+    BODY.draw(g, this.path.join('\\'), af.x + 20, textY(af.y, af.h), pal.text);
 
     const statusH = 20;
     const outer = { x: r.x + 2, y: ay + 23, w: r.w - 4, h: r.h - (ay + 23 - r.y) - statusH - 3 };
     const inner = field(g, outer.x, outer.y, outer.w, outer.h, pal);
     const cols = this.columns(inner.w - 16);
-    headerRow(g, inner.x, inner.y, inner.w, 17, cols, pal, SANS);
+    headerRow(g, inner.x, inner.y, inner.w, 17, cols, pal, UI);
     const body = { x: inner.x, y: inner.y + 17, w: inner.w, h: inner.h - 17 };
     this.list.layout(body, this.rows.length);
     this.list.paint(g, pal, (gg, i, row, on) => {
@@ -182,9 +182,9 @@ export class FilesApp {
       let x = row.x + 20;
       for (let c = 0; c < cols.length; c++) {
         const cw = cols[c].w - (c === 0 ? 20 : 0);
-        const t = SANS.ellipsis(cells[c], cw - 8);
-        if (cols[c].align === 'right') SANS.draw(gg, t, x + cw - 6 - SANS.measure(t), textY(row.y, row.h), fg);
-        else SANS.draw(gg, t, x + 2, textY(row.y, row.h), fg);
+        const t = BODY.ellipsis(cells[c], cw - 8);
+        if (cols[c].align === 'right') BODY.draw(gg, t, x + cw - 6 - BODY.measure(t), textY(row.y, row.h), fg);
+        else BODY.draw(gg, t, x + 2, textY(row.y, row.h), fg);
         x += cw;
       }
     }, mac);
@@ -194,7 +194,7 @@ export class FilesApp {
       { w: 108, text: `${this.rows.length} object(s)` },
       { w: 128, text: sel?.size != null ? `${sel.size} KB` : '' },
       { w: -1, text: `${this.os.variants.length} of ${this.os.grants.maxVariants} variants used` },
-    ], pal, SANS);
+    ], pal, BODY);
   }
 
   pointer(ev) {

@@ -13,7 +13,7 @@ import {
   fill, hline, vline, bevel, field, button, groupBox, checkbox, statusBar,
   inside, textY, clipped, focusRect, checker, VGA, panel,
 } from '../widgets.js';
-import { SANS, SANS_BOLD, wrap } from '../font.js';
+import { UI, UI_BOLD, BODY, wrap } from '../font.js';
 import { I16, icon32 } from '../icons.js';
 import { TIERS } from '../themes.js';
 import { ListView, money } from './common.js';
@@ -57,7 +57,7 @@ export class SettingsApp {
     let tx = r.x + 4;
     this.tabRects = [];
     for (let i = 0; i < TABS.length; i++) {
-      const w = SANS.measure(TABS[i].replace('&', '')) + 20;
+      const w = UI.measure(TABS[i].replace('&', '')) + 20;
       const on = i === this.tab;
       const y = r.y + (on ? 2 : 4);
       const h = TAB_H + (on ? 2 : 0);
@@ -66,7 +66,7 @@ export class SettingsApp {
       vline(g, tx, y + 1, h - 1, pal.hi);
       vline(g, tx + w - 1, y + 1, h - 1, pal.shadow);
       vline(g, tx + w - 2, y + 2, h - 2, pal.face);
-      SANS.drawMnemonic(g, TABS[i], tx + 10, y + (on ? 5 : 4), pal.text);
+      UI.drawMnemonic(g, TABS[i], tx + 10, y + (on ? 5 : 4), pal.text);
       this.tabRects.push({ x: tx, y, w, h });
       tx += w - 1;
     }
@@ -128,14 +128,14 @@ export class SettingsApp {
       const t = TIERS[i];
       const fg = on ? pal.hiliteText : pal.text;
       I16.computer.draw(gg, row.x + 2, row.y + ((row.h - 16) >> 1));
-      SANS.draw(gg, `${t.hardware} — ${t.osName} ${t.osVersion}`, row.x + 22, textY(row.y, row.h), fg);
+      UI.draw(gg, `${t.hardware} — ${t.osName} ${t.osVersion}`, row.x + 22, textY(row.y, row.h), fg);
       const res = `${t.w} x ${t.h}`;
-      SANS.draw(gg, res, row.x + row.w - 8 - SANS.measure(res), textY(row.y, row.h), fg);
+      UI.draw(gg, res, row.x + row.w - 8 - UI.measure(res), textY(row.y, row.h), fg);
     }, this.os.theme.family === 'platinum');
 
     const sel = TIERS[this.pending - 1];
-    SANS.draw(g, `${sel.spec}`, gb.x + 6, gb.y + gb.h - 24, pal.text);
-    SANS.draw(g, sel.grants.note, gb.x + 6, gb.y + gb.h - 12, pal.text);
+    UI.draw(g, `${sel.spec}`, gb.x + 6, gb.y + gb.h - 24, pal.text);
+    UI.draw(g, sel.grants.note, gb.x + 6, gb.y + gb.h - 12, pal.text);
   }
 
   paintMachine(g, p, pal) {
@@ -149,12 +149,12 @@ export class SettingsApp {
       ['Display', `${cfg.w} x ${cfg.h}, ${cfg.family === 'platinum' ? 'thousands of colours' : '256 colours'}`],
     ];
     rows.forEach(([k, v], i) => {
-      SANS_BOLD.draw(g, k, gb.x + 48, gb.y + 6 + i * 14, pal.text);
-      SANS.draw(g, SANS.ellipsis(v, gb.w - 130), gb.x + 118, gb.y + 6 + i * 14, pal.text);
+      UI_BOLD.draw(g, k, gb.x + 48, gb.y + 6 + i * 14, pal.text);
+      UI.draw(g, UI.ellipsis(v, gb.w - 130), gb.x + 118, gb.y + 6 + i * 14, pal.text);
     });
 
     const y2 = gb.y + 74;
-    SANS_BOLD.draw(g, 'What this machine gives the editor', gb.x + 8, y2, pal.text);
+    UI_BOLD.draw(g, 'What this machine gives the editor', gb.x + 8, y2, pal.text);
     const gr = cfg.grants;
     const lines = [
       `Undo history: ${gr.undo} steps`,
@@ -163,16 +163,16 @@ export class SettingsApp {
       `Live shadows: ${gr.shadowPreview ? 'yes' : 'no'}`,
       `Design variants on disk: ${gr.maxVariants}`,
     ];
-    lines.forEach((l, i) => SANS.draw(g, l, gb.x + 12, y2 + 14 + i * 12, pal.text));
+    lines.forEach((l, i) => UI.draw(g, l, gb.x + 12, y2 + 14 + i * 12, pal.text));
 
     // a disabled group, to show the two-pass emboss on a real control
     const dg = { x: p.x + 8, y: p.y + 150, w: p.w - 16, h: 46 };
     bevel(g, dg.x, dg.y, dg.w, dg.h, 'etched', pal);
-    fill(g, dg.x + 7, dg.y - 1, SANS.measure('Hardware acceleration') + 6, 8, pal.face);
-    SANS.drawDisabled(g, 'Hardware acceleration', dg.x + 9, dg.y - 4);
+    fill(g, dg.x + 7, dg.y - 1, UI.measure('Hardware acceleration') + 6, 8, pal.face);
+    UI.drawDisabled(g, 'Hardware acceleration', dg.x + 9, dg.y - 4);
     checkbox(g, dg.x + 10, dg.y + 12, false, pal);
-    SANS.drawDisabled(g, 'Use the 3D accelerator card', dg.x + 28, dg.y + 14);
-    SANS.drawDisabled(g, 'No accelerator is fitted to this machine.', dg.x + 10, dg.y + 28);
+    UI.drawDisabled(g, 'Use the 3D accelerator card', dg.x + 28, dg.y + 14);
+    UI.drawDisabled(g, 'No accelerator is fitted to this machine.', dg.x + 10, dg.y + 28);
   }
 
   paintSound(g, p, pal) {
@@ -180,7 +180,7 @@ export class SettingsApp {
     this.sliderRects = [];
     this.buses.forEach((b, i) => {
       const y = gb.y + 8 + i * 26;
-      SANS.drawMnemonic(g, b.label, gb.x + 8, y + 4, pal.text);
+      UI.drawMnemonic(g, b.label, gb.x + 8, y + 4, pal.text);
       const tr = { x: gb.x + 78, y: y + 6, w: gb.w - 130, h: 4 };
       bevel(g, tr.x, tr.y, tr.w, tr.h, 'sunken', pal);
       // tick marks under the groove, hard pixels only
@@ -191,21 +191,21 @@ export class SettingsApp {
       bevel(g, tx, y - 3, 11, 19, 'button', pal);
       vline(g, tx + 5, y + 1, 10, pal.shadow);
       const pct = `${Math.round(v * 100)} %`;
-      SANS.draw(g, pct, gb.x + gb.w - 40, y + 4, pal.text);
+      UI.draw(g, pct, gb.x + gb.w - 40, y + 4, pal.text);
       this.sliderRects.push({ id: b.id, track: tr });
     });
 
     const gy = gb.y + gb.h + 8;
     const g2 = groupBox(g, p.x + 8, gy, p.w - 16, 62, '&Screen', pal);
     checkbox(g, g2.x + 8, g2.y + 4, this.crt, pal);
-    SANS.draw(g, 'Phosphor and scanlines on the monitor', g2.x + 26, g2.y + 6, pal.text);
+    UI.draw(g, 'Phosphor and scanlines on the monitor', g2.x + 26, g2.y + 6, pal.text);
     this.crtBox = { x: g2.x + 8, y: g2.y + 4, w: 13, h: 13 };
     const note = this.os.config.crt
       ? 'The office shows this machine through its own glass.'
       : 'This machine drives a flat panel. Nothing to simulate.';
-    if (this.os.config.crt) SANS.draw(g, note, g2.x + 8, g2.y + 24, pal.text);
-    else SANS.drawDisabled(g, note, g2.x + 8, g2.y + 24);
-    SANS.draw(g, `Startup sound: ${this.os.config.sound}`, g2.x + 8, g2.y + 38, pal.text);
+    if (this.os.config.crt) UI.draw(g, note, g2.x + 8, g2.y + 24, pal.text);
+    else UI.drawDisabled(g, note, g2.x + 8, g2.y + 24);
+    UI.draw(g, `Startup sound: ${this.os.config.sound}`, g2.x + 8, g2.y + 38, pal.text);
   }
 
   volume(id) {

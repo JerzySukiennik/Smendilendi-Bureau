@@ -103,12 +103,20 @@ export class WallTool extends TwoPointTool {
     const L = this.last;
     const a = new Vector3(L.a.x, this.elevation, L.a.z);
     const b = a.clone().addScaledVector(L.dir, L0 * sign);
-    this.apply({ t: 'wall.delete', id: L.wallId });
-    const op = this.apply({
-      t: 'wall.add',
-      ax: r(a.x), az: r(a.z), bx: r(b.x), bz: r(b.z),
-      wallType: this.wallType, thickness: this.thickness, levelId: this.ed.levelId,
-    });
+    // ONE undo step, not two. A re-length is a delete plus an add, and while
+    // those were two history entries the first Ctrl+Z after a mistyped length
+    // left the wall gone entirely — an intermediate state the player never
+    // asked for. applyMany batches the pair, so Ctrl+Z goes straight back to
+    // the length it had before.
+    const made = this.ed.applyMany([
+      { t: 'wall.delete', id: L.wallId },
+      {
+        t: 'wall.add',
+        ax: r(a.x), az: r(a.z), bx: r(b.x), bz: r(b.z),
+        wallType: this.wallType, thickness: this.thickness, levelId: this.ed.levelId,
+      },
+    ]);
+    const op = made.find(o => o.t === 'wall.add');
     if (op) { L.wallId = op.id; L.length = L0; }
     this.from = null;
     this.flash(`Wall re-set to ${fmt(L0)}`);

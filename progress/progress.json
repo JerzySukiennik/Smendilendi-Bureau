@@ -788,7 +788,103 @@
    "status": "fail",
    "headline": "19/20 — Half the product wears the wrong typeface. Tiers 3 and 4 are Platinum-family OSes (22 px pinstriped title bar, Mac menu bar, close box left) but every glyph in them — menu bar, window titles, ",
    "at": "2026-08-30T11:29:53.000Z"
+  },
+  {
+   "piece": "os",
+   "role": "builder",
+   "round": 3,
+   "status": "pass",
+   "headline": "Chicago 12 and Geneva traced out of macos8-01..05 and shipped for the Platinum tiers (22/22 and 42/44 reference strings reproduced byte-for-byte); Start cascade reattached; app-menu mnemonics + live Alt+letter; focus rectangles; VGA text-mode POST; Command-key accelerators, black/white Mac highlight and Win95 tooltips.",
+   "shot": "shots/os-r3.png",
+   "at": "2026-08-30T12:15:35.277Z"
+  },
+  {
+   "piece": "office-props",
+   "role": "builder",
+   "round": 3,
+   "status": "pass",
+   "headline": "Office routed through the Blender catalogue; every remaining procedural prop rebuilt with a real bevel",
+   "detail": "src/office/models.js converts 10 catalogue GLBs into the office's own vertex-colour + baked-AO + merged-geometry pipeline (desk-1600, chair-task, chair-stacking, lamp-desk, lamp-floor, pendant-lamp, plant-ficus-large, plant-monstera, sideboard-1600, bin-office). Four candidates rejected on inspection with a rendered comparison: monitor-24 (MONITOR_SCREEN/ANCHOR drift risk), bookshelf-800 (office needs shelf heights as numbers), table-meeting-8 (plainer than the procedural trestle), play-rug (saturated orange, second accent). plant-pot-small REPORTED AS BROKEN: holes through the pot wall, stick-bundle foliage. chamferBoxGeometry adds the missing soft bevel; 22 props rebuilt including the A0 plan chest (10 proud drawer fronts, 20 brass pulls, card holders, plinth), the roll plotter, the cubicle screens and the cardboard boxes.",
+   "files": [
+    "src/office/models.js",
+    "src/office/props.js",
+    "src/office/office.js",
+    "src/office/office-mode.js",
+    "tools/prop-sheet.html"
+   ],
+   "metrics": {
+    "drawCallsBefore": 69,
+    "drawCallsAfter": 78,
+    "trisBefore": 34670,
+    "trisAfter": 110494,
+    "msPerRenderBeforeHero": 4.43,
+    "msPerRenderAfterHero": 3.48,
+    "msPerRenderAfterIdle": 1.15,
+    "budgetMs": 16.7,
+    "catalogueModels": 10,
+    "modelLoadMs": 241,
+    "driftOverTolerance": 0
+   },
+   "at": "2026-08-30T12:36:20.714Z"
+  },
+  {
+   "piece": "editor",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "6/6 click benchmarks met and the always-live keyboard is real (4m wall in 3 decisions, post-hoc re-length works, all 11 inferences name themselves) — but the HUD layer swallows every pointer event, so the viewport is dead to the mouse in the shipped game; editor also boots at dist 0.61 m showing nothing, and the paint cost toast is 15.8 % wrong.",
+   "shot": "shots/editor-plan-clean.png",
+   "at": "2026-08-30T13:14:51.579Z"
+  },
+  {
+   "piece": "editor",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "6/6 click benchmarks met — The editor's 3D viewport is completely dead to the mouse in the shipped game. `.ed-root` (the HUD layer, `position:absolute; inset:0`) computes to `pointer-events: auto` bec",
+   "at": "2026-08-30T13:18:05.573Z"
+  },
+  {
+   "piece": "office props",
+   "role": "critic",
+   "round": 3,
+   "status": "fail",
+   "headline": "Props are fixed; the player's own monitor is a black rectangle and the ceiling/wall junction z-fights",
+   "detail": "39/39 props render as the object they are named after — no prop still reads as a bare box. 10/10 catalogue GLBs load with 0 fallbacks and 0 drift; 9 of 39 props (23%) route through assets/models. Chamfer verified at 6mm with a visible edge highlight on the plan chest, but 126 chamfered vs 52 plain boxes in props.js and ZERO chamfers in room.js (29 boxes), office.js (23) or desks.js (8). Finish bar: 12/15 pass on the hero frame. Fails item 10 (two saturated hues: accent orange s0.74 and Prussian blue s0.66-0.83 on the cyanotypes), item 5 at the wall/ceiling junction (8.1 luma per 20px against a bar of 12; the wall/floor junction passes at 16.1), and item 1 on the shipped teapoint pose (~9 prop types against a floor of 16).",
+   "gap": "Workstation 0 — the desk the game seats the player at — paints a screenLuma of 0.0 while the two empty desks paint 107.8. The office's own _auditScreens warns about it on every boot, in the harness and in index.html, and it is still shipped. assign() only calls skipBoot() when there is no player.",
+   "files": [
+    "src/office/props.js",
+    "src/office/models.js",
+    "src/office/desks.js",
+    "src/office/room.js",
+    "progress/shots/office-hero.png",
+    "progress/shots/critic-ws0d.png",
+    "progress/shots/bevel-planchest.png",
+    "progress/shots/office-teapoint.png"
+   ],
+   "metrics": {
+    "msPerRender_dpr175_1057x1004": 9.1,
+    "drawCalls": 77,
+    "triangles": 106990,
+    "glbTriangles": 6182,
+    "propTypes": 41,
+    "instances": 562,
+    "contactShadows": 94,
+    "heroP5": 30,
+    "heroP95": 199,
+    "heroBareFloorPct": 16.1,
+    "catalogueBackedProps": "9/39"
+   },
+   "at": "2026-08-30T13:24:40.446Z"
+  },
+  {
+   "piece": "office-props",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "12 / 15 on the finish bar for the hero frame (items 5-ceiling, 10 and — on the shipped teapoint pose — 1 fail). The prop brief itself is essentially discharged: 0 of 39 props still read as a bare box.",
+   "at": "2026-08-30T13:26:48.008Z"
   }
  ],
- "updated": "2026-08-30T11:29:53.000Z"
+ "updated": "2026-08-30T13:26:48.008Z"
 }

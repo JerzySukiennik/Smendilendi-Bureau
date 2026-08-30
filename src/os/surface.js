@@ -143,6 +143,9 @@ export async function createOsSurface(opts = {}) {
         char: typeof k === 'string' && k.length === 1 ? k : '',
         ctrl: !!(e.ctrlKey || e.metaKey),
         shift: !!e.shiftKey,
+        // Alt has to cross this boundary or the always-visible mnemonic
+        // underlines advertise a shortcut the OS can never be told about.
+        alt: !!e.altKey,
       });
     },
 

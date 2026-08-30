@@ -12,7 +12,7 @@
 // box with "show window contents while dragging" turned off did.
 
 import { inside, dragOutline, fill, frameRect, hline, vline, checker, button as BUTTON } from './widgets.js';
-import { SANS } from './font.js';
+import { UI, BODY, splitMnemonic } from './font.js';
 import { I16 } from './icons.js';
 
 let SEQ = 1;
@@ -149,7 +149,7 @@ export class WindowManager {
         // the hole and says so, so the screen is never left undefined.
         fill(g, client.x, client.y, client.w, client.h, '#000000');
         checker(g, client.x, client.y, client.w, client.h, '#000000', th.pal.shadow);
-        SANS.draw(g, `${win.title} is drawn by the editor`, client.x + 8, client.y + 8, '#FFFFFF');
+        UI.draw(g, `${win.title} is drawn by the editor`, client.x + 8, client.y + 8, '#FFFFFF');
       } else if (win.app?.paint) {
         g.save();
         g.beginPath();
@@ -206,6 +206,9 @@ export class WindowManager {
   closeMenu() {
     if (!this.menu) return;
     if (this.menu.win) this.menu.win.menuOpen = -1;
+    // A Start cascade and the Start menu are one object: dismissing the child
+    // dismisses the parent and unpresses the button.
+    if (this.menu.owner === 'start') { this.os.startOpen = false; this.os.startHot = null; }
     this.menu = null;
     this.os.menuOwner = null;
     this.os.menuIndex = -1;
@@ -467,6 +470,10 @@ export class WindowManager {
     const app = {
       buttons: [],
       hot: -1,
+      // Keyboard focus. Win95 dialogs open with the default button focused and
+      // Tab walks the row; the focused control carries a 1 px dotted rectangle
+      // inset 1 px inside its bevel (ANALYSIS.md, bonus tells).
+      focus: 0,
       paint(g, r) {
         const pal = th.pal;
         fill(g, r.x, r.y, r.w, r.h, pal.face);
@@ -475,13 +482,16 @@ export class WindowManager {
           I16[icon].draw(g, r.x + 14, r.y + 32);
         }
         const lines = String(message).split('\n');
-        lines.forEach((l, i) => SANS.draw(g, l, r.x + 44, r.y + 18 + i * 14, pal.text));
+        lines.forEach((l, i) => BODY.draw(g, l, r.x + 44, r.y + 18 + i * 14, pal.text));
         this.buttons = [];
         const bw = 76, bh = 21;
         let bx = r.x + r.w - 12 - buttons.length * (bw + 8) + 8;
         for (let i = 0; i < buttons.length; i++) {
           const rect = { x: bx, y: r.y + r.h - bh - 12, w: bw, h: bh };
-          BUTTON(g, rect, { label: buttons[i], pal, isDefault: i === 0, pressed: this.hot === i });
+          BUTTON(g, rect, {
+            label: buttons[i], pal, isDefault: i === 0,
+            pressed: this.hot === i, focused: this.focus === i,
+          });
           this.buttons.push(rect);
           bx += bw + 8;
         }
@@ -498,7 +508,18 @@ export class WindowManager {
         }
       },
       key(ev) {
-        if (ev.key === 'Enter') { self.close(winRef); onResult?.(0, buttons[0]); return true; }
+        if (ev.key === 'Tab') {
+          const n = buttons.length;
+          this.focus = ((this.focus + (ev.shift ? -1 : 1)) % n + n) % n;
+          self.os.invalidate();
+          return true;
+        }
+        if (ev.key === 'Enter' || ev.key === ' ' || ev.char === ' ') {
+          const i = ev.key === 'Enter' && this.focus < 0 ? 0 : Math.max(0, this.focus);
+          self.close(winRef);
+          onResult?.(i, buttons[i]);
+          return true;
+        }
         return false;
       },
     };

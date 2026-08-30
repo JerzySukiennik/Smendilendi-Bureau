@@ -15,7 +15,6 @@
 import { Tool } from './base.js';
 import { COLOR, materialName } from '../constants.js';
 import { materialPrice, tryEntry } from '../../model/catalog.js';
-import { wallLength } from '../../model/building.js';
 
 export class PaintTool extends Tool {
   static id = 'paint';
@@ -108,22 +107,19 @@ export class PaintTool extends Tool {
     let ids = [hit.entityId];
     if (input?.shift) ids = this._allMatching(w[key], key);
     else if (input?.ctrl) ids = this._run(w.id);
-    const before = this._cost(ids, key);
+    // THE NUMBER IN THE TOAST IS THE NUMBER IN THE BUDGET BAR, because it is
+    // read off the same bill of quantities. Deriving it here instead cost the
+    // player his trust: this tool used to charge the GROSS elevation
+    // (wallLength x storeyHeight) at the CURRENT level's height, while
+    // src/analysis/cost.js charges gross minus the openings at the WALL's own
+    // level height. On a 6 x 2.7 m wall with one 2.0 x 1.5 m window the toast
+    // said +1782 and the bar moved +1539 — 16 % out, and worse on a second
+    // storey. An architect reads cost feedback for a living; two different
+    // answers to "what did that cost" is the game being wrong about his job.
+    const before = this.ed.cost().total;
     this.ed.applyMany(ids.map(id => ({ t: 'wall.setProps', id, props: { [key]: this.material } })));
-    const after = this._cost(ids, key, this.material);
-    const delta = after - before;
+    const delta = this.ed.cost().total - before;
     this.flash(`${materialName(this.material)} to ${ids.length} face${ids.length > 1 ? 's' : ''}  ${delta >= 0 ? '+' : ''}${Math.round(delta)}`);
-  }
-
-  _cost(ids, key, override = null) {
-    let sum = 0;
-    for (const id of ids) {
-      const w = this.model.walls[id];
-      if (!w) continue;
-      const area = wallLength(this.model, w) * this.ed.storeyHeight;
-      sum += area * materialPrice(override || w[key]);
-    }
-    return sum;
   }
 
   _run(startId) {

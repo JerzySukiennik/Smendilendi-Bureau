@@ -29,7 +29,15 @@ export class EditorHUD {
   constructor(editor, uiRoot) {
     this.ed = editor;
     this.root = document.createElement('div');
-    this.root.className = 'ed-root';
+    // 'passthrough' is NOT decoration. #ui > * { pointer-events: auto } in
+    // src/style.css carries an id and out-specifies `.ed-root { pointer-events:
+    // none }` in editor.css, so a bare 'ed-root' turns this full-screen layer
+    // into a sheet of glass over the canvas: no orbit, no zoom, no drawing, no
+    // clicking a face — the whole 3D viewport goes dead to the mouse while the
+    // panels on top of it keep working, which is exactly the trap style.css
+    // documents at line 59. The shell's escape hatch is by CLASS, so a mode
+    // root opts out by wearing it. selftest.pointerReachesCanvas() guards it.
+    this.root.className = 'ed-root passthrough';
     uiRoot.appendChild(this.root);
     this._flashUntil = 0;
     this._build();
@@ -130,7 +138,7 @@ export class EditorHUD {
     const sched = add('schedule', 'Rooms');
     const val = add('validate', 'Check');
 
-    dock.append(tabs, body);
+    dock.append(tabs, body, this._buildLayers());
     this.root.appendChild(dock);
 
     this.catalogue = new CataloguePanel(this.ed, cat);
@@ -139,6 +147,53 @@ export class EditorHUD {
     this.validatePane = val;
     this._buildValidate();
     this.showTab('catalogue');
+  }
+
+  /**
+   * TAGS — the row that gets the site out of the way.
+   *
+   * The reference keeps its Tag list in the inspector and a SketchUp user
+   * reaches for it the moment something he cannot edit is standing in front of
+   * something he can. Here that is not a corner case: on a real plot the
+   * neighbours' volumes and the trees fill a third of the frame at a normal
+   * working orbit, and Section Plane slices rather than hides. So the switches
+   * live at the foot of the dock, always visible, one click each — no menu, no
+   * dialog. Each one carries the count of what it holds, because "Neighbours"
+   * on an empty plot ought to say 0 rather than pretend.
+   */
+  _buildLayers() {
+    const row = div('ed-layers');
+    const h = document.createElement('span');
+    h.className = 'lbl';
+    h.textContent = 'Show';
+    row.appendChild(h);
+    this.layerButtons = new Map();
+    const items = [
+      ['site', 'Site'],
+      ['neighbours', 'Neighbours'],
+      ['trees', 'Trees'],
+      ['furniture', 'Furniture'],
+      ['text', 'Text'],
+    ];
+    for (const [id, label] of items) {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.title = `Show or hide ${label.toLowerCase()}`;
+      b.addEventListener('click', () => {
+        const on = this.ed.toggleLayer(id);
+        this.flash(`${label} ${on ? 'shown' : 'hidden'}`);
+      });
+      row.appendChild(b);
+      this.layerButtons.set(id, b);
+    }
+    this.layersRow = row;
+    queueMicrotask(() => this.refreshLayers());
+    return row;
+  }
+
+  refreshLayers() {
+    if (!this.layerButtons) return;
+    for (const [id, b] of this.layerButtons) b.classList.toggle('off', !this.ed.layers[id]);
   }
 
   _buildValidate() {
@@ -292,8 +347,14 @@ export class EditorHUD {
       const tr = document.createElement('tr');
       const name = document.createElement('td');
       name.className = 'name';
-      name.textContent = labels.get(id) || r.name;
-      name.title = 'Click to rename';
+      const known = labels.get(id) || '';
+      // r.name is the internal hash ("Room 432") and never belonged on screen.
+      // A room the engine cannot classify is shown as unnamed — dim, italic and
+      // still one click from a name — rather than given a number that would
+      // then be printed on the drawing the client reads.
+      name.textContent = known || 'unnamed';
+      name.classList.toggle('anon', !known);
+      name.title = known ? 'Click to rename' : 'Not named yet — click to name it';
       // Entity Info edits a name in place; so does this. Click the cell, type,
       // Enter. Escape puts it back, and an empty entry hands the room back to
       // whatever the analysis engine calls it.
@@ -324,7 +385,7 @@ export class EditorHUD {
     input.type = 'text';
     input.className = 'ed-rename';
     input.value = this.ed.model.siteMods?.roomNames?.[id] ?? '';
-    input.placeholder = was;
+    input.placeholder = was === 'unnamed' ? 'Name this room' : was;
     cell.textContent = '';
     cell.appendChild(input);
     input.focus();

@@ -17,7 +17,7 @@
 // pixel (x+y) parity picks the colour, computed in absolute screen space so the
 // pattern is continuous across every widget that uses it.
 
-import { SANS, SANS_BOLD, splitMnemonic } from './font.js';
+import { UI, UI_BOLD, BODY, splitMnemonic } from './font.js';
 
 // ---------------------------------------------------------------------------
 // Palettes
@@ -61,7 +61,11 @@ export const PLATINUM = {
   titleText: '#000000',
   titleInactive: '#CCCCCC',
   titleInactiveText: '#777777',
-  hilite: '#000080',
+  // Platinum does NOT use the Windows system navy for a selection. macos8-04's
+  // selected swatch reads #000000 behind #FFFFFF text — the Mac inverts, it
+  // does not tint (column x=? of macos8-04, the "Lavender" cell). Round 2 had
+  // #000080 here, which put a Windows highlight bar inside a Mac menu.
+  hilite: '#000000',
   hiliteText: '#FFFFFF',
   desktop: '#999999',
   info: '#FFFFE1',
@@ -266,8 +270,7 @@ export function triangle(g, cx, cy, dir, c = '#000000', size = 4) {
 // ---------------------------------------------------------------------------
 // Text
 
-export const FONT = SANS;
-export const FONT_BOLD = SANS_BOLD;
+export { UI as FONT, UI_BOLD as FONT_BOLD, BODY };
 
 /**
  * Top of the glyph box for a run vertically centred in `h`.
@@ -279,18 +282,23 @@ export const FONT_BOLD = SANS_BOLD;
  *   20 px menu band  -> +5  (win95-09: band y22..41, "File" ink y27..35)
  *   32 px Start item -> +11 (win95-05: item y252..283, "Documents" ink y263..)
  */
-export function textY(y, h) { return (y + ((h - 9) >> 1)) | 0; }
+export function textY(y, h, font = null) {
+  // With a face, centre on THAT face's cap height — Geneva's caps are 8 rows,
+  // MS Sans Serif's and Chicago's are 9, and a list row set in Geneva must not
+  // sit a pixel low just because the chrome face is taller.
+  return font ? font.top(y, h) : ((y + ((h - 9) >> 1)) | 0);
+}
 
-export function text(g, s, x, y, c = '#000000', font = SANS) {
+export function text(g, s, x, y, c = '#000000', font = UI) {
   return font.draw(g, s, x, y, c);
 }
 
-export function textCentred(g, s, x, y, w, h, c = '#000000', font = SANS) {
+export function textCentred(g, s, x, y, w, h, c = '#000000', font = UI) {
   const tw = font.measure(s);
   return font.draw(g, s, x + ((w - tw) >> 1), textY(y, h), c);
 }
 
-export function label(g, s, x, y, c = '#000000', font = SANS, disabled = false) {
+export function label(g, s, x, y, c = '#000000', font = UI, disabled = false) {
   return font.drawMnemonic(g, s, x, y, c, { disabled });
 }
 
@@ -304,7 +312,7 @@ export function label(g, s, x, y, c = '#000000', font = SANS, disabled = false) 
 export function button(g, r, opts = {}) {
   const {
     label: lbl = '', pressed = false, disabled = false, focused = false,
-    isDefault = false, pal = WIN, font = SANS, icon = null, flat = false,
+    isDefault = false, pal = WIN, font = UI, icon = null, flat = false,
   } = opts;
   const { x, y, w, h } = r;
   // The default-button ring is drawn OUTSIDE the button, so the button itself
@@ -343,7 +351,7 @@ export function field(g, x, y, w, h, pal = WIN, bg = null) {
   return inner;
 }
 
-export function groupBox(g, x, y, w, h, title, pal = WIN, font = SANS) {
+export function groupBox(g, x, y, w, h, title, pal = WIN, font = UI) {
   bevel(g, x, y, w, h, 'etched', pal);
   if (title) {
     const tw = font.measure(splitMnemonic(title).text);
@@ -536,7 +544,7 @@ export function inside(r, x, y) {
 // Composite pieces used by more than one app
 
 /** A list/table header row: raised buttons with a left-aligned label. */
-export function headerRow(g, x, y, w, h, cols, pal = WIN, font = SANS) {
+export function headerRow(g, x, y, w, h, cols, pal = WIN, font = UI) {
   let cx = x;
   for (const c of cols) {
     const cw = Math.min(c.w, x + w - cx);
@@ -562,7 +570,7 @@ export function clipped(g, r, fn) {
 }
 
 /** Status bar with sunken panes, 23 px overall (measured in win95-09). */
-export function statusBar(g, x, y, w, h, panes, pal = WIN, font = SANS) {
+export function statusBar(g, x, y, w, h, panes, pal = WIN, font = UI) {
   fill(g, x, y, w, h, pal.face);
   let cx = x + 2;
   for (const p of panes) {

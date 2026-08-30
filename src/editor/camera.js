@@ -77,6 +77,9 @@ export class EditorCameras {
     this.mode = 'orbit';
     this.width = 1;
     this.height = 1;
+    // False until resize() has been given a real viewport. Framing maths that
+    // divides by the viewport is meaningless before that.
+    this.sized = false;
 
     // Pixels of the viewport covered by the HUD. The HUD measures its own
     // panels and writes this; framing then aims at what is left.
@@ -127,6 +130,7 @@ export class EditorCameras {
   resize(w, h) {
     this.width = Math.max(1, w);
     this.height = Math.max(1, h);
+    this.sized = this.width >= 2 && this.height >= 2;
     this.persp.aspect = this.width / this.height;
     this.persp.updateProjectionMatrix();
     this._applyOrtho();
@@ -185,7 +189,14 @@ export class EditorCameras {
    * of sight is clear of everything `obstacles()` reports.
    */
   zoomExtents(box) {
-    if (!box || box.isEmpty()) return;
+    if (!box || box.isEmpty()) return false;
+    // Framing before the canvas has ever been measured is not "a bit off", it
+    // is a different calculation: width/height are still the constructor's 1x1,
+    // both free dimensions clamp to the 80 px floor, `shrink` becomes 80, and
+    // the distance collapses to nothing. The editor opened 0.6 m from a point
+    // in mid-air, looking at an empty olive void. Refuse instead, and let the
+    // caller ask again once resize() has told us how big the viewport is.
+    if (this.width < 2 || this.height < 2) return false;
     const c = box.getCenter(new Vector3());
     const size = box.getSize(new Vector3());
     const radius = Math.max(size.length() * 0.5, 2);
@@ -212,6 +223,7 @@ export class EditorCameras {
     if (this.mode === 'walk') this.setView('orbit');
     else { this._clearYaw(); this._apply(); }
     this.onChange?.();
+    return true;
   }
 
   /**

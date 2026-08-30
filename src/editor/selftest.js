@@ -350,6 +350,214 @@ export function makeSelfTest(ED) {
     });
   }
 
+  // -- regressions ----------------------------------------------------------
+  //
+  // Not click counts: things that were BROKEN, each one asserted in the terms
+  // that would have caught it. A benchmark measures how good the editor is; a
+  // regression measures whether it is still there at all.
+
+  /**
+   * THE MOUSE REACHES THE 3D VIEW.
+   *
+   * This class of bug has now killed two modes. #ui > * { pointer-events: auto }
+   * in the shell carries an id and beats a mode root's own
+   * `pointer-events: none`, so a full-screen HUD layer that does not wear the
+   * shell's `passthrough` class becomes a sheet of glass over the canvas: the
+   * panels keep working, and orbit, zoom, drawing, selecting and painting all
+   * die silently. Asserted the only way that cannot be fooled — ask the
+   * document what is actually under the middle of the viewport.
+   */
+  function pointerReachesCanvas() {
+    const c = canvas();
+    const r = c.getBoundingClientRect();
+    const root = ED.editor.hud?.root;
+    const style = root ? getComputedStyle(root) : null;
+    // Middle of the clear rectangle, i.e. away from the palette and the dock.
+    const ins = ED.editor.cameras.viewInsets || { left: 0, right: 0, top: 0, bottom: 0 };
+    const x = r.left + (ins.left + (r.width - ins.right)) / 2;
+    const y = r.top + (ins.top + (r.height - ins.bottom)) / 2;
+    const el = document.elementFromPoint(x, y);
+    const measured = {
+      rootClass: root?.className || null,
+      rootPointerEvents: style?.pointerEvents || null,
+      underCentre: el ? `${el.tagName}${el.id ? '#' + el.id : ''}${el.className ? '.' + String(el.className).split(' ')[0] : ''}` : null,
+      at: [Math.round(x), Math.round(y)],
+    };
+    return { measured, pass: el === c && style?.pointerEvents === 'none' };
+  }
+
+  /**
+   * FRAMING BEFORE THERE IS A VIEWPORT IS REFUSED.
+   *
+   * zoomExtents divides by the viewport; with the constructor's 1x1 canvas the
+   * free width and height clamped to the 80 px floor and the distance collapsed
+   * to ~0, which is how the editor came to open 0.6 m from a point in mid-air
+   * looking at an empty olive void. The guard must refuse and leave the camera
+   * where it was, and a real viewport must still frame.
+   */
+  function framingGuard() {
+    const c = ED.editor.cameras;
+    const w = c.width, h = c.height, dist = c.dist;
+    c.width = 1; c.height = 1; c.sized = false;
+    const refused = c.zoomExtents(ED.editor.contentBounds());
+    const distAfterRefusal = c.dist;
+    c.resize(w, h);
+    const framed = c.zoomExtents(ED.editor.contentBounds());
+    const distFramed = c.dist;
+    return {
+      measured: {
+        refused, distBefore: +dist.toFixed(3), distAfterRefusal: +distAfterRefusal.toFixed(3),
+        framed, distFramed: +distFramed.toFixed(3), viewport: [w, h],
+      },
+      pass: refused === false && Math.abs(distAfterRefusal - dist) < 1e-9
+        && framed === true && distFramed > 4,
+    };
+  }
+
+  /**
+   * ONE TYPED RE-LENGTH IS ONE UNDO STEP.
+   *
+   * A re-length is internally wall.delete + wall.add. While those were two
+   * history entries, one Ctrl+Z after a mistyped length left NO WALL AT ALL —
+   * a state the player never asked for and can only read as a bug.
+   */
+  function relengthUndo() {
+    reset();
+    orbitOn(2, 0, Math.PI, 0.6, 22);
+    start('r — typed re-length costs one undo');
+    tool('wall', 'KeyW', 'w');
+    clickWorld(0, 0, 0, 'start point');
+    moveWorld(3, 0, 0);
+    typeValue('4m');
+    key('Escape', 'Escape');
+    typeValue('6000');
+    const after6 = lengths();
+    key('KeyZ', 'z', { ctrlKey: true });
+    const afterUndo = lengths();
+    key('KeyY', 'y', { ctrlKey: true });
+    const afterRedo = lengths();
+    return {
+      measured: { after6, afterUndo, afterRedo },
+      pass: after6.length === 1 && Math.abs(after6[0] - 6) < 1e-6
+        && afterUndo.length === 1 && Math.abs(afterUndo[0] - 4) < 1e-6
+        && afterRedo.length === 1 && Math.abs(afterRedo[0] - 6) < 1e-6,
+    };
+  }
+
+  function lengths() {
+    const e = ed();
+    return Object.values(e.model.walls).map((w) => {
+      const a = e.model.nodes[w.a], b = e.model.nodes[w.b];
+      return +Math.hypot(b.x - a.x, b.z - a.z).toFixed(6);
+    });
+  }
+
+  /**
+   * THE PAINT TOAST IS THE BUDGET BAR.
+   *
+   * The bucket used to price the GROSS elevation at the CURRENT storey height
+   * while the bill of quantities priced gross-minus-openings at the WALL's own
+   * level height — 16 % apart on one wall with one window, and compounding on
+   * an upper storey. Two different answers to "what did that cost" in front of
+   * an architect is the game being wrong about his profession.
+   */
+  function paintCostTruth() {
+    reset();
+    const e = ed();
+    const wall = e.apply({ t: 'wall.add', ax: 0, az: 0, bx: 6, bz: 0, wallType: 'exterior', thickness: 0.24 });
+    e.apply({
+      t: 'opening.add', wallId: wall.id, kind: 'window', offset: 3, width: 2, height: 1.5, sill: 0.9,
+    });
+    e.flushRebuild();
+    orbitOn(3, 0, Math.PI, 0.35, 14);
+    key('KeyB', 'b');
+    e.tools.get('paint').material = 'brick';
+    const before = e.cost().total;
+    // Painted through the real canvas, and the toast is read off the HUD the
+    // player reads it off.
+    const toast = toastFor(() => clickAt(...px(1.0, 1.2, -0.13), 'the wall face, clear of the window'));
+    const budgetDelta = e.cost().total - before;
+    const w = e.model.walls[wall.id];
+    return {
+      measured: {
+        openings: Object.keys(e.model.openings).length,
+        painted: w ? { matInner: w.matInner, matOuter: w.matOuter } : null,
+        budgetDelta: Math.round(budgetDelta),
+        toast,
+      },
+      pass: Math.abs(budgetDelta) > 1 && !!toast
+        && toast.indexOf(`${budgetDelta >= 0 ? '+' : ''}${Math.round(budgetDelta)}`) >= 0,
+    };
+  }
+
+  function toastFor(fn) {
+    const hud = ED.editor.hud;
+    if (!hud) { fn(); return null; }
+    const el = hud.flashEl;
+    el.textContent = '';
+    fn();
+    return el.textContent;
+  }
+
+  /**
+   * SHORTCUTS FOLLOW THE LETTER, NOT THE PHYSICAL KEY.
+   *
+   * SketchUp binds by character. Keying off e.code alone gave a French
+   * architect on AZERTY the Wall tool when he pressed Z, nothing when he
+   * pressed W, and killed every shortcut on any input path that omits e.code
+   * while the Measurements box — which reads e.key — carried on working.
+   */
+  function shortcutsByLetter() {
+    reset();
+    const out = {};
+    ed().setTool('select');
+    key('', 'w');                       // no e.code at all: the letter must carry it
+    out.keyOnly = ed().tool.id;
+    ed().setTool('select');
+    key('KeyZ', 'w');                   // AZERTY: the letter W on the physical Z key
+    out.azerty = ed().tool.id;
+    ed().setTool('select');
+    key('KeyT', '');                    // no letter: e.code must still work
+    out.codeOnly = ed().tool.id;
+    rest();
+    return { measured: out, pass: out.keyOnly === 'wall' && out.azerty === 'wall' && out.codeOnly === 'tape' };
+  }
+
+  /** NO INVENTED ROOM NAMES on a sheet the client reads. */
+  function roomNaming() {
+    const labels = [...ED.editor.roomLabels().values()];
+    const invented = labels.filter(l => /^Room\s*\d+$/i.test(l));
+    return { measured: { labels, invented }, pass: invented.length === 0 };
+  }
+
+  /** Every tag actually takes its geometry out of the picture, and puts it back. */
+  function tagsHideThings() {
+    const e = ed();
+    const was = { ...e.layers };
+    const seen = {};
+    for (const id of Object.keys(e.layers)) {
+      e.setLayer(id, false);
+      seen[id] = visibleTagCount(id);
+      e.setLayer(id, true);
+      seen[`${id}_back`] = visibleTagCount(id);
+    }
+    for (const id in was) e.setLayer(id, was[id]);
+    const pass = Object.keys(e.layers).every(id => seen[id] === 0 && seen[`${id}_back`] >= 0);
+    return { measured: seen, pass };
+  }
+
+  function visibleTagCount(id) {
+    const e = ed();
+    const mode = ED.mode;
+    if (id === 'furniture') return e.furniture.group.visible ? 1 : 0;
+    if (id === 'text') return e.texts.group.visible ? 1 : 0;
+    if (id === 'trees') {
+      const m = mode?.treePool?.entries.get('crown')?.mesh;
+      return m && m.visible ? 1 : 0;
+    }
+    return (mode?.tagged?.[id] || []).filter(o => o.visible).length;
+  }
+
   function all() {
     const table = {};
     const run = (k, fn) => { try { table[k] = fn(); } catch (err) { table[k] = { error: String(err.message || err) }; } };
@@ -361,8 +569,20 @@ export function makeSelfTest(ED) {
     run('d_move500', move500);
     run('d2_move500vector', move500vector);
     run('e_measure', measure);
+    run('r1_pointerReachesCanvas', pointerReachesCanvas);
+    run('r2_framingGuard', framingGuard);
+    run('r3_relengthUndo', relengthUndo);
+    run('r4_paintCostTruth', paintCostTruth);
+    run('r5_shortcutsByLetter', shortcutsByLetter);
+    run('r6_roomNaming', roomNaming);
+    run('r7_tagsHideThings', tagsHideThings);
     return table;
   }
 
-  return { all, house, reset, wall4m, line4m, door, door800, material, move500, move500vector, measure, planOn, orbitOn };
+  return {
+    all, house, reset, wall4m, line4m, door, door800, material, move500, move500vector, measure,
+    planOn, orbitOn,
+    pointerReachesCanvas, framingGuard, relengthUndo, paintCostTruth, shortcutsByLetter,
+    roomNaming, tagsHideThings,
+  };
 }

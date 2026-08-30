@@ -85,8 +85,12 @@ export class EditorMode extends Mode {
     // The trees the plan has to show as SYMBOLS rather than as objects: the plot
     // owns them, plan.js draws them, and this is the one place the two meet.
     this.editor.plan.setSite({ trees: this.commission?.plot?.trees || [] });
-    // And Zoom Extents will not park the camera inside a lime tree.
-    this.editor.cameras.obstacles = () => this.crowns || [];
+    // And Zoom Extents will not park the camera inside a lime tree — unless the
+    // player has switched the trees off, in which case there is nothing to
+    // stand in and no reason to swing the view.
+    this.editor.cameras.obstacles = () => (this.editor.layers.trees ? (this.crowns || []) : []);
+    // The tag switches in the HUD reach the site through here.
+    this.editor.onLayersChanged = () => this._applySiteVisibility();
     this.camera = this.editor.cameras.camera;
 
     this.hud = new EditorHUD(this.editor, document.getElementById('ui'));
@@ -102,6 +106,9 @@ export class EditorMode extends Mode {
     this.aboveCut = [];        // site meshes that a plan cut would remove
     this.siteFaces = [];       // ground the cursor can legitimately be ON
     this.crowns = [];          // tree canopies: culled when they get in the way
+    // Which TAG owns each mesh, so the editor's visibility switches can take
+    // the neighbours out of the picture without taking the ground with them.
+    this.tagged = { site: [], neighbours: [] };
 
     // ground beyond the plot
     const ground = new Mesh(new PlaneGeometry(400, 400), materialFor('grass'));
@@ -110,6 +117,7 @@ export class EditorMode extends Mode {
     ground.receiveShadow = true;
     g.add(ground);
     this.siteFaces.push(ground);
+    this.tagged.site.push(ground);
 
     // the plot itself, a shade lighter so the boundary reads without a fence
     const plotMesh = new Mesh(polygonGeometry(plot.boundary), materialFor('grass'));
@@ -119,6 +127,7 @@ export class EditorMode extends Mode {
     plotMesh.receiveShadow = true;
     g.add(plotMesh);
     this.siteFaces.push(plotMesh);
+    this.tagged.site.push(plotMesh);
 
     // buildable area (inside the setbacks) — the line the building must not cross
     if (plot.buildable?.length >= 3) {
@@ -128,6 +137,7 @@ export class EditorMode extends Mode {
       b.rotation.x = -Math.PI / 2;
       b.position.y = 0.004;
       g.add(b);
+      this.tagged.site.push(b);
     }
 
     // the street
@@ -140,6 +150,7 @@ export class EditorMode extends Mode {
       road.position.set((a[0] + b[0]) / 2, 0.006, (a[1] + b[1]) / 2);
       road.receiveShadow = true;
       g.add(road);
+      this.tagged.site.push(road);
     }
 
     // neighbours: real volumes at their real heights, because they cast the shade
@@ -155,6 +166,7 @@ export class EditorMode extends Mode {
       top.receiveShadow = true;
       g.add(top);
       this.aboveCut.push(top);
+      this.tagged.neighbours.push(top);
       // walls of the neighbour, as a simple extrusion of its footprint
       for (let i = 0; i < poly.length; i++) {
         const p = poly[i], q = poly[(i + 1) % poly.length];
@@ -165,6 +177,7 @@ export class EditorMode extends Mode {
         w.castShadow = true;
         w.receiveShadow = true;
         g.add(w);
+        this.tagged.neighbours.push(w);
         // Only the part above the cut is hidden in plan; a 1.20 m cut through a
         // neighbour reads as its footprint, which is what a site plan shows.
         if (n.height > 1.2) this.aboveCut.push(w);
@@ -231,6 +244,7 @@ export class EditorMode extends Mode {
       c.z + dir[1] * (bs.d / 2 + 1.2),
     );
     g.add(marker);
+    this.tagged.site.push(marker);
   }
 
   /**
@@ -247,6 +261,7 @@ export class EditorMode extends Mode {
     if (!mesh || !this.crowns?.length || !this.editor) return;
     const cams = this.editor.cameras;
     if (cams.mode === 'plan') return;              // canopies are already hidden
+    if (!this.editor.layers.trees) return;         // the whole tag is off
     const eye = cams.camera.position;
     const look = cams.mode === 'walk'
       ? _lookAhead(cams, this._look || (this._look = new Vector3()))
@@ -275,12 +290,29 @@ export class EditorMode extends Mode {
    * bottom layer.
    */
   _siteForView(mode) {
-    const plan = mode === 'plan';
-    for (const o of this.aboveCut || []) o.visible = !plan;
+    this._planCut = mode === 'plan';
+    this._applySiteVisibility();
+  }
+
+  /**
+   * The one place site visibility is decided, because two rules act on the same
+   * meshes and they must not overwrite each other: the PLAN takes out whatever
+   * stands above the 1.20 m cut, and the player's TAGS take out whatever he has
+   * switched off. Anything either of them hides stays hidden.
+   */
+  _applySiteVisibility() {
+    const plan = !!this._planCut;
+    const tags = this.editor?.layers || { site: true, neighbours: true, trees: true };
+    for (const o of this.tagged?.site || []) o.visible = tags.site;
+    for (const o of this.tagged?.neighbours || []) o.visible = tags.neighbours;
+    for (const o of this.aboveCut || []) if (plan) o.visible = false;
     for (const kind of ['crown', 'trunk']) {
       const e = this.treePool?.entries.get(kind);
-      if (e?.mesh) e.mesh.visible = !plan;
+      if (e?.mesh) e.mesh.visible = tags.trees && !plan;
     }
+    // Ground you cannot see is ground the cursor must not read "On Face" off,
+    // and a canopy nobody can see is not in the way of Zoom Extents either.
+    if (this.editor) this.editor.siteFaces = tags.site ? (this.siteFaces || []) : [];
   }
 
   // -- mode plumbing -------------------------------------------------------

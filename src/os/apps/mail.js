@@ -14,7 +14,7 @@ import {
   fill, hline, vline, bevel, field, headerRow, statusBar, inside, textY,
   clipped, checker,
 } from '../widgets.js';
-import { SANS, SANS_BOLD, wrap } from '../font.js';
+import { BODY, BODY_BOLD, UI, wrap } from '../font.js';
 import { I16 } from '../icons.js';
 import { toolbar, toolbarHit, ListView, ScrollPane, TOOLBAR_H, dateShort } from './common.js';
 
@@ -30,13 +30,13 @@ export class MailApp {
     this.body = new ScrollPane(13);
     this.split = 0.42;
     this.tools = [
-      { id: 'reply', icon: 'mail' },
-      { id: 'forward', icon: 'mailOpen' },
+      { id: 'reply', tip: 'Reply', icon: 'mail' },
+      { id: 'forward', tip: 'Forward', icon: 'mailOpen' },
       { sep: true },
-      { id: 'print', icon: 'printer' },
-      { id: 'delete', icon: 'bin' },
+      { id: 'print', tip: 'Print message', icon: 'printer' },
+      { id: 'delete', tip: 'Delete', icon: 'bin' },
       { sep: true },
-      { id: 'brief', icon: 'doc' },
+      { id: 'brief', tip: 'Open the brief', icon: 'doc' },
     ];
     this.toolState = {};
     this.menu = [
@@ -139,7 +139,7 @@ export class MailApp {
     // --- list pane
     const inner = field(g, listRect.x, listRect.y, listRect.w, listRect.h, pal);
     const cols = this.columns(inner.w);
-    headerRow(g, inner.x, inner.y, inner.w, HEADER_H, cols, pal, SANS);
+    headerRow(g, inner.x, inner.y, inner.w, HEADER_H, cols, pal, UI);
     const bodyRect = { x: inner.x, y: inner.y + HEADER_H, w: inner.w, h: inner.h - HEADER_H };
     this.list.layout(bodyRect, this.messages.length);
     this.list.paint(g, pal, (gg, i, row, on) => this.paintRow(gg, i, row, on, cols, pal), mac);
@@ -160,7 +160,7 @@ export class MailApp {
       { w: Math.max(120, r.w - 190), text: `${this.messages.length} message${this.messages.length === 1 ? '' : 's'}, ${unread} unread` },
       { w: 84, text: this.current ? 'Inbox' : '' },
       { w: -1, text: '' },
-    ], pal, SANS);
+    ], pal, BODY);
   }
 
   columns(w) {
@@ -177,7 +177,7 @@ export class MailApp {
   paintRow(g, i, row, on, cols, pal) {
     const m = this.messages[i];
     const fg = on ? pal.hiliteText : pal.text;
-    const f = m.unread ? SANS_BOLD : SANS;
+    const f = m.unread ? BODY_BOLD : BODY;
     const icon = m.unread ? 'mail' : 'mailOpen';
     I16[icon]?.draw(g, row.x + 2, row.y + ((row.h - 16) >> 1));
     let x = row.x + cols[0].w;
@@ -193,15 +193,15 @@ export class MailApp {
   paintReading(g, r, pal, mac) {
     const m = this.current;
     if (!m) {
-      SANS.draw(g, 'No message selected.', r.x + 8, r.y + 8, pal.gray);
+      BODY.draw(g, 'No message selected.', r.x + 8, r.y + 8, pal.gray);
       return;
     }
     const pad = 8;
     const headH = 46;
     // header block: labels in bold, values plain, then an etched rule
     fill(g, r.x, r.y, r.w, headH, pal.face);
-    const lab = (s, y) => SANS_BOLD.draw(g, s, r.x + pad, y, pal.text);
-    const val = (s, y, w) => SANS.draw(g, SANS.ellipsis(s, w), r.x + pad + 52, y, pal.text);
+    const lab = (s, y) => BODY_BOLD.draw(g, s, r.x + pad, y, pal.text);
+    const val = (s, y, w) => BODY.draw(g, BODY.ellipsis(s, w), r.x + pad + 52, y, pal.text);
     lab('From:', r.y + 4); val(m.from, r.y + 4, r.w - 70);
     lab('Subject:', r.y + 17); val(m.subject, r.y + 17, r.w - 70);
     lab('Date:', r.y + 30); val(dateShort(m.at), r.y + 30, r.w - 70);
@@ -211,7 +211,7 @@ export class MailApp {
     const paneRect = { x: r.x, y: r.y + headH + 2, w: r.w, h: r.h - headH - 2 };
     const textW = paneRect.w - pad * 2 - 16;
     if (!this.lines || this.lineWidth !== textW) {
-      this.lines = wrap(SANS, m.body, textW);
+      this.lines = wrap(BODY, m.body, textW);
       this.lineWidth = textW;
     }
     const contentH = this.lines.length * 13 + 8;
@@ -225,7 +225,7 @@ export class MailApp {
         const y = body.y + 4 + i * 13 - this.body.top;
         // a bulleted complaint from the analysis engine is set in bold
         const bullet = line.startsWith('  - ');
-        (bullet ? SANS_BOLD : SANS).draw(g, bullet ? line.slice(4) : line, body.x + pad + (bullet ? 10 : 0), y, pal.text);
+        (bullet ? BODY_BOLD : BODY).draw(g, bullet ? line.slice(4) : line, body.x + pad + (bullet ? 10 : 0), y, pal.text);
         if (bullet) fill(g, body.x + pad + 2, y + 4, 3, 3, pal.text);
       }
     });

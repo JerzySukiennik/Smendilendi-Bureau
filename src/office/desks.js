@@ -28,7 +28,7 @@ import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import {
   MONITOR_SCREEN, MONITOR_ANCHOR, OFFICE, ACCENT, MeshBuilder, builderMaterial,
-  propPlantSmall, propMug, propSheet,
+  propPlantSmall, propMug, propSheet, chamferBoxGeometry,
 } from './props.js';
 import { materialFor } from '../core/palette.js';
 
@@ -242,7 +242,10 @@ export function screenLuma(surface) {
 export function makeNameplate(nick, colorHex) {
   const g = new Group();
   g.name = 'nameplate';
-  const plate = new Mesh(new BoxGeometry(0.24, 0.052, 0.018), materialFor('metal'));
+  // Chamfered, like every other object in the room: a brushed nameplate is
+  // 60 mm from the player's eye when they sit down and a hard arris on it is
+  // the first thing that reads as untooled.
+  const plate = new Mesh(chamferBoxGeometry(0.24, 0.052, 0.018, 0.003), materialFor('metal'));
   plate.position.y = 0.026;
   plate.castShadow = true; plate.receiveShadow = true;
   g.add(plate);
@@ -307,7 +310,7 @@ export const PERSONALISATION = {
   plants: ['none', 'succulent', 'fern', 'cactus'],
   posters: ['none', 'plan', 'section', 'photo'],
   figurines: ['none', 'duck', 'obelisk', 'arch'],
-  mugColors: [0xe9e6df, 0x8f877b, 0x35566e, 0x7f9a52, 0xd4763a, 0x9c8f7c],
+  mugColors: [0xe9e6df, 0x8f877b, 0x4e5b66, 0x7f9a52, 0xd4763a, 0x9c8f7c],
 };
 
 /**
@@ -399,15 +402,51 @@ export class Workstation {
       });
       this.screen.material.map = this.os.texture;
       this.screen.material.needsUpdate = true;
-      // An empty desk does not sit through a startup animation: nobody is there
-      // to press the button, and a machine that is black for the first five
-      // seconds of every screenshot is the same dead rectangle by another name.
-      // The real OS can skip its boot; the stand-in has no boot to skip.
-      if (!player) this.skipBoot(tier);
+      // NOBODY sits through a startup animation on arrival — not on an empty
+      // desk and not on the player's own.
+      //
+      // This line used to read `if (!player) this.skipBoot(tier)`, and it is the
+      // single worst defect this office has shipped. The player's machine was
+      // created in phase 'boot' and then left there: the real OS advances its
+      // boot from update(dt), so the desk the whole core loop runs through was a
+      // BLACK RECTANGLE for the first 5 s of every session and for the entire
+      // life of any host that does not run a full-rate frame loop — every
+      // screenshot pose (harness.html settles for 90 frames = 1.4 s) and every
+      // throttled tab. Measured: desk 0 screenLuma mean 0.0, desks 1 and 2 107.8.
+      //
+      // The startup sequence is not lost, it is moved to where the design puts
+      // it: DESIGN-DECISIONS.md gives each computer tier "a new OS theme, cursor
+      // and startup sound", i.e. the boot belongs to BUYING a machine. setTier()
+      // still passes { boot: true }, so upgrading plays the full POST. Walking
+      // into your own studio does not.
+      this.skipBoot(tier);
     }
     const lit = player ? 1.0 : 0.42;
     this.screen.material.color.setScalar(lit);
     this.glow.intensity = 1.5 * lit;
+    this.assertPainting();
+    return this;
+  }
+
+  /**
+   * The standing assertion, checked the moment a desk is assigned rather than
+   * nine seconds later by an audit nobody reads.
+   *
+   * A monitor that paints nothing is the one defect a screenshot cannot show
+   * you, because a black screen and a missing screen look identical. Finish bar
+   * item 1 counts prop types and the signature interaction of the whole game is
+   * "click the monitor", so a dead screen fails both at once.
+   */
+  assertPainting(min = 12) {
+    const l = screenLuma(this.os);
+    const ok = !!l && l.mean > min;
+    if (!ok) {
+      console.error(`[office] workstation ${this.slot.index} (${this.player?.nick || 'empty'}) `
+        + 'is painting NOTHING — the desk monitor is a black rectangle. '
+        + 'luma:', l, 'os phase:', this.os?.os?.phase);
+    }
+    this.lastLuma = l;
+    return ok;
   }
 
   /** Jump a freshly created surface straight to the desktop. */
@@ -512,14 +551,14 @@ function figurine(b, kind) {
     b.sphere(0.017, 7, { y: 0.072, z: 0.012, color: 0xe8c341, mat: 'flat', ao: false });
     b.boxUp(0.012, 0.008, 0.020, { y: 0.070, z: 0.030, color: 0xd4763a, mat: 'flat', ao: false });
   } else if (kind === 'obelisk') {
-    b.boxUp(0.052, 0.012, 0.052, { color: OFFICE.charcoal, mat: 'ink', ao: false });
+    b.cboxUp(0.052, 0.012, 0.052, { color: OFFICE.charcoal, mat: 'ink', ao: false, c: 0.003 });
     b.add(new BoxGeometry(0.030, 0.075, 0.030), { y: 0.050, s: [1, 1, 1], color: 0xdad3c4, mat: 'flat', ao: false });
     b.add(new BoxGeometry(0.030, 0.026, 0.030), { y: 0.100, s: [0.35, 1, 0.35], color: 0xdad3c4, mat: 'flat', ao: false });
   } else {                                     // 'arch' — a model of an arch
-    b.boxUp(0.070, 0.010, 0.040, { color: OFFICE.ply, ao: false });
-    b.boxUp(0.016, 0.058, 0.030, { x: -0.024, y: 0.010, color: 0xe7e0d1, mat: 'paper', ao: false });
-    b.boxUp(0.016, 0.058, 0.030, { x: 0.024, y: 0.010, color: 0xe7e0d1, mat: 'paper', ao: false });
-    b.boxUp(0.064, 0.014, 0.030, { y: 0.068, color: 0xe7e0d1, mat: 'paper', ao: false });
+    b.cboxUp(0.070, 0.010, 0.040, { color: OFFICE.ply, ao: false, c: 0.003 });
+    b.cboxUp(0.016, 0.058, 0.030, { x: -0.024, y: 0.010, color: 0xe7e0d1, mat: 'paper', ao: false, c: 0.003 });
+    b.cboxUp(0.016, 0.058, 0.030, { x: 0.024, y: 0.010, color: 0xe7e0d1, mat: 'paper', ao: false, c: 0.003 });
+    b.cboxUp(0.064, 0.014, 0.030, { y: 0.068, color: 0xe7e0d1, mat: 'paper', ao: false, c: 0.003 });
   }
 }
 

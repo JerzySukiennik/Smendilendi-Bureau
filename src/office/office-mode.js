@@ -6,6 +6,7 @@
 
 import { Mode } from '../core/mode.js';
 import { Office } from './office.js';
+import { modelReport } from './models.js';
 
 export class OfficeMode extends Mode {
   constructor() {
@@ -21,9 +22,11 @@ export class OfficeMode extends Mode {
     this.scene = this.office.scene;
     this.camera = this.office.camera;
     this.office.buildHud(document.getElementById('ui') || document.body);
+    const models = modelReport();
     console.info(`[office] built in ${(performance.now() - t0).toFixed(0)} ms — `
       + `${this.office._propTypes.size} prop types, ${this.office.pool.instanceCount} instances, `
-      + `${this.office.shadowPoints.length} contact shadows`);
+      + `${this.office.shadowPoints.length} contact shadows, `
+      + `${models.loaded.length} catalogue models (${models.failed.length} procedural fallbacks)`);
 
     // Seat whoever is in the session. In single player that is one architect.
     const state = ctx.state;

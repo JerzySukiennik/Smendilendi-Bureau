@@ -72,6 +72,18 @@ export class Editor {
       onChange: () => this.hud?.refreshMeasurements(),
     });
 
+    /**
+     * TAGS — what is in the picture. The reference calls these Tags (Layers
+     * before 2020) and treats them as part of the inspector, because on a real
+     * site the thing between you and your model is usually not your model: the
+     * neighbours' volumes and a lime tree fill half the frame at a normal
+     * working orbit, and no amount of orbiting gets you a clean shot at your
+     * own building. Section Plane slices, it does not hide. So: switches.
+     * The 3D view, the plan sheet and what the cursor can snap to all read
+     * these, so a tag that is off is off everywhere and cannot lie.
+     */
+    this.layers = { site: true, neighbours: true, trees: true, furniture: true, text: true };
+
     this.selection = new Set();
     this.hover = null;                   // { kind, id }
     this.guides = [];                    // setting-out lines: { a, b } in world space
@@ -108,7 +120,27 @@ export class Editor {
     this._bind();
     this.rebuildAll();
     this.setTool('select');
-    this.cameras.zoomExtents(this.contentBounds());
+    // The FIRST FRAME THE PLAYER EVER SEES has to be the plot, and framing it
+    // needs a viewport. In the constructor there is none: the canvas has not
+    // been resized yet and the HUD, which measures the panels into
+    // cameras.viewInsets, does not exist either. Framing here put the camera
+    // 0.6 m from a point in mid-air looking at nothing. So the request is
+    // remembered and honoured on the first update() that has a measured
+    // viewport — by which time the insets are in too, so the plot lands in the
+    // clear rectangle between the palette and the dock rather than under them.
+    this._needsInitialFrame = true;
+  }
+
+  /**
+   * Frame the site once, as soon as there is a viewport to frame it in.
+   * Idempotent, and gives up the claim only when zoomExtents actually moved.
+   */
+  _initialFrame() {
+    if (!this._needsInitialFrame) return false;
+    if (!this.cameras.sized) return false;
+    if (this.cameras.zoomExtents(this.contentBounds()) === false) return false;
+    this._needsInitialFrame = false;
+    return true;
   }
 
   // -- model -----------------------------------------------------------------
@@ -123,6 +155,41 @@ export class Editor {
    * id) or null when the op did not apply.
    */
   apply(op, { history = true } = {}) {
+    const res = this._applyOne(op);
+    if (!res) return null;
+    if (history && res.inverse) this._pushHistory([res.op], [res.inverse]);
+    return res.op;
+  }
+
+  /**
+   * Several ops, ONE undo step.
+   *
+   * An undo step is a unit of INTENT, not a unit of plumbing. Re-lengthing a
+   * wall is internally a delete followed by an add, and while those were two
+   * history entries one Ctrl+Z left the player looking at no wall at all —
+   * a state he never asked for and cannot read as anything but a bug. The same
+   * goes for painting a whole run, moving a selection of six chairs and cutting
+   * a window into two walls at once: the player did one thing, so one Ctrl+Z
+   * undoes it. Pass `{ atomic: false }` for the rare caller that really wants
+   * a step per op.
+   */
+  applyMany(ops, { history = true, atomic = true } = {}) {
+    const out = [];
+    const inverses = [];
+    for (const op of ops) {
+      const res = this._applyOne(op);
+      if (!res) continue;
+      out.push(res.op);
+      if (!res.inverse) continue;
+      if (atomic) inverses.push(res.inverse);
+      else if (history) this._pushHistory([res.op], [res.inverse]);
+    }
+    if (atomic && history && inverses.length) this._pushHistory(out.slice(), inverses);
+    return out;
+  }
+
+  /** Send one op and work out how to take it back. No history bookkeeping. */
+  _applyOne(op) {
     const before = this.model;
     const full = this.session.sendOp(op);
     if (!full) return null;
@@ -133,33 +200,25 @@ export class Editor {
     // changes the model clears it; the typed text itself is left alone, because
     // a value being typed right now is not the thing that was refused.
     if (this.measurements.error) this.measurements.setError('');
-    if (history) {
-      // applyOp is pure and deterministic, so re-running it against the model as
-      // it was gives us exactly the inverse the session already applied.
-      let inverse = null;
-      try { inverse = applyOp(before, full).inverse; } catch (_) { inverse = null; }
-      if (inverse && inverse.t !== 'noop') {
-        this.history.push({ op: full, inverse });
-        if (this.history.length > this.historyLimit) this.history.shift();
-        this.redoStack.length = 0;
-      }
-    }
-    return full;
+    // applyOp is pure and deterministic, so re-running it against the model as
+    // it was gives us exactly the inverse the session already applied.
+    let inverse = null;
+    try { inverse = applyOp(before, full).inverse; } catch (_) { inverse = null; }
+    if (inverse && inverse.t === 'noop') inverse = null;
+    return { op: full, inverse };
   }
 
-  applyMany(ops, opts) {
-    const out = [];
-    for (const op of ops) {
-      const r = this.apply(op, opts);
-      if (r) out.push(r);
-    }
-    return out;
+  _pushHistory(ops, inverses) {
+    this.history.push({ ops, inverses });
+    if (this.history.length > this.historyLimit) this.history.shift();
+    this.redoStack.length = 0;
   }
 
   undo() {
     const entry = this.history.pop();
     if (!entry) return false;
-    this.session.sendOp(entry.inverse);
+    // Backwards: the last thing done is the first thing taken back.
+    for (let i = entry.inverses.length - 1; i >= 0; i--) this.session.sendOp(entry.inverses[i]);
     this.redoStack.push(entry);
     this.hud?.flash('Undo');
     return true;
@@ -168,7 +227,7 @@ export class Editor {
   redo() {
     const entry = this.redoStack.pop();
     if (!entry) return false;
-    this.session.sendOp(entry.op);
+    for (const op of entry.ops) this.session.sendOp(op);
     this.history.push(entry);
     this.hud?.flash('Redo');
     return true;
@@ -230,7 +289,7 @@ export class Editor {
       this._dirty.texts = false;
     }
     if (this._dirty.plan) {
-      if (this.cameras.mode === 'plan') this.plan.build(this.model, this.levelId, this.roomLabels());
+      if (this.cameras.mode === 'plan') this._buildPlan();
       this._dirty.plan = false;
     }
     if (what.length) {
@@ -263,7 +322,7 @@ export class Editor {
     this.furniture.rebuild(this.model, this.levelId, { ceiling: this.storeyHeight });
     this.texts.rebuild(this.model, this.levelId);
     this.plan.version = -1;
-    if (this.cameras.mode === 'plan') this.plan.build(this.model, this.levelId, this.roomLabels());
+    if (this.cameras.mode === 'plan') this._buildPlan();
     this.hud?.refreshSchedule();
     this.hud?.refreshCost();
   }
@@ -306,10 +365,17 @@ export class Editor {
    *
    *   1. what the player typed into the room schedule    ("Ola's study")
    *   2. what the analysis engine classified it as       ("bathroom")
-   *   3. a plain sequential number, biggest room first   ("Room 1")
+   *   3. NOTHING
    *
-   * Never the hash. Cached per model version, because it runs on every plan
-   * rebuild and every schedule refresh.
+   * Never the hash, and — since this round — never an invented number either.
+   * "Room 2" printed next to "Living room" on a sheet that goes to the client
+   * does not read as a room waiting to be furnished, it reads as a bug in the
+   * drawing: a made-up name is a name, and a name the architect did not choose
+   * is worse than none. An unlabelled room prints its area alone, which is what
+   * an unfinished drawing looks like in every office in the world.
+   *
+   * Cached per model version, because it runs on every plan rebuild and every
+   * schedule refresh.
    */
   roomLabels() {
     const rooms = this.rooms();
@@ -327,20 +393,19 @@ export class Editor {
     } catch (err) {
       console.warn('[editor] room classification failed', err);
     }
-    let n = 0;
     for (const id of rooms.order) {
-      n++;
       const custom = named[id];
       if (custom) { labels.set(id, custom); continue; }
       const c = classes?.get(id);
       const label = c && c.key !== 'unassigned' ? c.label : null;
-      labels.set(id, label ? cap(label) : `Room ${n}`);
+      labels.set(id, label ? cap(label) : '');
     }
     this._labelCache = { version: this.model.version, levelId: this.levelId, labels };
     return labels;
   }
 
-  roomLabel(id) { return this.roomLabels().get(id) || 'Room'; }
+  /** The room's name, or '' when nothing on earth knows what it is called. */
+  roomLabel(id) { return this.roomLabels().get(id) || ''; }
 
   /** Rename a room from the schedule. '' clears the override again. */
   renameRoom(id, name) {
@@ -536,6 +601,11 @@ export class Editor {
   }
 
   pickFurniture(ndc) {
+    // A tag that is off takes the furniture out of the PICTURE and out of the
+    // PICK: three's raycaster ignores `visible`, so without this you could
+    // select, paint and drag a chair that is not on screen. (Plan view is not
+    // the same case — there the chair is drawn as a symbol, so it stays live.)
+    if (!this.layers.furniture) return null;
     const hits = this._raycaster(ndc).intersectObjects(this.furniture.pickables(), false);
     for (const h of hits) {
       const id = this.furniture.idFromHit(h);
@@ -545,6 +615,7 @@ export class Editor {
   }
 
   pickText(ndc) {
+    if (!this.layers.text) return null;
     const hits = this._raycaster(ndc).intersectObjects([...this.texts.meshes.values()], false);
     for (const h of hits) if (h.object.userData.textId) return { ...h, entityId: h.object.userData.textId };
     return null;
@@ -660,7 +731,7 @@ export class Editor {
     if (this.tool?.onKey?.(e) === true) { e.preventDefault(); return; }
 
     // 3. arrow keys lock the drawing direction to an axis
-    const lock = axisForKey(e.code);
+    const lock = axisForKey(e.code) ?? axisForKey(e.key);
     if (lock !== undefined) {
       e.preventDefault();
       this.lockAxis = this.lockAxis === lock ? null : lock;
@@ -672,7 +743,12 @@ export class Editor {
     if (this.measurements.key(e)) { e.preventDefault(); return; }
 
     // 5. everything else
-    const code = e.code;
+    // e.code is the PHYSICAL key and can be missing entirely (synthetic events,
+    // some IMEs, some remote-input paths), which used to kill every shortcut
+    // while the Measurements box — which reads e.key — carried on working: two
+    // halves of one handler disagreeing about what a keystroke is. Named keys
+    // report the same string in both, so either will do for them.
+    const code = e.code || e.key;
     if (code === 'Escape') {
       e.preventDefault();
       this.inference.clearPrimed();
@@ -686,9 +762,9 @@ export class Editor {
     if (code === 'F2') { e.preventDefault(); this.setView('plan'); return; }
     if (code === 'F3') { e.preventDefault(); this.setView('orbit'); return; }
     if (code === 'F4') { e.preventDefault(); this.setView('walk'); return; }
-    if (code === 'KeyZ' && e.shiftKey) { e.preventDefault(); this.cameras.zoomExtents(this.contentBounds()); return; }
+    if (letterOf(e) === 'z' && e.shiftKey) { e.preventDefault(); this.cameras.zoomExtents(this.contentBounds()); return; }
 
-    const id = SHORTCUTS[code];
+    const id = shortcutFor(e);
     if (id) { e.preventDefault(); this.setTool(id); }
   }
 
@@ -714,10 +790,44 @@ export class Editor {
     return this._sectionPlane ? [this._sectionPlane] : EMPTY_PLANES;
   }
 
+  /** Draw the sheet with the tags the player left switched on. */
+  _buildPlan() {
+    this.plan.build(this.model, this.levelId, this.roomLabels(), this.layers);
+  }
+
+  /** Switch a tag. Unknown ids are ignored; returns the state it ended up in. */
+  setLayer(id, on) {
+    if (!(id in this.layers)) return false;
+    const want = !!on;
+    if (this.layers[id] === want) return want;
+    this.layers[id] = want;
+    this.applyLayers();
+    this.hud?.refreshLayers();
+    return want;
+  }
+
+  toggleLayer(id) { return this.setLayer(id, !this.layers[id]); }
+
+  /**
+   * Push the tag state into everything that draws. Called on every change and
+   * on every view change, because the plan hides some of the same things for
+   * its own reasons and the two rules have to be combined in one place rather
+   * than fight each other.
+   */
+  applyLayers() {
+    const plan = this.cameras.mode === 'plan';
+    this.furniture.group.visible = this.layers.furniture && !plan;
+    this.texts.group.visible = this.layers.text && !plan;
+    if (plan) { this.plan.version = -1; this._buildPlan(); }
+    // The site, the neighbours and the trees belong to whoever built the scene
+    // (editor-mode.js on a real plot), so the switch is handed over, not guessed.
+    this.onLayersChanged?.(this.layers);
+  }
+
   _viewChanged() {
     const plan = this.cameras.mode === 'plan';
     this.plan.visible = plan;
-    if (plan) this.plan.build(this.model, this.levelId, this.roomLabels());
+    if (plan) this._buildPlan();
     for (const built of this.builtByLevel.values()) built.group.visible = !plan;
     // The 3D furniture and the 3D lettering come out of the picture too, and
     // plan.js draws proper 2D symbols in their place. A shaded box with a drop
@@ -725,8 +835,8 @@ export class Editor {
     // as a screenshot rather than as a drawing. They stay in the scene graph and
     // stay pickable — three's raycaster does not care about `visible` — so a
     // chair can still be selected and moved in plan.
-    this.furniture.group.visible = !plan;
-    this.texts.group.visible = !plan;
+    this.furniture.group.visible = this.layers.furniture && !plan;
+    this.texts.group.visible = this.layers.text && !plan;
     this.gizmos.axesVisible = !plan;
     // A plan is a section at 1.20 m, so everything the section would remove is
     // taken out of the picture: the 3D shell (replaced by the drawing) and, via
@@ -761,6 +871,7 @@ export class Editor {
   // -- frame -----------------------------------------------------------------
 
   update(dt) {
+    this._initialFrame();
     this.cameras.update(dt, this.ctx?.input);
     if (this._pointer.over && !this.cameras.navigating) {
       this._updateSnap();
@@ -903,7 +1014,12 @@ export class Editor {
     this._stats.drawCalls = renderer.info.render.calls;
   }
 
-  resize(w, h) { this.cameras.resize(w, h); }
+  resize(w, h) {
+    this.cameras.resize(w, h);
+    // A resize is the first moment the framing maths is answerable, so a
+    // pending initial frame is taken here rather than a frame later.
+    this._initialFrame();
+  }
 
   get stats() { return this._stats; }
 
@@ -976,6 +1092,38 @@ export const SHORTCUTS = {
   KeyH: 'pan',
   KeyK: 'section',
 };
+
+/** The same table, keyed by the character the key produces. Derived, never edited. */
+export const SHORTCUTS_BY_CHAR = (() => {
+  const out = {};
+  for (const code in SHORTCUTS) {
+    const ch = code === 'Space' ? ' ' : code.startsWith('Key') ? code.slice(3).toLowerCase() : null;
+    if (ch && !(ch in out)) out[ch] = SHORTCUTS[code];
+  }
+  return out;
+})();
+
+/**
+ * WHICH TOOL A KEYSTROKE MEANS.
+ *
+ * The CHARACTER first, the physical key second — which is the way SketchUp
+ * binds and the only way that survives a layout change. On AZERTY the key in
+ * the QWERTY W position is the letter Z, so keying off e.code alone gave a
+ * French architect nothing when he pressed W and the Wall tool when he pressed
+ * Z. e.code stays as the fallback for the layouts where e.key is not a Latin
+ * letter at all (Cyrillic, Greek), and for events that carry no key.
+ */
+function shortcutFor(e) {
+  const ch = letterOf(e);
+  if (ch && SHORTCUTS_BY_CHAR[ch]) return SHORTCUTS_BY_CHAR[ch];
+  return e.code ? SHORTCUTS[e.code] : undefined;
+}
+
+/** The single character this keystroke produced, lower case, or ''. */
+function letterOf(e) {
+  const k = typeof e.key === 'string' ? e.key : '';
+  return k.length === 1 ? k.toLowerCase() : '';
+}
 
 function axisForKey(code) {
   if (code === 'ArrowRight') return 'x';

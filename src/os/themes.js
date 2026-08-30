@@ -27,7 +27,7 @@ import {
   WIN, PLATINUM, VGA, fill, hline, vline, frameRect, bevel, panel, checker, text,
   textY, textCentred, triangle, focusRect, inside, button, field, SCROLLBAR, tile,
 } from './widgets.js';
-import { SANS, SANS_BOLD, splitMnemonic } from './font.js';
+import { SANS, SANS_BOLD, CHICAGO, CHICAGO_BOLD, GENEVA, FIXED, splitMnemonic } from './font.js';
 import { I16, icon32, setIconGreys } from './icons.js';
 
 export const CAPTION_BTN = { w: 16, h: 14 };
@@ -37,8 +37,12 @@ export const CAPTION_BTN = { w: 16, h: 14 };
 class BaseTheme {
   constructor(cfg) {
     Object.assign(this, cfg);
+    // The chrome face and the small content face. Windows tiers use one
+    // typeface for both, exactly as Win95 did; PlatinumTheme overrides them
+    // with Chicago 12 and Geneva (ANALYSIS.md section 4).
     this.font = SANS;
     this.fontBold = SANS_BOLD;
+    this.fontSmall = SANS;
   }
 
   /** Rectangle a window's own content lives in, plus every chrome hot spot. */
@@ -78,13 +82,24 @@ class BaseTheme {
    * left gutter for checkmarks, accelerators right-aligned, submenu arrows as
    * solid 4x7 triangles. No shadow — Win95 popups sit straight on the pixels.
    */
+  /**
+   * How this machine prints a keyboard shortcut in a menu.
+   *
+   * "Ctrl+S" is a Windows string and no Mac ever showed one; System 7 and
+   * Mac OS 8 print the Command mark and the key. PlatinumTheme overrides this,
+   * so the SAME app menu definition reads "Ctrl+S" on tiers 1-2 and "\u2318S"
+   * on tiers 3-4 without the app knowing which machine it is running on.
+   */
+  accelText(accel) { return accel; }
+
   menuSize(items) {
     let w = 0;
     let h = 4;
     for (const it of items) {
       if (it.sep) { h += 7; continue; }
       const lw = this.font.measure(splitMnemonic(it.label).text);
-      const aw = it.accel ? this.font.measure(it.accel) + 18 : 0;
+      const acc = it.accel ? this.accelText(it.accel) : '';
+      const aw = acc ? this.font.measure(acc) + 18 : 0;
       const sw = it.submenu ? 14 : 0;
       w = Math.max(w, 22 + lw + aw + sw + 12);
       h += this.metrics.menuItemH;
@@ -120,9 +135,10 @@ class BaseTheme {
       }
       this.font.drawMnemonic(g, it.label, r.x + 22, textY(y, ih), tc, { disabled: !!it.disabled });
       if (it.accel) {
-        const aw = this.font.measure(it.accel);
-        if (it.disabled) this.font.drawDisabled(g, it.accel, r.x + r.w - 12 - aw, textY(y, ih));
-        else this.font.draw(g, it.accel, r.x + r.w - 12 - aw, textY(y, ih), tc);
+        const acc = this.accelText(it.accel);
+        const aw = this.font.measure(acc);
+        if (it.disabled) this.font.drawDisabled(g, acc, r.x + r.w - 12 - aw, textY(y, ih));
+        else this.font.draw(g, acc, r.x + r.w - 12 - aw, textY(y, ih), tc);
       }
       if (it.submenu) triangle(g, r.x + r.w - 9, y + (ih >> 1), 'right', tc, 4);
       it._rect = { x: r.x + 2, y, w: r.w - 4, h: ih };
@@ -416,6 +432,21 @@ class PlatinumTheme extends BaseTheme {
       },
       ...cfg,
     });
+    // THE typeface change. ANALYSIS.md section 4 gives System 7 and Mac OS 8
+    // Chicago 12 for menus, titles and buttons and Geneva for icon labels and
+    // list views, and calls the bitmap face "the single loudest authenticity
+    // signal in a screenshot". Round 2 shipped MS Sans Serif here and a critic
+    // decided the blind A/B in under a second on the letterforms alone.
+    // Both faces are traced out of macos8-01..05 — see src/os/font.js.
+    this.font = CHICAGO;
+    this.fontBold = CHICAGO_BOLD;
+    this.fontSmall = GENEVA;
+  }
+
+  /** Ctrl+S -> the Command mark and the key. Anything else is left alone. */
+  accelText(accel) {
+    const m = /^(?:Ctrl|Cmd)\+(.+)$/.exec(String(accel ?? ''));
+    return m ? `\u2318${m[1]}` : accel;
   }
 
   captionButtons(win, cap) {
@@ -530,7 +561,7 @@ class PlatinumTheme extends BaseTheme {
       const x = this.w - w - 4;
       const open = os.menuOwner === 'global' && os.menuIndex === i;
       if (open) fill(g, x, 1, w, 17, pal.dark);
-      this.font.draw(g, label, x + 6, 4, open ? pal.hi : pal.text);
+      this.font.draw(g, label, x + 6, textY(0, this.metrics.menuBarH), open ? pal.hi : pal.text);
       if (m.icon && I16[m.icon]) I16[m.icon].draw(g, x + w - 20, 2);
       m._rect = { x, y: 0, w, h: 19 };
       rightEdge = x;
@@ -539,7 +570,7 @@ class PlatinumTheme extends BaseTheme {
     // clock, in the menu bar, like every Mac since 1991
     const clock = os.clockText();
     const cw = this.font.measure(clock);
-    this.font.draw(g, clock, rightEdge - 12 - cw, 4, pal.text);
+    this.font.draw(g, clock, rightEdge - 12 - cw, textY(0, this.metrics.menuBarH), pal.text);
 
     let x = 8;
     for (let i = 0; i < menu.length; i++) {
@@ -554,7 +585,7 @@ class PlatinumTheme extends BaseTheme {
       if (isApple) {
         I16.square.draw(g, x + 3, 1);
       } else {
-        this.font.drawMnemonic(g, m.label, x + 7, 4, open ? pal.hi : pal.text);
+        this.font.drawMnemonic(g, m.label, x + 7, textY(0, this.metrics.menuBarH), open ? pal.hi : pal.text);
       }
       m._rect = { x, y: 0, w, h: 19 };
       x += w;
@@ -1092,7 +1123,12 @@ export const BOOT = {
           const k = Math.min(16384, Math.floor(t * 12000));
           s += `${k} KB ${k >= 16384 ? 'OK' : ''}`;
         }
-        SANS.draw(g, s, 16, 14 + i * 13, '#C0C0C0');
+        // A real POST is not a GUI: it is VGA text mode, an 8 px fixed cell
+        // and a 16 px line. Round 2 set it in the proportional GUI font, which
+        // a column-ink scan gives away at once — irregular inter-glyph pitch
+        // where a text mode has a constant 8 (ANALYSIS.md section 4 names
+        // Fixedsys / Terminal for exactly this).
+        FIXED.draw(g, s, 16, 12 + i * 16, '#C0C0C0');
       }
       if (t > 2.4) {
         // the splash: a plain 16-colour panel, no photography, no gradient
@@ -1144,10 +1180,10 @@ export const BOOT = {
       fill(g, x, y, w, h, '#FFFFFF');
       frameRect(g, x, y, w, h, '#000000');
       for (let i = 0; i < 12; i++) hline(g, x + 1, y + 4 + i, w - 2, i % 2 === 0 ? '#FFFFFF' : '#777777');
-      SANS_BOLD.draw(g, 'Vellum 8', x + 24, y + 40, '#000000');
-      SANS.draw(g, 'Sunstation Pro', x + 24, y + 58, '#777777');
-      SANS.draw(g, 'Welcome to Vellum', x + 24, y + 92, '#000000');
-      SANS.draw(g, 'Starting up the desktop', x + 24, y + 110, '#777777');
+      CHICAGO_BOLD.draw(g, 'Vellum 8', x + 24, y + 40, '#000000');
+      CHICAGO.draw(g, 'Sunstation Pro', x + 24, y + 58, '#777777');
+      CHICAGO.draw(g, 'Welcome to Vellum', x + 24, y + 92, '#000000');
+      CHICAGO.draw(g, 'Starting up the desktop', x + 24, y + 110, '#777777');
       // extensions marching along the bottom, the way a Mac announced itself
       const n = Math.min(9, Math.floor(t * 3));
       for (let i = 0; i < n; i++) {
@@ -1169,10 +1205,10 @@ export const BOOT = {
       fill(g, x, y, w, h, '#FFFFFF');
       frameRect(g, x, y, w, h, '#000000');
       for (let i = 0; i < 12; i++) hline(g, x + 1, y + 4 + i, w - 2, i % 2 === 0 ? '#FFFFFF' : '#777777');
-      SANS_BOLD.draw(g, 'ATELIER 9', x + 28, y + 44, '#000000');
-      SANS.draw(g, 'Studio Edition  -  Melon Studio M5', x + 28, y + 62, '#777777');
-      SANS.draw(g, '1152 x 870, millions of colours', x + 28, y + 96, '#000000');
-      SANS.draw(g, 'Drawing tablet found', x + 28, y + 112, '#000000');
+      CHICAGO_BOLD.draw(g, 'ATELIER 9', x + 28, y + 44, '#000000');
+      CHICAGO.draw(g, 'Studio Edition  -  Melon Studio M5', x + 28, y + 62, '#777777');
+      CHICAGO.draw(g, '1152 x 870, millions of colours', x + 28, y + 96, '#000000');
+      CHICAGO.draw(g, 'Drawing tablet found', x + 28, y + 112, '#000000');
       const frac = Math.min(1, t / 3.2);
       const bar = { x: x + 28, y: y + 140, w: w - 56, h: 14 };
       frameRect(g, bar.x, bar.y, bar.w, bar.h, '#000000');

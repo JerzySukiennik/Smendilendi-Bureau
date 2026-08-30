@@ -13,11 +13,16 @@
 // Purpose: judge the props as objects, which is impossible while walking past them.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import * as P from '../src/office/props.js';
-import { makeLightRig, materialFor } from '../src/core/palette.js';
+// ?src=<module> swaps the prop library, so an old revision can be rendered under
+// exactly this rig for an honest before/after. Default is the live one.
+const SRC = new URLSearchParams(location.search).get('src') || '../src/office/props.js';
+const P = await import(SRC);
+import { makeLightRig } from '../src/core/palette.js';
 
 const names = Object.keys(P).filter(k => k.startsWith('prop') && typeof P[k] === 'function');
-const renderer = new THREE.WebGLRenderer({ canvas: c, antialias: true });
+// preserveDrawingBuffer so __shot() below can read the pixels back. The browser
+// pane cannot save a file, so captures are POSTed to a local receiver instead.
+const renderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -28,12 +33,26 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xc9c4ba);
 makeLightRig(scene, { timeOfDay: 'afternoon', radius: 30 });
 
+// The same generated room environment office.js builds, at the same intensity.
+// Without it every metalness > 0 surface renders BLACK — a MeshStandardMaterial
+// metal has no diffuse term and nothing to reflect — so a sheet without it lies
+// about the kettle, the bin, the pen cup and every steel leg in the room.
+{
+  const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js');
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.22;
+  pmrem.dispose();
+}
+
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(200,200),
   new THREE.MeshStandardMaterial({ color: 0xbdb7ac, roughness: 0.95 }));
 ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
 
 const COLS = 8, GAP = 2.2;
 const report = [];
+const items = [];
 names.forEach((n, i) => {
   const x = (i % COLS) * GAP - (COLS-1)*GAP/2;
   const z = Math.floor(i / COLS) * GAP - 6;
@@ -45,21 +64,32 @@ names.forEach((n, i) => {
   if (!parts || !parts.length) { report.push({ prop:n, fault:'produced no geometry' }); return; }
   const g = new THREE.Group();
   for (const { mat, geometry } of parts) {
-    const mesh = new THREE.Mesh(geometry, materialFor(mat));
+    // builderMaterial, NOT materialFor: props.js bakes the exact surface colour
+    // into vertex colour, and a material without vertexColors renders every
+    // prop in its material class's base grey. The sheet was lying about colour.
+    const mesh = new THREE.Mesh(geometry, P.builderMaterial(mat));
     mesh.castShadow = true; mesh.receiveShadow = true;
     g.add(mesh);
   }
-  g.position.set(x, 0, z);
+  // Wall and ceiling props are authored with their origin AT the wall or the
+  // ceiling, so on a floor grid they sink through the ground and read as broken
+  // objects. Lift them to stand on it; the fault report below still measures
+  // the ORIGINAL box, which is what the office actually places.
+  const raw = new THREE.Box3().setFromObject(g);
+  const lift = raw.min.y < -0.001 ? -raw.min.y : 0;
+  g.position.set(x, lift, z);
   scene.add(g);
   const box = new THREE.Box3().setFromObject(g);
-  const s = box.getSize(new THREE.Vector3());
+  items.push({ name: n, group: g, box: box.clone(), x, z, lift });
+  const s = raw.getSize(new THREE.Vector3());
   let tris = 0; for (const { geometry: a } of parts)
     tris += (a.index ? a.index.count : a.attributes.position.count)/3;
   const faults = [];
   if (!isFinite(s.x+s.y+s.z)) faults.push('NaN bbox');
   if (Math.max(s.x,s.y,s.z) < 0.02) faults.push('microscopic');
   if (Math.max(s.x,s.y,s.z) > 6) faults.push('huge '+s.toArray().map(v=>v.toFixed(1)));
-  if (Math.abs(box.min.y) > 0.03) faults.push('off the floor: min.y='+box.min.y.toFixed(3));
+  if (Math.abs(raw.min.y) > 0.03) faults.push('origin off the floor: min.y='+raw.min.y.toFixed(3)
+    + (lift ? ' (wall/ceiling prop, lifted for the sheet)' : ''));
   if (tris < 12) faults.push('only '+tris+' tris');
   if (parts.length === 1 && tris <= 12) faults.push('single untextured box');
   report.push({ prop:n, size:[+s.x.toFixed(2),+s.y.toFixed(2),+s.z.toFixed(2)], tris,
@@ -75,7 +105,11 @@ names.forEach((n, i) => {
 window.__report = report;
 
 const rows = Math.ceil(names.length / COLS);
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.5, 200);
+// near = 0.02, not 0.5. __frame() parks the camera ~0.4 m from a small object
+// (Mouse, Mug, Book, CrumpledPaper, Roll, ScaleRule), and at near = 0.5 every one
+// of those six rendered as empty ground — the sheet was silently hiding the props
+// most in need of a close look.
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.02, 200);
 camera.position.set(0, 7.5, rows*GAP + 8);
 const ctl = new OrbitControls(camera, renderer.domElement);
 ctl.target.set(0, 0.6, -1); ctl.update();
@@ -92,4 +126,107 @@ window.__look = (row, col = (COLS-1)/2, dist = 3.2, height = 1.6) => {
   return { row, x:+x.toFixed(2), z:+z.toFixed(2) };
 };
 window.__names = names;
+
+// --- the Blender catalogue, for A/B ----------------------------------------
+// 122 GLBs sit in assets/models/ and the office ignores all of them, so the only
+// way to decide whether routing the office through them is an improvement is to
+// stand one next to the other and look. These load into the SAME scene under the
+// SAME light rig, on rows behind the procedural grid.
+window.__loadGlbs = async (ids) => {
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const loader = new GLTFLoader();
+  const out = [];
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i];
+    let gltf;
+    try { gltf = await loader.loadAsync(`../assets/models/${id}.glb`); }
+    catch (e) { out.push({ id, fault: 'LOAD FAILED ' + e.message }); continue; }
+    const g = gltf.scene;
+    const x = (i % COLS) * GAP - (COLS - 1) * GAP / 2;
+    const z = Math.floor(i / COLS) * GAP + 12;      // well behind the procedural grid
+    g.position.set(x, 0, z);
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    scene.add(g);
+    const box = new THREE.Box3().setFromObject(g);
+    const s = box.getSize(new THREE.Vector3());
+    items.push({ name: 'glb:' + id, group: g, box: box.clone(), x, z });
+    out.push({ id, size: [+s.x.toFixed(2), +s.y.toFixed(2), +s.z.toFixed(2)], minY: +box.min.y.toFixed(3) });
+  }
+  return out;
+};
+
+// --- capture ---------------------------------------------------------------
+// The browser pane screenshots at pane resolution, which is too small to judge a
+// bevel. __shot renders the CURRENT view at an explicit size and POSTs the PNG to
+// a local receiver (see the shot-receiver note in the handoff), so the images that
+// go in progress/shots/ are full resolution.
+window.__shotPort = 5411;
+window.__shot = async (name, w = 1800, h = 620) => {
+  const oldW = renderer.domElement.width, oldH = renderer.domElement.height;
+  const oldAspect = camera.aspect;
+  renderer.setPixelRatio(1);
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.render(scene, camera);
+  // toDataURL, not toBlob: toBlob's callback is queued on a task the pane throttles
+  // when it is hidden, which turned a 40 ms capture into 15 s each.
+  const url = renderer.domElement.toDataURL('image/png');
+  const bin = atob(url.slice(url.indexOf(',') + 1));
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const blob = new Blob([buf], { type: 'image/png' });
+  let res = 'no receiver';
+  try {
+    const r = await fetch(`http://localhost:${window.__shotPort}/save?name=${encodeURIComponent(name)}`,
+      { method: 'POST', body: blob });
+    res = await r.text();
+  } catch (e) { res = 'ERR ' + e.message; }
+  renderer.setSize(oldW, oldH, false);
+  camera.aspect = oldAspect; camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  return { name, bytes: blob.size, res };
+};
+
+/** Capture every row of the grid as one file each, close up. */
+window.__shotRows = async (prefix, dist = 3.4, height = 1.55) => {
+  const out = [];
+  for (let r = 0; r < rows; r++) {
+    window.__look(r, (COLS - 1) / 2, dist, height);
+    out.push(await window.__shot(`${prefix}-row${r}.png`, 1800, 620));
+  }
+  window.__look(0, (COLS - 1) / 2, 3.4, 1.55);
+  return out;
+};
+
+// --- per-prop framing ------------------------------------------------------
+// A row shot cannot show a 6 mm chamfer, and a whole-grid shot certainly cannot.
+// __frame fits the camera to ONE prop's bounding box from a three-quarter view,
+// which is the only way to judge an object as an object.
+window.__items = items;
+window.__frame = (i, azim = 0.62, elev = 0.30, pad = 1.32) => {
+  const it = items[i];
+  if (!it) return null;
+  const c = it.box.getCenter(new THREE.Vector3());
+  const s = it.box.getSize(new THREE.Vector3());
+  const r = Math.max(0.13, 0.5 * Math.hypot(s.x, s.y, s.z));
+  const dist = pad * r / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  camera.position.set(
+    c.x + dist * Math.cos(elev) * Math.sin(azim),
+    c.y + dist * Math.sin(elev),
+    c.z + dist * Math.cos(elev) * Math.cos(azim),
+  );
+  ctl.target.copy(c); ctl.update();
+  return { name: it.name, size: [+s.x.toFixed(3), +s.y.toFixed(3), +s.z.toFixed(3)], dist: +dist.toFixed(2) };
+};
+
+/** Capture props [from, to) one file each, framed. Keep batches small: encoding is slow. */
+window.__shotProps = async (prefix, from = 0, to = items.length, px = 560) => {
+  const out = [];
+  for (let i = from; i < Math.min(to, items.length); i++) {
+    window.__frame(i);
+    const r = await window.__shot(`${prefix}-${String(i).padStart(2, '0')}-${items[i].name.replace('prop', '')}.png`, px, px);
+    out.push(items[i].name + ':' + r.bytes);
+  }
+  return out;
+};
 </script>

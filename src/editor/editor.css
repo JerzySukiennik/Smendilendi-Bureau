@@ -85,7 +85,10 @@
 
 .ed-dock {
   position: absolute;
-  right: 8px; top: 8px; bottom: 96px;
+  /* The foot of the dock now carries the Tags row, so it has to STOP above the
+     cost bar (bottom 72px, ~37px tall) instead of running 16px behind it — the
+     last tag was drawn underneath the budget panel and read as clipped. */
+  right: 8px; top: 8px; bottom: 116px;
   width: 300px;
   pointer-events: auto;
   background: var(--ed-panel);
@@ -108,6 +111,47 @@
 .ed-dock .tabs button:last-child { border-right: 0; }
 .ed-dock .tabs button.on { background: #37342f; color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
 .ed-dock .body { flex: 1; overflow: auto; min-height: 0; }
+
+/* Tags. A row, not a dialog: hiding the neighbours is a thing you do WHILE
+   drawing, so it costs one click and never covers the model. */
+.ed-layers {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 6px;
+  border-top: 1px solid var(--ed-line);
+  background: #262421;
+}
+.ed-layers .lbl {
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-right: 2px;
+}
+.ed-layers button {
+  background: #37342f;
+  border: 1px solid var(--ed-line);
+  color: var(--text);
+  font-size: 10px;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.ed-layers button::before {
+  content: '';
+  display: inline-block;
+  width: 5px; height: 5px;
+  margin-right: 5px;
+  vertical-align: middle;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.ed-layers button:hover { border-color: #6b655d; }
+.ed-layers button.off { color: var(--text-dim); background: #221f1d; }
+.ed-layers button.off::before { background: transparent; box-shadow: inset 0 0 0 1px var(--text-dim); }
 .ed-pane { display: none; padding: 8px; }
 .ed-pane.on { display: block; }
 
@@ -159,6 +203,9 @@
 /* a room name is edited in place, the way Entity Info edits one */
 .sched td.name { cursor: text; }
 .sched td.name:hover { text-decoration: underline dotted var(--text-dim); }
+/* a room the engine cannot name yet: present, editable, not pretending */
+.sched td.name.anon { color: var(--text-dim); font-style: italic; }
+
 .ed-rename {
   width: 100%; box-sizing: border-box; background: #1f1e1c; color: var(--text);
   border: 1px solid var(--accent); border-radius: 0; padding: 1px 3px;

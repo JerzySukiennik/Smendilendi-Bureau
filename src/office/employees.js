@@ -35,19 +35,19 @@ export const CUBICLES = [
 ];
 
 const SKIN = [0xd8b48c, 0xc39a72, 0x9c7248, 0x6f4e34, 0xe6c9a8];
-const SHIRT = [0x6c655c, 0x55504a, 0x8f877b, 0x35566e, 0x3a3835];
+const SHIRT = [0x6c655c, 0x55504a, 0x8f877b, 0x4e5b66, 0x3a3835];
 
 /** A seated low-poly figure, ~1.72 m standing, built once and cloned per hire. */
 function buildBody(shirt, skin) {
   const b = new MeshBuilder();
   b._ao = false;
   // seated: hips at 0.46, torso to 1.02, head centre 1.19
-  b.boxUp(0.34, 0.42, 0.24, { y: 0.48, color: shirt });                    // torso
-  b.boxUp(0.30, 0.10, 0.22, { y: 0.44, color: shirt, shade: 0.85 });       // shoulders/base
-  b.boxUp(0.36, 0.14, 0.44, { y: 0.40, z: 0.10, color: 0x4a453f });        // thighs
+  b.cboxUp(0.34, 0.42, 0.24, { y: 0.48, color: shirt, c: 0.010 });                 // torso
+  b.cboxUp(0.30, 0.10, 0.22, { y: 0.44, color: shirt, shade: 0.85, c: 0.008 });    // shoulders/base
+  b.cboxUp(0.36, 0.14, 0.44, { y: 0.40, z: 0.10, color: 0x4a453f, c: 0.008 });     // thighs
   for (const sx of [-1, 1]) {
-    b.boxUp(0.11, 0.44, 0.12, { x: sx * 0.10, y: 0.0, z: 0.28, color: 0x4a453f });  // shins
-    b.boxUp(0.10, 0.05, 0.22, { x: sx * 0.10, y: 0.0, z: 0.36, color: OFFICE.charcoal }); // shoes
+    b.cboxUp(0.11, 0.44, 0.12, { x: sx * 0.10, y: 0.0, z: 0.28, color: 0x4a453f, c: 0.008 });  // shins
+    b.cboxUp(0.10, 0.05, 0.22, { x: sx * 0.10, y: 0.0, z: 0.36, color: OFFICE.charcoal, c: 0.006 }); // shoes
   }
   b.cylUp(0.055, 0.05, 0.09, 8, { y: 0.90, color: skin });                 // neck
   b.add(new SphereGeometry(0.105, 10, 7), { y: 1.03, s: [1, 1.12, 0.94], color: skin });
