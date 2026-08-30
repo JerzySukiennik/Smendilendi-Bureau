@@ -158,7 +158,14 @@ export class OS {
     const mk = (Cls) => (ctx, os, win) => new Cls(ctx, os, win);
     this.registerApp({ id: 'mail', title: 'Mail', icon: 'mail', desktopIcon32: 'mail', create: mk(MailApp), window: { w: 0.86, h: 0.74 }, quickLaunch: true });
     this.registerApp({ id: 'files', title: 'Projects', icon: 'folder', desktopIcon32: 'folder', create: mk(FilesApp), window: { w: 0.62, h: 0.58 }, quickLaunch: true });
-    this.registerApp({ id: 'cost', title: 'Cost Sheet', icon: 'cost', desktopIcon32: 'cost', create: mk(CostApp), window: { w: 0.80, h: 0.66 } });
+    // The Cost Sheet's budget band is two columns of live numbers — a left
+    // caption and a right-aligned figure on each of two lines. Measured at the
+    // old default minimum (220x140) they overprinted each other
+    // ("Cost again§13budget| 240 000 credits"), and the grid collapsed to a
+    // clipped header row. 360x240 is where the two strings stop touching at the
+    // widest money this bill produces; below that the band also drops its right
+    // column on its own (apps/cost.js), the way a Win95 status bar drops panes.
+    this.registerApp({ id: 'cost', title: 'Cost Sheet', icon: 'cost', desktopIcon32: 'cost', create: mk(CostApp), window: { w: 0.80, h: 0.66, minW: 360, minH: 240 } });
     this.registerApp({ id: 'chat', title: 'Studio Talk', icon: 'chat', desktopIcon32: null, create: mk(ChatApp), window: { w: 0.52, h: 0.58, minW: 300, minH: 220 } });
     this.registerApp({ id: 'settings', title: 'Machine', icon: 'settings', desktopIcon32: 'computer', create: mk(SettingsApp), window: { w: 0.62, h: 0.78, minW: 380, minH: 380 } });
   }
@@ -241,9 +248,23 @@ export class OS {
 
   // --- tiers ---------------------------------------------------------------
 
+  /**
+   * Switch machine. `boot: false` is a *request to be already switched on*, not
+   * a hint — src/office/desks.js calls it through skipBoot() so an unowned desk
+   * shows a lit desktop the moment the office loads instead of replaying the
+   * 5-second POST (and firing the startup chime once per surface).
+   *
+   * Round 2: the guard used to be `t === this.tier && this.phase !== 'off'`,
+   * which ignored the flag, so skipBoot() on a machine that was already on the
+   * requested tier returned having done nothing at all and left the screen in
+   * 'boot'. Measured: setTier(1,{boot:false}) on a fresh tier-1 OS went
+   * {tier:1,phase:'boot'} -> {tier:1,phase:'boot'}. The tier only has to be
+   * left alone when the request is already satisfied — same tier AND already on
+   * the desktop, or a plain boot request for the tier that is booting.
+   */
   setTier(n, { boot = true } = {}) {
     const t = clampTier(n);
-    if (t === this.tier && this.phase !== 'off') return;
+    if (t === this.tier && this.phase !== 'off' && (boot || this.phase === 'desktop')) return;
     this.applyTier(t, { boot });
   }
 
@@ -356,27 +377,64 @@ export class OS {
       ] },
       { label: '&Settings', icon: 'settings', action: () => this.openApp('settings') },
       { label: '&Find', icon: 'find', action: () => this.wm.dialog({ title: 'Find', message: 'Nothing here is lost.\nThe office is only three rooms.', icon: 'info' }) },
-      { label: '&Help', icon: 'info', action: () => this.help() },
+      // A book with a question mark, exactly as win95-05 draws its Help row.
+      // The circled "i" is the Win98/2000 info glyph and stays where Windows
+      // really uses it — on message boxes (checklist 18).
+      { label: '&Help', icon: 'help', action: () => this.help() },
       { sep: true },
       { label: 'S&hut Down...', icon: 'computer', action: () => this.shutdownDialog() },
     ];
     return items;
   }
 
+  /**
+   * The Platinum tiers' menu bar.
+   *
+   * The two menus the OS owns are held on `this._bar` and REBUILT IN PLACE, not
+   * reallocated. themes.js writes each entry's hit rectangle onto the object as
+   * it paints it, and wm.menuBarHit() reads that rectangle back off a fresh
+   * call to this method — so a menu that hands out a new object every call can
+   * never be clicked. Measured: before this, `globalMenu()[0]._rect` was
+   * `undefined` on every call after the paint, and the Apple menu on tiers 3
+   * and 4 silently swallowed every click. The focused window's own menus were
+   * fine because those objects belong to the app and are passed through.
+   */
   globalMenu() {
     const focused = this.wm.focused;
-    const apple = { label: '&Apple', items: [
+    if (!this._bar) this._bar = { apple: { label: '&Apple' }, app: { appMenu: true } };
+    const apple = this._bar.apple;
+    apple.items = [
       { label: `About ${this.config.osName} ${this.config.osVersion}...`, action: () => this.about() },
       { sep: true },
       ...[...this.apps.values()].map((a) => ({ label: a.title, icon: a.icon, action: () => this.openApp(a.id) })),
       { sep: true },
       { label: 'Shut &Down...', action: () => this.shutdownDialog() },
-    ] };
+    ];
     const own = (focused?.menu ?? []).map((m) => m);
-    const windows = { label: '&Windows', items: this.wm.taskList().length
-      ? this.wm.taskList().map((w) => ({ label: w.title, checked: w === focused, action: () => this.wm.focus(w) }))
-      : [{ label: 'No windows open', disabled: true }] };
-    return [apple, ...own, windows];
+
+    // The Application menu. Round 2 gave the Platinum tiers a Windows taskbar
+    // with pressed/raised task buttons along the bottom AND a global menu bar
+    // along the top, which is a chimera: no Mac ever shipped both. Mac OS 8
+    // switches applications from the RIGHT END of the menu bar — the active
+    // application's icon and name, and a menu of everything running with the
+    // active one checked, above Hide Others / Show All. So that is what this is,
+    // and `appMenu: true` tells the Platinum shells to hang it off the right
+    // edge instead of adding it to the run on the left.
+    const list = this.wm.taskList();
+    const appMenu = this._bar.app;
+    appMenu.label = focused?.title ?? this.config.osName;
+    appMenu.icon = focused?.icon ?? 'square';
+    appMenu.items = [
+      { label: 'Hide Others', disabled: list.length < 2,
+        action: () => { for (const w of list) if (w !== focused) this.wm.minimize(w); } },
+      { label: 'Show All', disabled: !list.some((w) => w.minimized),
+        action: () => { for (const w of list) w.minimized = false; this.invalidate(); } },
+      { sep: true },
+      ...(list.length
+        ? list.map((w) => ({ label: w.title, icon: w.icon, checked: w === focused, action: () => this.wm.focus(w) }))
+        : [{ label: 'No windows open', disabled: true }]),
+    ];
+    return [apple, ...own, appMenu];
   }
 
   about() {
@@ -590,7 +648,10 @@ export class OS {
       for (const q of this.quickLaunch) {
         if (q._rect && inside(q._rect, x, y)) { this.openApp(q.id); return; }
       }
-    } else {
+    } else if (th.metrics.shellH > 0) {
+      // Only ATELIER has a bottom bar to click. VELLUM switches windows from
+      // the Application menu, so a leftover _taskRect from another tier must
+      // never keep swallowing clicks on the desktop.
       for (const win of this.wm.taskList()) {
         if (win._taskRect && inside(win._taskRect, x, y)) { this.wm.focus(win); return; }
       }

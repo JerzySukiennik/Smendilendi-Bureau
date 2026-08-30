@@ -108,10 +108,15 @@ export class CostApp {
     fill(g, r.x, r.y, r.w, r.h, pal.face);
     toolbar(g, { x: r.x, y: r.y, w: r.w, h: TOOLBAR_H }, this.tools, pal, this.toolState);
 
+    // The budget band is the first thing to go when the window is short, the
+    // way a Win95 status bar drops panes: it is 46 px of fixed furniture, and
+    // overlapping it onto a collapsed grid is what made the window unreadable
+    // at 220x140 in round 2. Below ~40 px of grid the band is dropped whole.
     const statusH = 20;
-    const barH = 46;
     const gridTop = r.y + TOOLBAR_H + 2;
-    const gridH = r.h - TOOLBAR_H - 2 - barH - statusH - 4;
+    let barH = 46;
+    let gridH = r.h - TOOLBAR_H - 2 - barH - statusH - 4;
+    if (gridH < 40) { barH = 0; gridH = Math.max(0, r.h - TOOLBAR_H - 2 - statusH - 4); }
     const outer = { x: r.x + 2, y: gridTop, w: r.w - 4, h: gridH };
     const inner = field(g, outer.x, outer.y, outer.w, outer.h, pal);
     const cols = this.columns(inner.w - 16);
@@ -159,24 +164,24 @@ export class CostApp {
     this.pane.paint(g, pal, mac);
 
     // --- cost against budget
-    const by = r.y + r.h - statusH - barH;
-    const bx = r.x + 6, bw = r.w - 12;
     const budget = c.budget || 0;
     const over = budget > 0 && c.total > budget;
-    SANS_BOLD.draw(g, 'Cost against budget', bx, by + 2, pal.text);
-    const right = `${money(c.total)} of ${budget ? money(budget) : '—'} credits`;
-    SANS.draw(g, right, bx + bw - 4 - SANS.measure(right), by + 2, pal.text);
+    if (barH) {
+      const by = r.y + r.h - statusH - barH;
+      const bx = r.x + 6, bw = r.w - 12;
+      const right = `${money(c.total)} of ${budget ? money(budget) : '—'} credits`;
+      twoColumn(g, bx, by + 2, bw, SANS_BOLD, 'Cost against budget', SANS, right, pal.text, pal.text);
 
-    const trough = { x: bx, y: by + 15, w: bw, h: 18 };
-    const in2 = bevel(g, trough.x, trough.y, trough.w, trough.h, 'sunken', pal);
-    fill(g, in2.x, in2.y, in2.w, in2.h, pal.face);
-    const frac = budget > 0 ? Math.min(1.35, c.total / budget) : 0;
-    const blocks = Math.floor((in2.w - 2) / 10);
-    const on = Math.round(Math.min(1, frac) * blocks);
-    for (let i = 0; i < on; i++) {
-      // Navy, not pal.titleActive: on the Platinum tiers the title bar is grey
-      // and the blocks would vanish into the trough.
-      fill(g, in2.x + 1 + i * 10, in2.y + 1, 8, in2.h - 2, over ? VGA.maroon : VGA.navy);
+      const trough = { x: bx, y: by + 15, w: bw, h: 18 };
+      const in2 = bevel(g, trough.x, trough.y, trough.w, trough.h, 'sunken', pal);
+      fill(g, in2.x, in2.y, in2.w, in2.h, pal.face);
+      const frac = budget > 0 ? Math.min(1.35, c.total / budget) : 0;
+      const blocks = Math.floor((in2.w - 2) / 10);
+      const on = Math.round(Math.min(1, frac) * blocks);
+      for (let i = 0; i < on; i++) {
+        // Navy, not pal.titleActive: on the Platinum tiers the title bar is grey
+        // and the blocks would vanish into the trough.
+        fill(g, in2.x + 1 + i * 10, in2.y + 1, 8, in2.h - 2, over ? VGA.maroon : VGA.navy);
     }
     if (budget > 0) {
       // the budget line itself, drawn as a hard 1 px rule through the trough
@@ -186,10 +191,10 @@ export class CostApp {
     const note = !budget ? 'No budget in the brief.'
       : over ? `Over by ${money(c.total - budget)} credits (${(c.overrunPct ?? ((c.total - budget) / budget) * 100).toFixed(1)} %).`
         : `Inside the budget by ${money(budget - c.total)} credits.`;
-    (over ? SANS_BOLD : SANS).draw(g, note, bx, by + 35, over ? VGA.maroon : pal.text);
-
     const perM2 = c.costPerM2 ? `${money(c.costPerM2)} credits/m²` : '';
-    SANS.draw(g, perM2, bx + bw - 4 - SANS.measure(perM2), by + 35, pal.text);
+    twoColumn(g, bx, by + 35, bw, over ? SANS_BOLD : SANS, note, SANS, perM2,
+      over ? VGA.maroon : pal.text, pal.text);
+    }
 
     statusBar(g, r.x, r.y + r.h - statusH, r.w, statusH, [
       { w: 150, text: `${c.bill.length} priced items` },
@@ -255,6 +260,30 @@ export class CostApp {
 function fmtQty(q) {
   const n = Number(q) || 0;
   return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
+/**
+ * A caption on the left and a figure hard right on the same baseline — but only
+ * while both actually fit.
+ *
+ * Round 2 found the budget band overprinting itself at the window's own declared
+ * minimum: "Cost against budget" and "493 996 of 1 240 000 credits" were drawn
+ * unconditionally, so at 220 px the reader got "Cost again§13budget| 240 000
+ * credits". Windows 95 does not overlap text to fit; its status bar drops whole
+ * panes and its list columns ellipsis. So this does both: when the two strings
+ * plus a 12 px gutter do not fit, the right one is dropped outright, and if the
+ * left one alone still does not fit it is ellipsised.
+ */
+function twoColumn(g, x, y, w, leftFont, leftText, rightFont, rightText, leftColor, rightColor) {
+  const GUTTER = 12;
+  const lw = leftFont.measure(leftText);
+  const rw = rightText ? rightFont.measure(rightText) : 0;
+  if (rw && lw + GUTTER + rw <= w - 4) {
+    leftFont.draw(g, leftText, x, y, leftColor);
+    rightFont.draw(g, rightText, x + w - 4 - rw, y, rightColor);
+    return;
+  }
+  leftFont.draw(g, leftFont.ellipsis(leftText, w - 4), x, y, leftColor);
 }
 
 /** Shown before a model exists. Rates are the catalogue's own. */

@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Office prop sheet</title>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.180.0/build/three.module.js",
+            "three/addons/":"https://unpkg.com/three@0.180.0/examples/jsm/"}}
+</script>
+<style>html,body{margin:0;background:#c9c4ba;overflow:hidden}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script type="module">
+// A contact sheet of every prop in src/office/props.js, on a grid, lit with the
+// game's own rig, each one labelled and viewed from a normal standing eye line.
+// Purpose: judge the props as objects, which is impossible while walking past them.
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import * as P from '../src/office/props.js';
+import { makeLightRig, materialFor } from '../src/core/palette.js';
+
+const names = Object.keys(P).filter(k => k.startsWith('prop') && typeof P[k] === 'function');
+const renderer = new THREE.WebGLRenderer({ canvas: c, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xc9c4ba);
+makeLightRig(scene, { timeOfDay: 'afternoon', radius: 30 });
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200,200),
+  new THREE.MeshStandardMaterial({ color: 0xbdb7ac, roughness: 0.95 }));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+
+const COLS = 8, GAP = 2.2;
+const report = [];
+names.forEach((n, i) => {
+  const x = (i % COLS) * GAP - (COLS-1)*GAP/2;
+  const z = Math.floor(i / COLS) * GAP - 6;
+  // bakeProp returns [{mat, geometry}] — one entry per material region — so the
+  // harness has to assemble the meshes exactly the way the office does.
+  let parts;
+  try { parts = P.bakeProp(P[n]); }
+  catch (e) { report.push({ prop:n, fault:'THREW: '+e.message }); return; }
+  if (!parts || !parts.length) { report.push({ prop:n, fault:'produced no geometry' }); return; }
+  const g = new THREE.Group();
+  for (const { mat, geometry } of parts) {
+    const mesh = new THREE.Mesh(geometry, materialFor(mat));
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    g.add(mesh);
+  }
+  g.position.set(x, 0, z);
+  scene.add(g);
+  const box = new THREE.Box3().setFromObject(g);
+  const s = box.getSize(new THREE.Vector3());
+  let tris = 0; for (const { geometry: a } of parts)
+    tris += (a.index ? a.index.count : a.attributes.position.count)/3;
+  const faults = [];
+  if (!isFinite(s.x+s.y+s.z)) faults.push('NaN bbox');
+  if (Math.max(s.x,s.y,s.z) < 0.02) faults.push('microscopic');
+  if (Math.max(s.x,s.y,s.z) > 6) faults.push('huge '+s.toArray().map(v=>v.toFixed(1)));
+  if (Math.abs(box.min.y) > 0.03) faults.push('off the floor: min.y='+box.min.y.toFixed(3));
+  if (tris < 12) faults.push('only '+tris+' tris');
+  if (parts.length === 1 && tris <= 12) faults.push('single untextured box');
+  report.push({ prop:n, size:[+s.x.toFixed(2),+s.y.toFixed(2),+s.z.toFixed(2)], tris,
+                fault: faults.join(' | ') || null });
+  // label
+  const cv = document.createElement('canvas'); cv.width=256; cv.height=32;
+  const g2 = cv.getContext('2d'); g2.fillStyle='#2b2926'; g2.font='bold 20px monospace';
+  g2.textAlign='center'; g2.fillText(n.replace('prop',''), 128, 24);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(cv), transparent:true }));
+  sp.position.set(x, -0.12, z + 1.0); sp.scale.set(1.6, 0.2, 1);
+  scene.add(sp);
+});
+window.__report = report;
+
+const rows = Math.ceil(names.length / COLS);
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.5, 200);
+camera.position.set(0, 7.5, rows*GAP + 8);
+const ctl = new OrbitControls(camera, renderer.domElement);
+ctl.target.set(0, 0.6, -1); ctl.update();
+addEventListener('resize', () => { camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+renderer.setAnimationLoop(() => renderer.render(scene, camera));
+window.__ready = true;
+// Handles so an inspector can fly to one row of the grid and judge props close up.
+window.__cam = camera; window.__ctl = ctl; window.__COLS = COLS; window.__GAP = GAP;
+window.__look = (row, col = (COLS-1)/2, dist = 3.2, height = 1.6) => {
+  const x = col * GAP - (COLS-1)*GAP/2, z = row * GAP - 6;
+  camera.position.set(x, height, z + dist);
+  ctl.target.set(x, 0.45, z); ctl.update();
+  return { row, x:+x.toFixed(2), z:+z.toFixed(2) };
+};
+window.__names = names;
+</script>

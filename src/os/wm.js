@@ -402,8 +402,15 @@ export class WindowManager {
       this.os.pressed = null;
       if (inside(p.rect, x, y)) {
         if (p.btn === 'close') this.close(p.win);
-        else if (p.btn === 'min') this.minimize(p.win);
-        else if (p.btn === 'max') this.toggleMax(p.win);
+        // On the Platinum tiers that box is the COLLAPSE box, not a minimise
+        // button: it windowshades the window up into its own title bar, exactly
+        // as a double-click on the title bar already does here. Those tiers
+        // have no taskbar to restore a hidden window from — hiding is the
+        // Application menu's Hide Others, and it is undone by Show All.
+        else if (p.btn === 'min') {
+          if (this.theme.family === 'platinum') p.win.shaded = !p.win.shaded;
+          else this.minimize(p.win);
+        } else if (p.btn === 'max') this.toggleMax(p.win);
       }
       this.os.invalidate();
       return true;

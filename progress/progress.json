@@ -762,7 +762,33 @@
    "status": "fail",
    "headline": "19/20 — The 32x32 icon art. Every geometric and chromatic measurement in the chrome matches the reference to the pixel, but the icons are flat 3-4 colour front-on glyphs where Win95's are 4-bit, 3/4-p",
    "at": "2026-08-29T20:40:36.344Z"
+  },
+  {
+   "piece": "os",
+   "role": "builder",
+   "round": 2,
+   "status": "pass",
+   "headline": "16x16 icon set redrawn as 4-bit dithered art (8 colours in the 20x20 patch vs the reference 9, was 4); setTier boot-skip fixed and verified in-game; Cost Sheet degrades instead of overprinting; taskbar top edge now #C0C0C0/#FFFFFF; Help is a book; VELLUM 8 swapped its taskbar for a Platinum Application menu",
+   "shot": "shots/os-r2.png",
+   "at": "2026-08-30T11:04:39.126Z"
+  },
+  {
+   "piece": "os",
+   "role": "critic",
+   "round": 1,
+   "status": "fail",
+   "headline": "19/20 on the ANALYSIS checklist — Win95/98 tiers are pixel-exact (title 18px, caption 16x14, scrollbar 16px with a 7x4 triangle, Start 54x22, taskbar 28px, glyphs byte-identical to win95-09), but tiers 3-4 render the Platinum menu bar in MS Sans Serif with Windows mnemonic underlines instead of Chicago, which loses the blind A/B in a second.",
+   "shot": "shots/zz-ab-macmenubar.png",
+   "at": "2026-08-30T11:27:05.921Z"
+  },
+  {
+   "piece": "os",
+   "role": "critic",
+   "round": 2,
+   "status": "fail",
+   "headline": "19/20 — Half the product wears the wrong typeface. Tiers 3 and 4 are Platinum-family OSes (22 px pinstriped title bar, Mac menu bar, close box left) but every glyph in them — menu bar, window titles, ",
+   "at": "2026-08-30T11:29:53.000Z"
   }
  ],
- "updated": "2026-08-29T20:40:36.344Z"
+ "updated": "2026-08-30T11:29:53.000Z"
 }

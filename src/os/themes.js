@@ -272,8 +272,13 @@ class WinTheme extends BaseTheme {
   paintShell(g, os) {
     const pal = this.pal;
     const y = this.h - this.metrics.shellH;
+    // ANALYSIS.md 5: "28 px tall. Top edge: 1 px #C0C0C0, then 1 px #FFFFFF
+    // highlight, then face." That is BDR_RAISEDINNER over the face, NOT a full
+    // EDGE_RAISED panel — round 1 drew #DFDFDF then #FFFFFF, which is one
+    // pixel off the measured bar (both lines are in palette, so no checklist
+    // item catches it; a column scan does).
     fill(g, 0, y, this.w, this.metrics.shellH, pal.face);
-    hline(g, 0, y, this.w, pal.light);
+    hline(g, 0, y, this.w, pal.face);
     hline(g, 0, y + 1, this.w, pal.hi);
 
     // Start button, 54 x 22 at x=2, y=+4
@@ -400,8 +405,13 @@ class PlatinumTheme extends BaseTheme {
       pal: PLATINUM,
       globalMenuBar: true,
       metrics: {
+        // shellH 0: VELLUM has NO bottom bar. Mac OS 8 switches applications
+        // from the Application menu at the right end of the menu bar; it has
+        // no taskbar, and a window strip along the bottom next to a global menu
+        // bar reads as a Windows/Mac chimera. ATELIER (tier 4) puts 28 back for
+        // its Control Strip, which is a different, later idea.
         frame: 4, titleH: 22, menuH: 20, clientInset: 1, menuItemH: 20,
-        startItemH: 20, shellH: 20, buttonH: 20, scrollbar: SCROLLBAR,
+        startItemH: 20, shellH: 0, buttonH: 20, scrollbar: SCROLLBAR,
         rowH: 16, iconPitch: 75, menuBarH: 20,
       },
       ...cfg,
@@ -484,22 +494,61 @@ class PlatinumTheme extends BaseTheme {
     checker(g, 0, 0, this.w, this.h, this.desktopA, this.desktopB);
   }
 
-  /** The global menu bar (top) plus the window strip (bottom). */
-  paintShell(g, os) {
+  /**
+   * The band the 20 px menu bar is made of. VELLUM's is macos8-05 exactly —
+   * #FFFFFF, 17 px #DDDDDD, #999999, #000000 — and ATELIER overrides it with
+   * one grey lighter and a darker rule.
+   */
+  menuBarRamp() { return { band: this.pal.light, rule: this.pal.shadow }; }
+
+  /**
+   * The global menu bar, shared by both Platinum tiers.
+   *
+   * The run of menus starts at the left. The entry flagged `appMenu` (see
+   * os.globalMenu) hangs off the RIGHT edge instead, showing the active
+   * application's 16x16 icon and its name — that is how a Mac switches
+   * applications, and it is why neither Platinum tier needs a taskbar. The
+   * clock sits immediately to its left.
+   */
+  paintMenuBarGlobal(g, os) {
     const pal = this.pal;
-    // menu bar: #FFFFFF, 17 px #DDDDDD, #999999, #000000 (macos8-05)
+    const ramp = this.menuBarRamp();
     hline(g, 0, 0, this.w, pal.hi);
-    fill(g, 0, 1, this.w, 17, pal.light);
-    hline(g, 0, 18, this.w, pal.shadow);
+    fill(g, 0, 1, this.w, 17, ramp.band);
+    hline(g, 0, 18, this.w, ramp.rule);
     hline(g, 0, 19, this.w, pal.dark);
 
     const menu = os.globalMenu();
+
+    // right end first, so the left run knows where it must stop
+    let rightEdge = this.w;
+    for (let i = 0; i < menu.length; i++) {
+      const m = menu[i];
+      if (!m.appMenu) continue;
+      const label = this.font.ellipsis(splitMnemonic(m.label).text, 120);
+      const w = this.font.measure(label) + 30;
+      const x = this.w - w - 4;
+      const open = os.menuOwner === 'global' && os.menuIndex === i;
+      if (open) fill(g, x, 1, w, 17, pal.dark);
+      this.font.draw(g, label, x + 6, 4, open ? pal.hi : pal.text);
+      if (m.icon && I16[m.icon]) I16[m.icon].draw(g, x + w - 20, 2);
+      m._rect = { x, y: 0, w, h: 19 };
+      rightEdge = x;
+    }
+
+    // clock, in the menu bar, like every Mac since 1991
+    const clock = os.clockText();
+    const cw = this.font.measure(clock);
+    this.font.draw(g, clock, rightEdge - 12 - cw, 4, pal.text);
+
     let x = 8;
     for (let i = 0; i < menu.length; i++) {
       const m = menu[i];
+      if (m.appMenu) continue;
       const isApple = i === 0;
       const label = splitMnemonic(m.label).text;
       const w = isApple ? 22 : this.font.measure(label) + 14;
+      if (x + w > rightEdge - 12 - cw - 8) { m._rect = { x: -99, y: -99, w: 0, h: 0 }; continue; }
       const open = os.menuOwner === 'global' && os.menuIndex === i;
       if (open) fill(g, x, 1, w, 17, pal.dark);
       if (isApple) {
@@ -510,32 +559,11 @@ class PlatinumTheme extends BaseTheme {
       m._rect = { x, y: 0, w, h: 19 };
       x += w;
     }
+  }
 
-    // clock at the far right, in the menu bar, like every Mac since 1991
-    const clock = os.clockText();
-    this.font.draw(g, clock, this.w - 10 - this.font.measure(clock), 4, pal.text);
-
-    // the window strip along the bottom — our stand-in for the Control Strip
-    const sy = this.h - this.metrics.shellH;
-    fill(g, 0, sy, this.w, this.metrics.shellH, pal.face);
-    hline(g, 0, sy, this.w, pal.hi);
-    hline(g, 0, sy + 1, this.w, pal.light);
-    hline(g, 0, this.h - 1, this.w, pal.shadow);
-    let bx = 6;
-    for (const win of os.wm.taskList()) {
-      const active = os.wm.focused === win && !win.minimized;
-      const label = this.font.ellipsis(win.title, 110);
-      const w = this.font.measure(label) + 26;
-      fill(g, bx, sy + 2, w, 16, pal.face);
-      frameRect(g, bx, sy + 2, w, 16, pal.dark);
-      if (active) {
-        for (let i = 0; i < 12; i += 2) hline(g, bx + 1, sy + 3 + i / 2, w - 2, i % 4 === 0 ? pal.hi : pal.mid);
-      }
-      if (win.icon && I16[win.icon]) I16[win.icon].draw(g, bx + 2, sy + 2);
-      this.font.draw(g, label, bx + 20, sy + 5, active ? pal.text : pal.gray);
-      win._taskRect = { x: bx, y: sy + 2, w, h: 16 };
-      bx += w + 5;
-    }
+  /** VELLUM's whole shell IS the menu bar. No taskbar, no strip, no dock. */
+  paintShell(g, os) {
+    this.paintMenuBarGlobal(g, os);
   }
 
   startRect() { return { x: 0, y: 0, w: 0, h: 0 }; }
@@ -657,31 +685,15 @@ class AtelierTheme extends PlatinumTheme {
     });
   }
 
+  /** One grey lighter than VELLUM's band, and a darker rule under it. */
+  menuBarRamp() { return { band: this.pal.mid, rule: this.pal.stripe }; }
+
   paintShell(g, os) {
     const pal = this.pal;
-    // menu bar: white, 17 px #EEEEEE, #777777, black — one grey lighter than
-    // VELLUM's, and a darker rule
-    hline(g, 0, 0, this.w, pal.hi);
-    fill(g, 0, 1, this.w, 17, pal.mid);
-    hline(g, 0, 18, this.w, pal.stripe);
-    hline(g, 0, 19, this.w, pal.dark);
-
-    const menu = os.globalMenu();
-    let x = 8;
-    for (let i = 0; i < menu.length; i++) {
-      const m = menu[i];
-      const isApple = i === 0;
-      const label = splitMnemonic(m.label).text;
-      const w = isApple ? 22 : this.font.measure(label) + 14;
-      const open = os.menuOwner === 'global' && os.menuIndex === i;
-      if (open) fill(g, x, 1, w, 17, pal.dark);
-      if (isApple) I16.square.draw(g, x + 3, 1);
-      else this.font.drawMnemonic(g, m.label, x + 7, 4, open ? pal.hi : pal.text);
-      m._rect = { x, y: 0, w, h: 19 };
-      x += w;
-    }
-    const clock = os.clockText();
-    this.font.draw(g, clock, this.w - 10 - this.font.measure(clock), 4, pal.text);
+    // the same menu bar construction as VELLUM, on ATELIER's ramp, and with the
+    // same Application menu at the right end — Mac OS 9 kept it when it added
+    // the Control Strip, and so do we
+    this.paintMenuBarGlobal(g, os);
 
     // the dock: square 24 px tiles, one per window, centred on the screen
     const sh = this.metrics.shellH;
