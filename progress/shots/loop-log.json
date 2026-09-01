@@ -1,0 +1,690 @@
+{
+  "started": "2026-08-30T19:36:59.577Z",
+  "stages": [
+    {
+      "name": "boot",
+      "ms": 244,
+      "out": {
+        "mode": "menu"
+      },
+      "err": null,
+      "status": {
+        "mode": "menu",
+        "stack": [
+          "menu"
+        ],
+        "phase": "idle",
+        "round": 0,
+        "walls": 0,
+        "mail": [],
+        "bank": 0
+      }
+    },
+    {
+      "name": "shot:menu",
+      "ms": 48,
+      "out": {
+        "path": "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau/progress/shots/loop-01-menu.png",
+        "w": 2240,
+        "h": 1260,
+        "domOk": true,
+        "bytes": 78810
+      },
+      "err": null,
+      "status": {
+        "mode": "menu",
+        "stack": [
+          "menu"
+        ],
+        "phase": "idle",
+        "round": 0,
+        "walls": 0,
+        "mail": [],
+        "bank": 0
+      }
+    },
+    {
+      "name": "single player",
+      "ms": 834,
+      "out": {
+        "x": 428,
+        "y": 220,
+        "hovering": 0,
+        "mode": "menu"
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "brief",
+        "round": 0,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 0,
+        "mail": [
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "bank": 30000
+      }
+    },
+    {
+      "name": "shot:office",
+      "ms": 81,
+      "out": {
+        "path": "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau/progress/shots/loop-02-office-brief.png",
+        "w": 2240,
+        "h": 1260,
+        "domOk": true,
+        "bytes": 78810
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "brief",
+        "round": 0,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 0,
+        "mail": [
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "bank": 30000
+      }
+    },
+    {
+      "name": "walk to the desk",
+      "ms": 4307,
+      "out": {
+        "ok": true,
+        "hover": "screen-0",
+        "tries": [
+          {
+            "back": 0.75,
+            "target": [
+              5.4,
+              3.55
+            ],
+            "at": [
+              5.31,
+              6.77
+            ],
+            "d": 3.22,
+            "hover": null
+          },
+          {
+            "back": 1,
+            "target": [
+              5.4,
+              3.8
+            ],
+            "at": [
+              5.36,
+              6.77
+            ],
+            "d": 2.97,
+            "hover": null
+          },
+          {
+            "back": 0.55,
+            "target": [
+              5.4,
+              3.35
+            ],
+            "at": [
+              4.78,
+              3.52
+            ],
+            "d": 0.64,
+            "hover": "screen-0"
+          }
+        ]
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "brief",
+        "round": 0,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 0,
+        "mail": [
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "bank": 30000
+      }
+    },
+    {
+      "name": "sit down",
+      "ms": 297,
+      "out": {
+        "focus": true,
+        "at": 0,
+        "t": 1
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "brief",
+        "round": 0,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 0,
+        "mail": [
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "bank": 30000
+      }
+    },
+    {
+      "name": "shot:monitor",
+      "ms": 42,
+      "out": {
+        "path": "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau/progress/shots/loop-03-at-the-monitor.png",
+        "w": 2240,
+        "h": 1260,
+        "domOk": true,
+        "bytes": 78810
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "brief",
+        "round": 0,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 0,
+        "mail": [
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "bank": 30000
+      }
+    },
+    {
+      "name": "open Design",
+      "ms": 230,
+      "out": {
+        "ok": true,
+        "how": "desktop",
+        "closed": [
+          {
+            "ok": true,
+            "closed": "mail",
+            "left": 0
+          }
+        ],
+        "mode": "editor"
+      },
+      "err": null,
+      "status": {
+        "mode": "editor",
+        "stack": [
+          "office",
+          "editor"
+        ],
+        "phase": "design",
+        "round": 0,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 0,
+        "mail": [
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "bank": 30000
+      }
+    },
+    {
+      "name": "shot:editor",
+      "ms": 80,
+      "out": {
+        "path": "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau/progress/shots/loop-04-editor.png",
+        "w": 2240,
+        "h": 1260,
+        "domOk": true,
+        "bytes": 78810
+      },
+      "err": null,
+      "status": {
+        "mode": "editor",
+        "stack": [
+          "office",
+          "editor"
+        ],
+        "phase": "design",
+        "round": 0,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 0,
+        "mail": [
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "bank": 30000
+      }
+    },
+    {
+      "name": "draw the building",
+      "ms": 268,
+      "out": {
+        "rect": {
+          "x0": -6.99,
+          "x1": 7.01,
+          "z0": -5.73,
+          "z1": 4.27,
+          "cx": 0.005000000000000782,
+          "cz": -0.7299999999999995,
+          "w": 14,
+          "d": 10
+        },
+        "view": "plan",
+        "shell": {
+          "walls": 4,
+          "added": 4
+        },
+        "cross": {
+          "walls": 7,
+          "added": 3
+        },
+        "cross2": {
+          "walls": 10,
+          "added": 3
+        },
+        "view3d": "orbit",
+        "rooms": 3
+      },
+      "err": null,
+      "status": {
+        "mode": "editor",
+        "stack": [
+          "office",
+          "editor"
+        ],
+        "phase": "design",
+        "round": 0,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "bank": 30000
+      }
+    },
+    {
+      "name": "shot:drawn",
+      "ms": 57,
+      "out": {
+        "path": "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau/progress/shots/loop-05-drawn.png",
+        "w": 2240,
+        "h": 1260,
+        "domOk": true,
+        "bytes": 78810
+      },
+      "err": null,
+      "status": {
+        "mode": "editor",
+        "stack": [
+          "office",
+          "editor"
+        ],
+        "phase": "design",
+        "round": 0,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "bank": 30000
+      }
+    },
+    {
+      "name": "submit",
+      "ms": 2950,
+      "out": {
+        "clicked": "Submit",
+        "took": true,
+        "gotMail": true,
+        "round": 1,
+        "roundWas": 0,
+        "phase": "revising",
+        "mode": "office",
+        "score": 0,
+        "accepted": false,
+        "issues": 17,
+        "subject": "Studio Piatro — offices for 27 on Rzemieslnicza — 16 changes before I can sign it off"
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "revising",
+        "round": 1,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Roman Jarocki: Studio Piatro — offices for 27 on Rzemieslnicza — 16 changes before I can sign it off",
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "score": 0,
+        "accepted": false,
+        "issues": 17,
+        "bank": 30000
+      }
+    },
+    {
+      "name": "read the letter",
+      "ms": 71,
+      "out": {
+        "ok": true,
+        "subject": "Detached house, ul. Lipowa 14 — brief",
+        "unread": 2
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "revising",
+        "round": 1,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Roman Jarocki: Studio Piatro — offices for 27 on Rzemieslnicza — 16 changes before I can sign it off",
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "score": 0,
+        "accepted": false,
+        "issues": 17,
+        "bank": 30000
+      }
+    },
+    {
+      "name": "shot:client mail",
+      "ms": 86,
+      "out": {
+        "path": "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau/progress/shots/loop-06-client-mail.png",
+        "w": 2240,
+        "h": 1260,
+        "domOk": true,
+        "bytes": 78810
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "revising",
+        "round": 1,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Roman Jarocki: Studio Piatro — offices for 27 on Rzemieslnicza — 16 changes before I can sign it off",
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "score": 0,
+        "accepted": false,
+        "issues": 17,
+        "bank": 30000
+      }
+    },
+    {
+      "name": "revision",
+      "ms": 3075,
+      "out": {
+        "opened": {
+          "ok": true,
+          "how": "desktop",
+          "closed": [
+            {
+              "ok": true,
+              "closed": "mail",
+              "left": 0
+            }
+          ],
+          "mode": "editor"
+        },
+        "fix": [
+          {
+            "added": 1,
+            "openings": 1,
+            "pending": {
+              "wallId": "w7",
+              "len": 7,
+              "offset": 6.300000000000001,
+              "width": 1.2,
+              "height": 1.4,
+              "sill": 0.55,
+              "catalogId": "window-1200x1400",
+              "glazingRatio": 0.77,
+              "valid": true,
+              "why": "",
+              "snappedTo": null,
+              "fromEnd": 0.09999999999999931,
+              "endName": "end"
+            }
+          },
+          {
+            "added": 1,
+            "openings": 2,
+            "pending": {
+              "wallId": "w_fw9m5u2",
+              "len": 10,
+              "offset": 5,
+              "width": 1.2,
+              "height": 1.4,
+              "sill": 0.30000000000000004,
+              "catalogId": "window-1200x1400",
+              "glazingRatio": 0.77,
+              "valid": true,
+              "why": "",
+              "snappedTo": "centred",
+              "fromEnd": 4.4,
+              "endName": "start"
+            }
+          }
+        ],
+        "sub": {
+          "clicked": "Resubmit",
+          "took": true,
+          "gotMail": true,
+          "round": 2,
+          "roundWas": 1,
+          "phase": "review",
+          "mode": "office",
+          "score": 0,
+          "accepted": false,
+          "issues": 17,
+          "subject": "Studio Piatro — going ahead as drawn"
+        }
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "review",
+        "round": 2,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Roman Jarocki: Studio Piatro — going ahead as drawn",
+          "Roman Jarocki: Studio Piatro — offices for 27 on Rzemieslnicza — 16 changes before I can sign it off",
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "score": 0,
+        "accepted": false,
+        "issues": 17,
+        "bank": 30000
+      }
+    },
+    {
+      "name": "shot:resubmitted",
+      "ms": 51,
+      "out": {
+        "path": "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau/progress/shots/loop-07-resubmitted.png",
+        "w": 2240,
+        "h": 1260,
+        "domOk": true,
+        "bytes": 78810
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "review",
+        "round": 2,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Roman Jarocki: Studio Piatro — going ahead as drawn",
+          "Roman Jarocki: Studio Piatro — offices for 27 on Rzemieslnicza — 16 changes before I can sign it off",
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "score": 0,
+        "accepted": false,
+        "issues": 17,
+        "bank": 30000
+      }
+    },
+    {
+      "name": "walkthrough",
+      "ms": 2346,
+      "out": {
+        "got": true,
+        "ready": true,
+        "phase": "walk",
+        "people": 26,
+        "hour": 11.287499999999758
+      },
+      "err": null,
+      "status": {
+        "mode": "walk",
+        "stack": [
+          "office",
+          "walk"
+        ],
+        "phase": "walkthrough",
+        "round": 2,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Roman Jarocki: Studio Piatro — going ahead as drawn",
+          "Roman Jarocki: Studio Piatro — offices for 27 on Rzemieslnicza — 16 changes before I can sign it off",
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "score": 0,
+        "accepted": false,
+        "issues": 17,
+        "bank": 30000
+      }
+    },
+    {
+      "name": "shot:walkthrough",
+      "ms": 72,
+      "out": {
+        "path": "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau/progress/shots/loop-08-walkthrough.png",
+        "w": 2240,
+        "h": 1260,
+        "domOk": true,
+        "bytes": 78810
+      },
+      "err": null,
+      "status": {
+        "mode": "walk",
+        "stack": [
+          "office",
+          "walk"
+        ],
+        "phase": "walkthrough",
+        "round": 2,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Roman Jarocki: Studio Piatro — going ahead as drawn",
+          "Roman Jarocki: Studio Piatro — offices for 27 on Rzemieslnicza — 16 changes before I can sign it off",
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "score": 0,
+        "accepted": false,
+        "issues": 17,
+        "bank": 30000
+      }
+    },
+    {
+      "name": "back to the office",
+      "ms": 106,
+      "out": {
+        "report": "report",
+        "hadSheet": true,
+        "mode": "office",
+        "phase": "settled",
+        "bank": 132000
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "settled",
+        "round": 2,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Bureau accounts: Fee received — Studio Piatro — offices for 27 on Rzemieslnicza",
+          "Roman Jarocki: Studio Piatro — going ahead as drawn",
+          "Roman Jarocki: Studio Piatro — offices for 27 on Rzemieslnicza — 16 changes before I can sign it off",
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "score": 0,
+        "accepted": false,
+        "issues": 17,
+        "bank": 132000
+      }
+    },
+    {
+      "name": "shot:office again",
+      "ms": 53,
+      "out": {
+        "path": "/Users/jurek/Downloads/Claude/Projects/Smendilendi-Bureau/progress/shots/loop-09-back-in-office.png",
+        "w": 2240,
+        "h": 1260,
+        "domOk": true,
+        "bytes": 78810
+      },
+      "err": null,
+      "status": {
+        "mode": "office",
+        "stack": [
+          "office"
+        ],
+        "phase": "settled",
+        "round": 2,
+        "commission": "Studio Piatro — offices for 27 on Rzemieslnicza",
+        "walls": 10,
+        "mail": [
+          "Bureau accounts: Fee received — Studio Piatro — offices for 27 on Rzemieslnicza",
+          "Roman Jarocki: Studio Piatro — going ahead as drawn",
+          "Roman Jarocki: Studio Piatro — offices for 27 on Rzemieslnicza — 16 changes before I can sign it off",
+          "Roman Jarocki, Pinegate Works Ltd: Studio Piatro — offices for 27 on Rzemieslnicza — brief"
+        ],
+        "score": 0,
+        "accepted": false,
+        "issues": 17,
+        "bank": 132000
+      }
+    }
+  ],
+  "finished": "2026-08-30T19:37:14.966Z"
+}

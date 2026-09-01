@@ -330,6 +330,17 @@ export class OS {
     push('Mail', 'mail', () => this.openApp('mail'));
     push('Projects', 'folder', () => this.openApp('files'));
     push('Cost Sheet', 'cost', () => this.openApp('cost'));
+    // Anything registered from outside the OS that brought its own 32 px icon —
+    // the Design app is the one that matters. It cannot live on the quick-launch
+    // tray alone: tier 1 (Pentagram 133) has no tray at all, so on the starter
+    // machine the desktop icon and the Start menu are the ONLY ways in.
+    for (const a of this.apps.values()) {
+      if (!a.desktopIcon32 || a.desktop === false) continue;
+      if (list.some((it) => it._appId === a.id)) continue;
+      if (['settings', 'mail', 'files', 'cost'].includes(a.id)) continue;
+      push(a.title, a.desktopIcon32, () => this.openApp(a.id));
+      list[list.length - 1]._appId = a.id;
+    }
     push('Wastebasket', 'bin', () => this.wm.dialog({
       title: 'Wastebasket',
       message: '4 items.\nOne of them is a car park you should not\nhave drawn. It stays deleted.',

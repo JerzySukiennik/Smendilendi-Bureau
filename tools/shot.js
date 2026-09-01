@@ -82,6 +82,41 @@ window.__shot = shot;
 export default shot;
 
 /**
+ * shotWhenVisible(name) — the same capture, but held until the pane is shown.
+ *
+ * Measured 2026-08-30: while the Claude browser pane is HIDDEN
+ * (document.visibilityState === 'hidden') the tab's GL commands are not
+ * executed at all. renderer.info still counts 70 draw calls and 179 646
+ * triangles for a frame, the context is not lost, and
+ * `render(); gl.readPixels(centre)` comes back [0,0,0,0] — so every screenshot
+ * taken between tool calls is a blank canvas under a white DOM layer, and ten
+ * of them are byte-identical. ARCHITECTURE.md's warning about the pane
+ * throttling rAF understates it: nothing renders.
+ *
+ * So the capture waits for a real visible frame. Arm it, leave the promise
+ * unawaited, then take ANY pane screenshot from the tool side — that displays
+ * the pane, rAF resumes, and this resolves with a real image.
+ */
+export function shotWhenVisible(name, { frames = 3, timeout = 120000 } = {}) {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    const wait = () => {
+      if (document.visibilityState === 'visible') {
+        let n = frames;
+        const spin = () => (n-- > 0 ? requestAnimationFrame(spin) : shot(name).then(resolve, (e) => resolve({ error: String(e) })));
+        requestAnimationFrame(spin);
+        return;
+      }
+      if (performance.now() - t0 > timeout) { resolve({ error: 'pane never became visible', name }); return; }
+      setTimeout(wait, 80);
+    };
+    wait();
+  });
+}
+
+window.__shotWhenVisible = shotWhenVisible;
+
+/**
  * step(n, dt) — advance the engine by n frames, independently of rAF.
  *
  * ARCHITECTURE.md already warns that the Claude browser pane throttles

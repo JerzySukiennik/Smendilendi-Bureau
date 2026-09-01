@@ -362,6 +362,38 @@ work, fetch the file and check the bytes before concluding anything. `tools/devs
 (what `preview_start {name:"game"}` now runs) sends `Cache-Control: no-store` to reduce,
 but does not eliminate, this.
 
+### Before you conclude "it renders nothing", render something that must be visible
+
+A browser-pane tab that has been alive for hours can end up with a poisoned WebGL
+context: screenshots come back pure black AND `readRenderTargetPixels` returns all
+zeros, for *every* scene, including code that demonstrably worked earlier the same day.
+On 2026-08-30 this cost a long detour and a false alarm — two commits and two origins
+were all declared broken, including a commit whose working screenshots were on file.
+
+So never trust a "nothing renders" measurement on its own. Run the control first:
+
+```js
+// 1. a brand-new renderer, trivial scene that CANNOT be black
+const own = new THREE.WebGLRenderer(); own.setSize(64, 64);
+const s = new THREE.Scene(); s.background = new THREE.Color(0xffffff);
+s.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({color: 0xff0000})));
+const c = new THREE.PerspectiveCamera(50, 1, 0.1, 10); c.position.z = 3;
+measure(own, s, c);              // expect ~215 mean luma. If this is 0, THE PROBE is broken.
+// 2. the same trivial scene through the GAME's renderer -> isolates a poisoned context
+// 3. only now, the game's own scene
+```
+
+Interpreting the three numbers: control-own dark means the readback path is broken and
+every measurement is meaningless; control-own bright but control-game dark means the
+game's GL context is poisoned (open a fresh tab); both bright and the game scene dark is
+the only case where the game is genuinely at fault.
+
+Related false signal from the same episode: the console logs
+`GL_INVALID_OPERATION: glDrawElements: Vertex buffer is not big enough` every frame on a
+poisoned context. That warning is a symptom of the dead context, not necessarily a real
+geometry bug — check it against a scene-graph audit (max index vs `position.count`,
+attribute counts, `InstancedMesh.count` vs `instanceMatrix.count`) before hunting it.
+
 ## Definition of done for any piece
 
 - Runs in the browser with zero console errors.

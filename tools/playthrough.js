@@ -13,9 +13,9 @@
 // the script that plays on top of it.
 
 import { Vector3 } from 'three';
-import { step, run, shot, pin, click, tap, hold, move } from './shot.js';
+import { step, run, shot, shotWhenVisible, pin, click, tap, hold, move } from './shot.js';
 
-export { step, run, shot, pin, click, tap, hold, move };
+export { step, run, shot, shotWhenVisible, pin, click, tap, hold, move };
 
 export function sb() { return window.SB; }
 export function eng() { return window.SB.engine; }
@@ -111,6 +111,14 @@ export function walkToDesk({ maxSeconds = 12 } = {}) {
 export function sitDown() {
   tap('KeyF');
   step(120);                                  // the 0.85 s flight, with margin
+  // focusScreen() calls input.exitLock(), and in a real session that ends the
+  // lock and frees the mouse. Here the lock was only ever a flag this harness
+  // set (see `lock()` below), so document.exitPointerLock() has nothing to
+  // release and no pointerlockchange event ever clears it. Left set, Input
+  // ignores every mousemove (input.js: `if (this.pointerLocked) return`) and
+  // the in-OS cursor never moves off wherever it happened to be — which is
+  // exactly the state in which the desktop cannot be clicked.
+  if (office()?.interact?.focus) lock(false);
   const o = office();
   return {
     focus: !!o.interact.focus,
@@ -174,20 +182,75 @@ export function osClick(ox, oy, { double = false } = {}) {
   return { at: [Math.round(p.x), Math.round(p.y)], os: ws().os.os.phase };
 }
 
-/** Where the Design button sits in the OS quick-launch tray. */
+/**
+ * Where the Design app can be clicked on THIS machine.
+ *
+ * The starter box is tier 1 and tier 1 has no quick-launch tray (themes.js:
+ * `quickLaunch: false`), which is why looking only at the tray reported "the
+ * Design app is not on the tray" on the machine every player begins on. The
+ * desktop icon is the entry point that exists at every tier.
+ */
 export function designRect() {
   const os = ws().os.os;
+  const icon = os.desktopIcons.find((i) => i.label === 'Design');
+  if (icon?._rect) return { ...icon._rect, how: 'desktop' };
   const q = os.quickLaunch.find((e) => e.id === 'editor');
-  return q?._rect ?? null;
+  return q?._rect ? { ...q._rect, how: 'tray' } : null;
 }
 
-/** Run Design from the quick-launch tray. */
-export function openDesign() {
-  const r = designRect();
-  if (!r) return { ok: false, why: 'the Design app is not on the tray' };
-  osClick(r.x + (r.w >> 1), r.y + (r.h >> 1));
+/** Click the close box of the top window — the real caption button, not wm.close. */
+export function closeTopWindow() {
+  const os = ws().os.os;
+  const win = os.wm.focused || os.wm.windows[os.wm.windows.length - 1];
+  if (!win) return { ok: false, why: 'nothing open' };
+  const b = os.theme.layout(win).buttons.find((x) => x.id === 'close');
+  if (!b) return { ok: false, why: 'no close box' };
+  osClick(b.x + (b.w >> 1), b.y + (b.h >> 1));
+  step(4);
+  return { ok: !os.wm.find(win.appId), closed: win.appId, left: os.wm.windows.length };
+}
+
+/**
+ * Run Design the way a player does: double-click its icon on the desktop.
+ *
+ * The brief opens Mail on top of the desktop, and the Mail window covers the
+ * icon column — a click there lands on the window, not on the icon, which is
+ * exactly what a player would see. So the windows over it are closed first,
+ * through their own close boxes, the same as reading the brief and putting it
+ * away.
+ */
+export function openDesign({ clear = true } = {}) {
+  let r = designRect();
+  if (!r) return { ok: false, why: 'the Design app is nowhere on this desktop' };
+  const closed = [];
+  if (clear && r.how === 'desktop') {
+    const os = ws().os.os;
+    const cx = r.x + (r.w >> 1), cy = r.y + (r.h >> 1);
+    for (let i = 0; i < 6 && os.wm.hitWindow(cx, cy); i++) closed.push(closeTopWindow());
+    r = designRect();
+  }
+  osClick(r.x + (r.w >> 1), r.y + (r.h >> 1), { double: r.how === 'desktop' });
   step(60);
-  return { ok: sb().state.get('mode') === 'editor', mode: sb().state.get('mode') };
+  return { ok: sb().state.get('mode') === 'editor', how: r.how, closed, mode: sb().state.get('mode') };
+}
+
+/**
+ * Open Mail on the desk machine and read the newest letter.
+ * MailApp selects row 0 on mount and the loop unshifts, so the message on the
+ * reading pane is the one that just arrived.
+ */
+export function openMail() {
+  const os = ws()?.os?.os;
+  if (!os) return { ok: false, why: 'not at a screen' };
+  const icon = os.desktopIcons.find((i) => i.label === 'Mail');
+  if (!icon?._rect) return { ok: false, why: 'no Mail icon' };
+  const cx = icon._rect.x + (icon._rect.w >> 1), cy = icon._rect.y + (icon._rect.h >> 1);
+  for (let i = 0; i < 6 && os.wm.hitWindow(cx, cy); i++) closeTopWindow();
+  osClick(cx, cy, { double: true });
+  step(20);
+  const win = os.wm.find('mail');
+  return { ok: !!win, subject: win?.app?.current?.subject ?? null,
+           unread: sb().state.get('mail.unread') };
 }
 
 // ---------------------------------------------------------------------------
@@ -262,12 +325,40 @@ export function hudButton(label) {
   return null;
 }
 
+/**
+ * Press a HUD button.
+ *
+ * Deliberately dispatched AT the button rather than at its screen coordinates.
+ * While the browser pane is hidden `window.innerWidth` is 0, so
+ * `document.elementFromPoint()` returns null for every point on the page and
+ * shot.js's `click()` falls back to the canvas — the button keeps its correct
+ * rectangle and never receives the event, so the click silently lands on the
+ * 3D view instead. Everything below is still the listener a player triggers.
+ */
+/** Press a DOM element, at its own centre, through the full event sequence. */
+export function clickEl(el, { settle = 3 } = {}) {
+  const r = el.getBoundingClientRect();
+  const x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const ev = (type, Ctor) => new (Ctor || MouseEvent)(type, {
+    bubbles: true, cancelable: true, view: window, clientX: x, clientY: y,
+    button: 0, buttons: type.endsWith('up') ? 0 : 1,
+    pointerId: 1, pointerType: 'mouse', isPrimary: true,
+  });
+  const PE = window.PointerEvent || MouseEvent;
+  el.dispatchEvent(ev('pointerdown', PE));
+  el.dispatchEvent(ev('mousedown'));
+  step(1);
+  el.dispatchEvent(ev('pointerup', PE));
+  el.dispatchEvent(ev('mouseup'));
+  el.dispatchEvent(ev('click'));
+  step(settle);
+  return [Math.round(x), Math.round(y)];
+}
+
 export function clickHud(label) {
   const b = hudButton(label);
   if (!b) return { ok: false, why: `no button "${label}"` };
-  const r = b.getBoundingClientRect();
-  click(r.left + r.width / 2, r.top + r.height / 2, { steps: 3 });
-  return { ok: true, label: b.textContent.trim() };
+  return { ok: true, label: b.textContent.trim(), rect: clickEl(b) };
 }
 
 // ---------------------------------------------------------------------------
@@ -306,7 +397,8 @@ export function status() {
 Object.assign(window, {
   __P: {
     boot, singlePlayer, walkToDesk, sitDown, osClick, openDesign, designRect,
-    planView, tool, drawRect, drawWall, cutOpening, clickHud, hudButton,
+    planView, tool, drawRect, drawWall, cutOpening, clickHud, clickEl, hudButton,
+    closeTopWindow, openMail,
     until, status, shot, step, run, pin, worldToClient, osToClient, ws,
     editor, editorMode, office, walk, loop, pClick, pMove, move, tap, hold, click,
   },
@@ -391,10 +483,14 @@ export async function submitAndWait({ seconds = 40 } = {}) {
   const st = sb().state;
   const before = (st.get('mail.messages') || []).length;
   const round = loop().round;
-  const clicked = clickHud('Submit') .ok ? 'Submit' : clickHud('Resubmit').ok ? 'Resubmit' : null;
+  const clicked = clickHud('Submit').ok ? 'Submit' : clickHud('Resubmit').ok ? 'Resubmit' : null;
+  // The button firing is not the same thing as the submission being taken: an
+  // empty sheet, a failed check or a dead listener all leave `round` where it
+  // was, and only the round moving proves the drawings actually went out.
+  const took = await until(() => loop().round > round, { seconds: 10 });
   const gotMail = await until(() => (st.get('mail.messages') || []).length > before, { seconds });
   return {
-    clicked, gotMail,
+    clicked, took, gotMail,
     round: loop().round, roundWas: round, phase: loop().phase,
     mode: st.get('mode'),
     score: st.get('analysis')?.score,
@@ -441,8 +537,7 @@ export async function endWalk() {
   const out = { report: w.phase, hadSheet: !!sheet };
   if (sheet) {
     await shot('loop-08b-report.png');
-    const r = sheet.getBoundingClientRect();
-    click(r.left + r.width / 2, r.top + r.height / 2, { steps: 10 });
+    clickEl(sheet, { settle: 10 });
   }
   await until(() => sb().state.get('mode') === 'office', { seconds: 20 });
   await until(() => loop().phase === 'settled' || loop().phase === 'brief', { seconds: 20 });
@@ -453,52 +548,97 @@ export async function endWalk() {
 }
 
 // ---------------------------------------------------------------------------
-// walking without a mouse
+// walking, and turning the head
 //
-// Pointer lock is the one input a synthetic event cannot produce, so the yaw
-// is whatever the office spawned with. That is not a dead end: forward/back
-// and strafe left/right span the floor plane, so any point is reachable by
-// decomposing the vector to it into the player's own basis and holding the
-// two keys that correspond. It is exactly what a player does when he sidesteps
-// round a desk without turning his head.
+// Pointer lock is the ONE input a synthetic event cannot produce: the browser
+// only grants it on a trusted gesture. Everything downstream of the grant is
+// ordinary code, so the harness fakes the grant and nothing else —
+// `input.pointerLocked = true` plus a delta written into `input.movement`,
+// which is exactly what Input's own mousemove handler does while locked. The
+// office then reads it the way it always does:
+//     office.update -> input.consumeLook() -> player.look(dYaw, dPitch)
+// So the yaw the player ends up with went through the real path, and the
+// crosshair ray (`input.ray()` returns screen centre while locked) is the real
+// crosshair rather than wherever the last synthetic mousemove happened to land.
+//
+// This matters beyond convenience: with pointerLocked false, `interact` casts
+// from `input.ndc`, so hover was being tested against a stale mouse position
+// and never found a monitor.
 
-export function walkTo(x, z, { bursts = 90, near = 0.45, burst = 18 } = {}) {
+/** Pretend the pointer is locked, so the office runs its real first-person path. */
+export function lock(on = true) {
+  const inp = sb().input;
+  inp.pointerLocked = on;
+  return inp.pointerLocked;
+}
+
+/** Turn the head by `dYaw` radians, through consumeLook(). */
+export function turn(dYaw, dPitch = 0) {
+  const inp = sb().input;
+  lock(true);
+  inp.movement.x = -dYaw / inp.mouseSensitivity;
+  inp.movement.y = -dPitch / inp.mouseSensitivity;
+  step(1);
+  return +office().player.yaw.toFixed(3);
+}
+
+/** The yaw that looks from (px,pz) at (x,z). forward = (-sin y, -cos y). */
+export function yawTo(px, pz, x, z) { return Math.atan2(-(x - px), -(z - pz)); }
+
+/** Turn to face a world point, shortest way round. */
+export function faceTo(x, z, y = null) {
+  const p = office().player;
+  const want = yawTo(p.pos.x, p.pos.z, x, z);
+  let d = want - p.yaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  turn(d);
+  if (y !== null) {
+    const dist = Math.hypot(x - p.pos.x, z - p.pos.z);
+    const wantPitch = Math.atan2(y - p.camera.position.y, dist);
+    turn(0, wantPitch - p.pitch);
+  }
+  return { yaw: +p.yaw.toFixed(3), pitch: +p.pitch.toFixed(3) };
+}
+
+/**
+ * Walk to (x,z): face it, hold W, re-aim every burst. When a burst makes no
+ * progress the player has run into the side of something, so he sidesteps —
+ * alternating left and right, and widening — which is what a person does.
+ */
+export function walkTo(x, z, { bursts = 60, near = 0.5, burst = 14 } = {}) {
   const o = office();
   const p = o.player;
   const log = [];
-  // The eight ways a first-person player can move without turning his head.
-  const COMBOS = [
-    { k: ['KeyW'], f: 1, r: 0 },
-    { k: ['KeyW', 'KeyD'], f: 0.707, r: 0.707 },
-    { k: ['KeyD'], f: 0, r: 1 },
-    { k: ['KeyS', 'KeyD'], f: -0.707, r: 0.707 },
-    { k: ['KeyS'], f: -1, r: 0 },
-    { k: ['KeyS', 'KeyA'], f: -0.707, r: -0.707 },
-    { k: ['KeyA'], f: 0, r: -1 },
-    { k: ['KeyW', 'KeyA'], f: 0.707, r: -0.707 },
-  ];
-  let banned = -1;
+  let stuck = 0;
   for (let i = 0; i < bursts; i++) {
-    const dx = x - p.pos.x, dz = z - p.pos.z;
-    const d0 = Math.hypot(dx, dz);
+    const d0 = Math.hypot(x - p.pos.x, z - p.pos.z);
     if (d0 < near) break;
-    const cs = Math.cos(p.yaw), sn = Math.sin(p.yaw);
-    const wantF = (dx * -sn + dz * -cs) / d0;
-    const wantR = (dx * cs + dz * -sn) / d0;
-    // Best heading first; a heading that made no progress last time is skipped
-    // once, which is what gets a player round the end of a desk rather than
-    // grinding into its side for ever.
-    const order = COMBOS.map((c, idx) => ({ c, idx, dot: c.f * wantF + c.r * wantR }))
-      .sort((a, b) => b.dot - a.dot)
-      .filter((e) => e.idx !== banned || e.dot > 0.99);
-    const pick = order[0];
-    for (const k of pick.c.k) window.dispatchEvent(new KeyboardEvent('keydown', { code: k, key: k, bubbles: true }));
-    step(burst);
-    for (const k of pick.c.k) window.dispatchEvent(new KeyboardEvent('keyup', { code: k, key: k, bubbles: true }));
+
+    let keys = ['KeyW'];
+    if (stuck === 0) {
+      faceTo(x, z);
+    } else {
+      // Sidestep: keep looking at the goal, move across it. The sign flips each
+      // attempt and the run gets longer, so a chair leg is cleared in one or two
+      // tries and a whole desk in four.
+      faceTo(x, z);
+      keys = [(stuck % 2) ? 'KeyA' : 'KeyD'];
+      if (stuck > 4) keys = [(stuck % 2) ? 'KeyS' : 'KeyW', keys[0]];
+    }
+    const run = burst * (stuck > 2 ? 2 : 1);
+    for (const k of keys) window.dispatchEvent(new KeyboardEvent('keydown', { code: k, key: k, bubbles: true }));
+    step(run);
+    for (const k of keys) window.dispatchEvent(new KeyboardEvent('keyup', { code: k, key: k, bubbles: true }));
     step(1);
+
     const d1 = Math.hypot(x - p.pos.x, z - p.pos.z);
-    log.push([+p.pos.x.toFixed(2), +p.pos.z.toFixed(2), pick.c.k.join('+'), +d1.toFixed(2)]);
-    banned = (d0 - d1 < 0.04) ? pick.idx : -1;
+    log.push([+p.pos.x.toFixed(2), +p.pos.z.toFixed(2), keys.join('+'), +d1.toFixed(2)]);
+    // Progress is progress even sideways, so the test is "did I move", not
+    // "did I get closer" — a sidestep that clears a chair moves the player
+    // further from the goal and is still the right move.
+    stuck = (d0 - d1 < 0.05 && Math.abs(d0 - d1) < 0.05) ? stuck + 1 : 0;
+    if (stuck > 8) break;
   }
   return {
     at: [+p.pos.x.toFixed(2), +p.pos.z.toFixed(2)],
@@ -510,23 +650,28 @@ export function walkTo(x, z, { bursts = 90, near = 0.45, burst = 18 } = {}) {
 }
 
 /**
- * Stand where the crosshair falls on workstation `index`'s monitor.
- * The crosshair is fixed at the centre of the screen, so the standing point is
- * the monitor pushed back along the direction the player is facing.
+ * Walk up to workstation `index` and put the crosshair on its monitor.
+ * The standing point is the desk's own seat slot, backed off into the aisle;
+ * the look is straight at the screen, which is what "hovering the monitor"
+ * means in DESIGN-DECISIONS.md.
  */
 export function standAtDesk(index = 0) {
   const o = office();
   const w = o.workstations[index];
-  const p = new Vector3();
-  w.screen.getWorldPosition(p);
-  const yaw = o.player.yaw;
+  const scr = new Vector3();
+  w.screen.getWorldPosition(scr);
+  const slot = w.slot || { x: scr.x, z: scr.z + 0.9, yaw: 0 };
   const tries = [];
-  for (const back of [1.5, 1.15, 1.9, 0.9]) {
-    const target = { x: p.x + Math.sin(yaw) * back, z: p.z + Math.cos(yaw) * back };
+  for (const back of [0.75, 1.0, 0.55, 1.3]) {
+    // The seat faces the screen; standing point is the seat pushed away from it.
+    const dx = slot.x - scr.x, dz = slot.z - scr.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const target = { x: slot.x + (dx / len) * back, z: slot.z + (dz / len) * back };
     const r = walkTo(target.x, target.z);
-    tries.push({ back, target: [+target.x.toFixed(2), +target.z.toFixed(2)], ...r });
+    faceTo(scr.x, scr.z, scr.y);
     step(4);
     const h = o.interact.hover;
+    tries.push({ back, target: [+target.x.toFixed(2), +target.z.toFixed(2)], at: r.at, d: r.distance, hover: h?.id ?? null });
     if (h && h.kind === 'screen') return { ok: true, hover: h.id, tries };
   }
   return { ok: false, hover: o.interact.hover?.id ?? null, tries };
@@ -580,6 +725,7 @@ export async function playAll(opts = {}) {
   await stage('shot:drawn', () => shot('loop-05-drawn.png'));
 
   await stage('submit', () => submitAndWait());
+  await stage('read the letter', () => openMail());
   await stage('shot:client mail', () => shot('loop-06-client-mail.png'));
 
   await stage('revision', () => reviseAndResubmit());
@@ -596,4 +742,6 @@ export async function playAll(opts = {}) {
   return LOG;
 }
 
-Object.assign(window.__P || (window.__P = {}), { walkTo, standAtDesk, playAll });
+Object.assign(window.__P || (window.__P = {}), {
+  walkTo, standAtDesk, playAll, lock, turn, faceTo, yawTo,
+});

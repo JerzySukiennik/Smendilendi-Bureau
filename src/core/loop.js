@@ -53,6 +53,7 @@ export class GameLoop {
     this.report = null;
     this.seq = 0;
     this._wiredOs = new Set();
+    this._netWired = null;
     this._lastMode = null;
     this._busy = false;
     this._overlay = null;
@@ -69,9 +70,31 @@ export class GameLoop {
 
   /** Every frame, cheap: adopt any desk machine that has finished booting. */
   _tick() {
+    this._wireNet();
     const office = this.engine.modes.get('office')?.office;
     if (!office?.workstations) return;
     for (const ws of office.workstations) if (ws.os) this._wireOs(ws.os);
+  }
+
+  /**
+   * Keep `state.model` on the session's CURRENT model.
+   *
+   * applyOp is pure: every op produces a new object and the session swaps its
+   * `model` reference for it. So a `state.model` published once at a stage
+   * boundary is a photograph of the drawing as it was, and anything reading the
+   * state between boundaries — the walkthrough's fallback, the cost sheet, a
+   * critic at the console — measures a building the player has since changed.
+   * There is still exactly ONE model (ARCHITECTURE.md rule 7); this makes the
+   * state point at it continuously instead of at one of its former selves.
+   */
+  _wireNet() {
+    const net = this.ctx.net;
+    if (!net?.on || this._netWired === net) return;
+    this._netWired = net;
+    const publish = (e) => { if (e?.model) this.state.set('model', e.model); };
+    net.on('op', publish);
+    net.on('snapshot', publish);
+    if (net.model) this.state.set('model', net.model);
   }
 
   _onMode(id) {
@@ -156,6 +179,10 @@ export class GameLoop {
     if (!os.apps.has('editor')) {
       os.registerApp({
         id: 'editor', title: 'Design', menuLabel: '&Design', icon: 'design',
+        // The tray only exists from tier 2 up, so the starter machine needs the
+        // desktop icon; otherwise the one app the whole game is about is buried
+        // two levels down the Start menu on the machine every player starts on.
+        desktopIcon32: 'design',
         fullscreen: true, quickLaunch: true,
         window: { w: 1, h: 1 },
       });
