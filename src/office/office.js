@@ -1221,7 +1221,7 @@ export class Office {
       // with `p?.id` treats "never assigned" and "assigned nobody" as the same
       // state, so an empty desk was skipped every time and never got a screen.
       if (ws.assigned && (ws.player?.id ?? null) === (p?.id ?? null)) continue;
-      ws.assign(p, { tier: this.upgrades.computer }).then(() => this._auditScreens());
+      ws.assign(p, { tier: this.upgrades.computer, ctx: this.ctx }).then(() => this._auditScreens());
     }
     this._syncAvatars(list.slice(1));
     this.refreshHud();

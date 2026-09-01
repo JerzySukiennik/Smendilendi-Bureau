@@ -627,7 +627,32 @@ export class OS {
 
   // --- input ---------------------------------------------------------------
 
+  /**
+   * Cut the power. The screen goes dark and STAYS dark — update() will not
+   * advance a boot until powerOn() is called. This is what an unused machine
+   * looks like, and it is deliberate, not a failure to paint.
+   */
+  powerOff() {
+    this.wm.closeAll();
+    this.phase = 'off';
+    this.bootT = 0;
+    this.focused = false;
+    this.invalidate();
+  }
+
+  /** Press the button: run the full POST and startup chime for the current machine. */
+  powerOn() {
+    if (this.phase !== 'off') return false;
+    this.applyTier(this.tier, { boot: true });
+    return true;
+  }
+
   focus() {
+    // Clicking a dark monitor switches it on. The player watches their machine
+    // boot the first time they sit down, which is where DESIGN-DECISIONS.md puts
+    // the startup sound and the per-tier OS identity — and it is why we do NOT
+    // simply skip the boot everywhere to avoid a black screen on arrival.
+    if (this.phase === 'off') this.powerOn();
     this.focused = true;
     this.cursor.visible = true;
     this.invalidate();

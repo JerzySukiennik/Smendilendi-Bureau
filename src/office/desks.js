@@ -384,9 +384,10 @@ export class Workstation {
    * rectangle would be one fewer light source and one more dead hole in the
    * frame, and it would not be true to a studio either.
    */
-  async assign(player, { tier = 1 } = {}) {
+  async assign(player, { tier = 1, ctx = null } = {}) {
     this.player = player || null;
     this.assigned = true;
+    if (ctx) this.ctx = ctx;
     if (this.nameplate) { this.group.remove(this.nameplate); this.nameplate = null; }
     if (player) {
       this.nameplate = makeNameplate(player.nick, player.color);
@@ -396,30 +397,41 @@ export class Workstation {
     }
     this.buildPersonal();
     if (!this.os) {
+      // The session HAS to travel into the machine. Without `state` the OS
+      // constructs every app against a null store, so Mail falls back to its
+      // own sample inbox and the brief the loop posted — and, worse, the
+      // client's list of things to fix — is never readable on the desk the
+      // core loop runs through. Measured 2026-08-30: the play-through opened
+      // Mail on the player's own monitor and read "Detached house, ul. Lipowa
+      // 14", a placeholder, while state.mail held the real letter.
+      // `audio` is what makes the mail chime and the keyboard audible; `net`
+      // is what Chat talks over.
       this.os = await createScreen({
         width: 545, height: 325, tier,
         nick: player?.nick || 'idle', playerId: player?.id || null,
+        state: this.ctx?.state || null,
+        audio: this.ctx?.audio || null,
+        net: this.ctx?.net || null,
       });
       this.screen.material.map = this.os.texture;
       this.screen.material.needsUpdate = true;
-      // NOBODY sits through a startup animation on arrival — not on an empty
-      // desk and not on the player's own.
+      // Arrival should never show a black rectangle, and the player should still
+      // get to watch his own machine come to life. Those are not in conflict —
+      // they just want different states.
       //
-      // This line used to read `if (!player) this.skipBoot(tier)`, and it is the
-      // single worst defect this office has shipped. The player's machine was
-      // created in phase 'boot' and then left there: the real OS advances its
-      // boot from update(dt), so the desk the whole core loop runs through was a
-      // BLACK RECTANGLE for the first 5 s of every session and for the entire
-      // life of any host that does not run a full-rate frame loop — every
-      // screenshot pose (harness.html settles for 90 frames = 1.4 s) and every
-      // throttled tab. Measured: desk 0 screenLuma mean 0.0, desks 1 and 2 107.8.
+      // Other people's desks are ALREADY ON: skip their boot straight to the
+      // desktop, so the room reads as an occupied studio the moment you walk in.
       //
-      // The startup sequence is not lost, it is moved to where the design puts
-      // it: DESIGN-DECISIONS.md gives each computer tier "a new OS theme, cursor
-      // and startup sound", i.e. the boot belongs to BUYING a machine. setTier()
-      // still passes { boot: true }, so upgrading plays the full POST. Walking
-      // into your own studio does not.
-      this.skipBoot(tier);
+      // The player's own machine is OFF. A dark screen on an unused computer is
+      // correct, not a bug — and OS.focus() switches it on, so the POST and the
+      // startup chime play when he sits down and clicks the monitor, which is
+      // exactly where DESIGN-DECISIONS.md puts the per-tier OS identity.
+      //
+      // (Round 3 of this file made BOTH cases skip the boot, to fix the player's
+      // monitor being a black rectangle for the first 5 s. That cured the symptom
+      // by deleting the feature: the startup sequence never played at all. Jurek
+      // caught it immediately — "czemu komputery są już włączone od początku?")
+      if (player) this.powerOff(); else this.skipBoot(tier);
     }
     const lit = player ? 1.0 : 0.42;
     this.screen.material.color.setScalar(lit);
@@ -438,6 +450,9 @@ export class Workstation {
    * "click the monitor", so a dead screen fails both at once.
    */
   assertPainting(min = 12) {
+    // A machine we deliberately switched off is supposed to be dark. Only a
+    // screen that is meant to be painting and is not counts as the defect.
+    if (this.os?.os?.phase === 'off') { this.lastLuma = null; return true; }
     const l = screenLuma(this.os);
     const ok = !!l && l.mean > min;
     if (!ok) {
@@ -447,6 +462,13 @@ export class Workstation {
     }
     this.lastLuma = l;
     return ok;
+  }
+
+  /** Cut the power to this desk's machine, so it can be switched on later. */
+  powerOff() {
+    const raw = this.os?.os;
+    if (raw?.powerOff) { raw.powerOff(); this.os.update?.(0); return true; }
+    return false;
   }
 
   /** Jump a freshly created surface straight to the desktop. */

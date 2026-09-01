@@ -222,6 +222,7 @@ export class WalkthroughMode extends Mode {
    */
   enter(params = {}) {
     super.enter(params);
+    this._teardownRun();
     this.ui.hidden = false;
 
     const q = new URLSearchParams(location.search);
@@ -320,6 +321,38 @@ export class WalkthroughMode extends Mode {
     this.ctx?.input?.exitLock?.();
     this.ctx?.audio?.stopLoop?.('amb.crowd-interior');
     this._unbindNet?.();
+  }
+
+  /**
+   * Give back everything the PREVIOUS commission's walkthrough is holding.
+   *
+   * The mode instance is cached in `engine.modes`, so `dispose()` runs once at
+   * the end of the session and never between two commissions — but `enter()`
+   * builds a whole new crowd, a new set of ageing decals and a new heat overlay
+   * every time. Measured 2026-09-01 over ten office -> editor -> walk -> office
+   * round trips: +6 geometries and +2 textures per trip, dead straight, none of
+   * it ever released. `_buildShell()` already frees the building and the camera
+   * rig; this frees the rest, and it is the same list `dispose()` uses so the
+   * two cannot drift apart.
+   */
+  _teardownRun() {
+    this.crowd?.dispose();
+    this.crowd = null;
+    this.aging?.dispose();
+    this.aging = null;
+    this.transition?.dispose();
+    this.transition = null;
+    if (this._heatMesh) {
+      this.worldGroup.remove(this._heatMesh);
+      this._heatMesh.geometry.dispose();
+      this._heatMesh.material.dispose();
+      this._heatMesh = null;
+    }
+    this._heatTex?.dispose();
+    this._heatTex = null;
+    this._heatCanvas = null;
+    // A fatal notice belongs to the model that caused it, not to the next one.
+    for (const el of this.el?.overlay?.querySelectorAll?.('.walk-report') ?? []) el.remove();
   }
 
   // -- scene ---------------------------------------------------------------
@@ -803,6 +836,13 @@ export class WalkthroughMode extends Mode {
       // let the lapse run. The cut will not land before `ready`, because the
       // player cannot be put in a building whose navmesh does not exist.
       this._pumpBoot(this._boot ? 8 : 0);
+      // _pumpBoot can call _fatal() — buildNav returns null for a model with no
+      // enclosed room — and _fatal drops the transition and flips the phase.
+      // Both happen INSIDE this frame, after the guard above has already run,
+      // so without this line the next statement dereferences null, the engine
+      // catches the throw and stops the animation loop, and the whole game
+      // freezes on a mode that was only trying to say "there is nothing here".
+      if (!this.transition) return;
       const over = this.transition.update(dt);
       if (over && this.ready) this._startWalk();
       this._relight();

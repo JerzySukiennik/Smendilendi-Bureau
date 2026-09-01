@@ -355,6 +355,11 @@ export class GameLoop {
     const fee = Math.round(gross * (1 - cut));
     const employees = this.state.get('office.employees') || [];
     economy.credit(fee, `Fee — ${c.title}`, { commissionId: c.id });
+    // Nothing subscribes to the ledger, and the office rebuilds its HUD chips in
+    // enter() — which has already run by the time state.mode flips to 'office'
+    // and brings us here. Without this the BANK chip reads 30 000 for the rest
+    // of the session while state.bank.balance is 252 200. Measured 2026-09-01.
+    office.refreshHud?.();
 
     const lines = [
       `${c.title}`,
@@ -416,7 +421,15 @@ export class GameLoop {
     el.querySelector('p').textContent = sub;
     host.appendChild(el);
     this._overlay = el;
-    requestAnimationFrame(() => el.classList.add('on'));
+    // Reading a layout property flushes style, which is all a CSS transition
+    // needs to have a "from" value to animate out of. This used to be
+    // `requestAnimationFrame(() => el.classList.add('on'))`, and rAF is exactly
+    // the thing that is not guaranteed to run: any host that suspends the frame
+    // callback (a background tab, an offscreen embed, the review harness) never
+    // adds the class, so the wipe sits at opacity 0 for its whole 2.4 s and the
+    // player watches the editor while the client reads the drawings.
+    void el.offsetWidth;
+    el.classList.add('on');
     return wait(hold).then(() => {
       el.classList.remove('on');
       return wait(0.5).then(() => { el.remove(); if (this._overlay === el) this._overlay = null; });
