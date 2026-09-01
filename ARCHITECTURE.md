@@ -362,37 +362,49 @@ work, fetch the file and check the bytes before concluding anything. `tools/devs
 (what `preview_start {name:"game"}` now runs) sends `Cache-Control: no-store` to reduce,
 but does not eliminate, this.
 
-### Before you conclude "it renders nothing", render something that must be visible
+### Before you conclude "it renders nothing", check the pane is actually displayed
 
-A browser-pane tab that has been alive for hours can end up with a poisoned WebGL
-context: screenshots come back pure black AND `readRenderTargetPixels` returns all
-zeros, for *every* scene, including code that demonstrably worked earlier the same day.
-On 2026-08-30 this cost a long detour and a false alarm — two commits and two origins
-were all declared broken, including a commit whose working screenshots were on file.
+**The single most common cause of a black screenshot is that the Browser pane is hidden.**
+A hidden pane does not composite frames, so `computer{action:"screenshot"}` returns pure
+black — and it will do so for every page, including one you watched render minutes
+earlier. The tool eventually says so outright ("the Browser pane is not displayed, so the
+page is not compositing frames"), but only on the call that times out; a screenshot that
+merely comes back black gives no such hint. `tabs_select` fronts a tab *within* the pane
+and does NOT display the pane itself.
 
-So never trust a "nothing renders" measurement on its own. Run the control first:
+On 2026-08-30 this cost a long detour: two commits and two origins were declared broken,
+including one whose working screenshots were already on file, and the user was asked to
+go and check the deployment by hand for nothing.
+
+So, in order, before believing a "nothing renders" result:
+
+1. **Take a screenshot and read the error text, not just the image.** A timeout naming
+   the pane is the answer; act on it rather than on the black pixels.
+2. **Measure instead of looking.** Rendering into a `WebGLRenderTarget` and reading it
+   back with `readRenderTargetPixels` does not depend on the screenshot path.
+3. **Run a control render first.** Never trust a lone "it is black" number:
 
 ```js
-// 1. a brand-new renderer, trivial scene that CANNOT be black
+// a brand-new renderer, trivial scene that CANNOT be black
 const own = new THREE.WebGLRenderer(); own.setSize(64, 64);
 const s = new THREE.Scene(); s.background = new THREE.Color(0xffffff);
 s.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({color: 0xff0000})));
 const c = new THREE.PerspectiveCamera(50, 1, 0.1, 10); c.position.z = 3;
-measure(own, s, c);              // expect ~215 mean luma. If this is 0, THE PROBE is broken.
-// 2. the same trivial scene through the GAME's renderer -> isolates a poisoned context
-// 3. only now, the game's own scene
+measure(own, s, c);        // expect ~215 mean luma. If this is 0, THE PROBE is broken.
+// then the same trivial scene through the GAME's renderer -> isolates its context
+// only then, the game's own scene
 ```
 
-Interpreting the three numbers: control-own dark means the readback path is broken and
-every measurement is meaningless; control-own bright but control-game dark means the
-game's GL context is poisoned (open a fresh tab); both bright and the game scene dark is
-the only case where the game is genuinely at fault.
+   Control bright + game scene dark is the *only* combination that convicts the game.
+   Measured this way on the live deployment: control 216.6, game renderer 216.6, menu
+   scene 74 — everything rendering, while every screenshot was still coming back black.
 
-Related false signal from the same episode: the console logs
-`GL_INVALID_OPERATION: glDrawElements: Vertex buffer is not big enough` every frame on a
-poisoned context. That warning is a symptom of the dead context, not necessarily a real
-geometry bug — check it against a scene-graph audit (max index vs `position.count`,
-attribute counts, `InstancedMesh.count` vs `instanceMatrix.count`) before hunting it.
+Related false signal from the same episode: a console spewing
+`GL_INVALID_OPERATION: glDrawElements: Vertex buffer is not big enough` every frame looks
+alarming but accompanied the non-compositing pane and did not correspond to any real
+defect — a scene-graph audit (max index vs `position.count`, attribute counts,
+`InstancedMesh.count` vs `instanceMatrix.count`) found zero faults across 78 geometries.
+Audit before hunting.
 
 ## Definition of done for any piece
 
