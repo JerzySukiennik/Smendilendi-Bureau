@@ -43,6 +43,39 @@ All four modules are required:
   furniture actually be used (wardrobe doors that cannot open, a bed blocking the
   circulation, a too-narrow kitchen run); do doors have room to swing.
 
+## Drawing a building — amended 2026-08-30, supersedes "Editor scope" where they conflict
+
+Jurek played it and could not build anything. Two decisions, his:
+
+### Dragging out a room is the primary way to build. The floor plan is for experts.
+
+The editor currently expects the player to draw walls line by line, and effectively to do
+it in the orthographic floor-plan view. That is backwards for this game. **Everything must
+be doable without ever opening the plan view**, and the plan becomes an advanced tool the
+player can reach for, not the way in.
+
+The primary verb is: **press and drag on the ground, and a room appears.** Drag out a
+rectangle, release, and you get a floor, four walls at the right thickness, and a ceiling
+— sized to what was dragged, scaling live in the direction of the drag. It reads its own
+dimensions as you go. Drag a second rectangle against the first and they join: shared
+walls merge rather than doubling up.
+
+This is the model a thirteen-year-old already knows from The Sims, and it is also how an
+architect blocks out a plan before drawing it properly. It costs nothing in credibility —
+the walls it produces are the same walls the line tool produces, the same BuildingModel,
+the same analysis. Only the way in is different.
+
+The wall/line tool stays for anyone who wants it, but it is no longer the default and no
+longer the only route. The orthographic plan view stays, unchanged, behind an "advanced"
+affordance. Nothing in the game may *require* the plan view to complete a commission.
+
+### No chairs at the workstations.
+
+Remove them. Walking to your desk currently means climbing onto the chair first and then
+into the computer, which is clumsy and strange. The player should walk straight up to the
+desk and click the monitor. Other furniture stays; it is specifically the chair tucked at
+each workstation that goes.
+
 ## Difficulty — amended 2026-08-30, and this supersedes what conflicts with it
 
 Jurek played it and the verdict was that the game is too demanding. Two decisions,
