@@ -65,6 +65,19 @@ architect blocks out a plan before drawing it properly. It costs nothing in cred
 the walls it produces are the same walls the line tool produces, the same BuildingModel,
 the same analysis. Only the way in is different.
 
+Three findings from reading the editor, which the implementing agent should start from:
+
+  * **The editor opens with the `select` tool active** (`editor.js:131`,
+    `this.setTool('select')`). Nothing is armed for drawing, so a first click does
+    nothing at all — which is almost certainly why Jurek reported that he "couldn't draw
+    those lines, or anything". The editor must open with the room tool armed and say so.
+  * **A Rectangle tool already exists** (`tools/draw.js:207`, id `rect`). Drag-out-a-room
+    is therefore mostly a matter of promoting it to the default and making one drag
+    produce floor, walls and ceiling together, rather than writing a tool from scratch.
+  * **`R` is currently bound to Rectangle** (`editor.js:1100`, `KeyR: 'rect'`), which
+    collides with Jurek's request that R be rotate-by-a-fixed-step. **R becomes rotate**,
+    as he asked; the room tool takes another key.
+
 The wall/line tool stays for anyone who wants it, but it is no longer the default and no
 longer the only route. The orthographic plan view stays, unchanged, behind an "advanced"
 affordance. Nothing in the game may *require* the plan view to complete a commission.
