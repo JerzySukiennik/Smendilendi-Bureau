@@ -43,6 +43,41 @@ All four modules are required:
   furniture actually be used (wardrobe doors that cannot open, a bed blocking the
   circulation, a too-narrow kitchen run); do doors have room to swing.
 
+## The plot in the editor — amended 2026-08-30
+
+Jurek: the editor should show a grey square where you are allowed to build; sometimes
+there are trees inside that square; and the plots are laid out oddly and very similarly
+to one another. All three are real, and two of them are measured.
+
+### The buildable area must always be visible, and it is where you may build
+
+Entering the editor, the ground shows the plot boundary and, inside it, the **buildable
+area after setbacks, as a clearly readable grey footprint**. It is on by default, it does
+not need to be switched on, and it reads at a glance: this is where the building goes.
+Dragging a room outside it is refused, or at minimum flagged the instant it happens — not
+three days later in the client's letter.
+
+### Protected trees must never stand in the buildable area
+
+Measured over 24 generated commissions: **19 of 24 had a protected tree inside the
+buildable footprint.** That is not an awkward edge case, it is the normal outcome, and it
+means the player is routinely handed a site he cannot legally build on without being told.
+A critic found the cause on 2026-08-27 and the fix never landed (the agent hit a session
+limit): `plot.js` sizes the plot for the footprint first, then scatters protected trees —
+preferentially where they block building — and nothing re-checks that the building still
+fits. Place protected trees only OUTSIDE the buildable area, or shrink/move the buildable
+area to clear them, and assert it: no commission may be emitted with a protected tree
+overlapping the ground the player is told to build on.
+
+### Plots must actually differ from one another
+
+Measured over the same 24: **20 of 24 boundaries were plain quadrilaterals** (2 pentagons,
+2 hexagons). Areas vary well (640-2671 m2, 24 distinct values) but shape barely does,
+which is why they read as "very similar". The earlier text promised "rectangular, corner,
+deep-and-narrow, L-shaped, sloping" and the generator is not delivering it. Aim for
+roughly even representation across those families, and verify by generating 24 and
+counting the shapes rather than by inspection.
+
 ## Drawing a building — amended 2026-08-30, supersedes "Editor scope" where they conflict
 
 Jurek played it and could not build anything. Two decisions, his:
