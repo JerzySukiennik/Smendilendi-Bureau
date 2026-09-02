@@ -1185,6 +1185,28 @@ export class Office {
     this.hudEl?.classList.toggle('focused', on);
     this.vignette?.classList.toggle('on', on);
     if (!on) this.cursorEl?.classList.remove('on');
+    // While the machine has focus the OS draws its own 1-bit pointer, so the
+    // host cursor has to go — otherwise the player sees two cursors at once,
+    // the browser's arrow and ours, drifting apart as the screen is at an angle.
+    // os.css already sets `cursor: none`, but that only covers the OS element;
+    // when the screen is a texture on the monitor the pointer is really over the
+    // main WebGL canvas, which that rule never touches.
+    this._setHostCursorHidden(on);
+  }
+
+  /** Hide or restore the browser's own cursor over the 3D canvas. */
+  _setHostCursorHidden(hidden) {
+    const canvas = this.ctx?.engine?.canvas || document.getElementById('view');
+    if (!canvas) return;
+    if (hidden) {
+      if (this._prevCursor == null) this._prevCursor = canvas.style.cursor || '';
+      canvas.style.cursor = 'none';
+    } else if (this._prevCursor != null) {
+      canvas.style.cursor = this._prevCursor;
+      this._prevCursor = null;
+    } else {
+      canvas.style.cursor = '';
+    }
   }
 
   _applyUpgrade(track, tier) {
@@ -1827,6 +1849,7 @@ export class Office {
     this.hudEl?.remove();
     this.vignette?.remove();
     this.cursorEl?.remove();
+    this._setHostCursorHidden(false);   // never leave the player without a pointer
     this.panelEl?.remove();
   }
 }

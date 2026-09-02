@@ -43,6 +43,35 @@ All four modules are required:
   furniture actually be used (wardrobe doors that cannot open, a bed blocking the
   circulation, a too-narrow kitchen run); do doors have room to swing.
 
+## Difficulty — amended 2026-08-30, and this supersedes what conflicts with it
+
+Jurek played it and the verdict was that the game is too demanding. Two decisions,
+his, and they override the earlier text wherever the two disagree:
+
+1. **The whole game gets simpler.** Fewer requirements, fewer numbers on screen, a
+   gentler analysis. Where this pulls against "a practising architect must never catch
+   the game being wrong", the simpler game wins. He understands the trade and made it.
+2. **No area minimums shown to the player, anywhere.** A brief must never say
+   "Living room >= 26 m2". It says "a big living room, one the whole family fits into"
+   and the game decides for itself whether what was drawn is big enough.
+
+**How to implement 2 without throwing away the credibility.** Keep the real numbers in
+the engine, delete them from the interface. The analysis may still measure 26 m2 under
+the hood; the client just never quotes it. So the e-mail says "the living room feels
+cramped for the family you described" rather than "22.4 m2 against 26 m2 required".
+That satisfies Jurek's instruction and still means his father cannot catch the game
+being *wrong* — only that it is being polite about the arithmetic. Numbers stay
+available in one optional place (the Cost sheet), never pushed at the player.
+
+Concretely, and binding on every agent:
+  * A commission asks for **3-5 rooms**, not 10. Cut the programme generator down.
+  * Programme entries lose `minArea` from all player-facing text; the engine keeps it.
+  * The revision e-mail leads with what to *do*, not what was measured. At most one
+    number per e-mail, and only when the number is the point (a budget overrun).
+  * Severity drops: fewer blockers, more "if you can". One revision round still.
+  * Plain words over jargon everywhere: "way through" not "circulation", "daylight"
+    not "window-to-floor ratio".
+
 ## Commissions
 - **Procedurally generated**, drawing on 6–8 building types, each with its own program
   and its own rules: detached house, café/restaurant, kindergarten, office (max 4
