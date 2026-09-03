@@ -347,7 +347,18 @@ export function assessSolvability(plot, footprint) {
 // ---------------------------------------------------------------------------
 // generation
 
-const SHAPES = ['rect', 'rect', 'deep-narrow', 'wide-shallow', 'corner', 'L', 'trapezoid', 'chamfer'];
+// Six of the eight entries here used to come out as a plain quadrilateral:
+// 'deep-narrow', 'wide-shallow' and 'corner' all fell through to the rectangle
+// case, differing only in aspect ratio or in which side the street is on, and
+// 'trapezoid' has four corners too. Measured across 24 commissions that gave 20
+// quadrilaterals, which is exactly why Jurek said the plots "are laid out oddly,
+// very similarly". The three genuinely different outlines below carry their
+// weight: a flag plot (the narrow access strip to a wide rear garden that is
+// everywhere in Polish suburbs), a wedge, and a stepped boundary.
+const SHAPES = [
+  'rect', 'deep-narrow', 'wide-shallow', 'corner',
+  'L', 'trapezoid', 'chamfer', 'flag', 'wedge', 'stepped',
+];
 
 function shapePolygon(kind, W, D) {
   switch (kind) {
@@ -357,6 +368,17 @@ function shapePolygon(kind, W, D) {
       return [[0, 0], [W, 0], [W * 0.80, D], [W * 0.14, D]];
     case 'chamfer':
       return [[0, 0], [W, 0], [W, D - W * 0.28], [W - W * 0.28, D], [0, D]];
+    case 'flag':
+      // a narrow drive off the street opening into a wide garden behind
+      return [[W * 0.34, 0], [W * 0.66, 0], [W * 0.66, D * 0.34],
+              [W, D * 0.34], [W, D], [0, D], [0, D * 0.34], [W * 0.34, D * 0.34]];
+    case 'wedge':
+      // one boundary running away at an angle, so nothing sits square to it
+      return [[0, 0], [W, 0], [W * 0.62, D], [0, D]];
+    case 'stepped':
+      // a neighbour's garden bitten out of one corner
+      return [[0, 0], [W, 0], [W, D * 0.62], [W * 0.72, D * 0.62],
+              [W * 0.72, D], [0, D]];
     default:
       return [[0, 0], [W, 0], [W, D], [0, D]];
   }
@@ -435,9 +457,12 @@ function disarmPlot(plot, targetFootprint) {
 /** One attempt at a site. `attempt` > 0 means the previous one was unbuildable. */
 function buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt }) {
   // ---- shape ------------------------------------------------------------
-  const awkwardBias = 0.25 + 0.55 * difficulty;
+  // Even an easy commission deserves a site with a bit of character; a plain
+  // rectangle every other time is what made them blur together. Difficulty now
+  // shifts HOW awkward the outline is, not whether there is one at all.
+  const awkwardBias = 0.55 + 0.35 * difficulty;
   const kind = rng() < awkwardBias
-    ? SHAPES[2 + Math.floor(rng() * (SHAPES.length - 2))]
+    ? SHAPES[1 + Math.floor(rng() * (SHAPES.length - 1))]
     : 'rect';
 
   // each retry buys the building more room
