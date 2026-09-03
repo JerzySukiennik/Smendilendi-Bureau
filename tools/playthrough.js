@@ -279,6 +279,43 @@ export function tool(id) {
   return { tool: ed.tool?.id, viaKey };
 }
 
+/**
+ * PRESS, DRAG, RELEASE — the primary verb (DESIGN-DECISIONS.md, "Dragging out a
+ * room is the primary way to build"). One gesture, in whatever view is on
+ * screen, no plan view. Returns what the model gained and what the Measurements
+ * box was reading out MID-DRAG, because "it reads its own dimensions as you go"
+ * is half of the requirement and a release-only read-out would pass a test that
+ * only counted walls.
+ */
+export function dragRoom(x0, z0, x1, z1, { steps = 6 } = {}) {
+  const ed = editor();
+  const a = worldToClient(x0, 0, z0);
+  const b = worldToClient(x1, 0, z1);
+  const c = eng().canvas;
+  const w0 = Object.keys(ed.model.walls).length;
+  const s0 = Object.keys(ed.model.slabs).length;
+  c.dispatchEvent(pointerEvent('pointermove', a.x, a.y, { buttons: 0 }));
+  step(2);
+  c.dispatchEvent(pointerEvent('pointerdown', a.x, a.y));
+  step(2);
+  const live = [];
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    c.dispatchEvent(pointerEvent('pointermove', a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t));
+    step(2);
+    live.push(ed.measurements.display);
+  }
+  window.dispatchEvent(pointerEvent('pointerup', b.x, b.y));
+  step(8);
+  return {
+    walls: Object.keys(ed.model.walls).length - w0,
+    slabs: Object.keys(ed.model.slabs).length - s0,
+    live: live[live.length - 1],
+    liveAll: live,
+    ghostWhileDragging: live.some((v) => !!v),
+  };
+}
+
 /** Two clicks in the world = one rectangle of walls. */
 export function drawRect(x0, z0, x1, z1) {
   const ed = editor();
@@ -397,7 +434,7 @@ export function status() {
 Object.assign(window, {
   __P: {
     boot, singlePlayer, walkToDesk, sitDown, osClick, openDesign, designRect,
-    planView, tool, drawRect, drawWall, cutOpening, clickHud, clickEl, hudButton,
+    planView, tool, dragRoom, drawRect, drawWall, cutOpening, clickHud, clickEl, hudButton,
     closeTopWindow, openMail,
     until, status, shot, step, run, pin, worldToClient, osToClient, ws,
     editor, editorMode, office, walk, loop, pClick, pMove, move, tap, hold, click,
@@ -432,27 +469,21 @@ export function shellRect() {
 export function drawBuilding() {
   const ed = editor();
   const r = shellRect();
-  const out = { rect: r };
+  const out = { rect: r, viewAtStart: ed.cameras.mode, toolAtStart: ed.tool?.id };
 
-  tap('F2', { key: 'F2' });                 // Plan
-  step(120);
-  clickHud('Zoom extents');
-  step(30);
+  // NO PLAN VIEW ANYWHERE IN HERE, deliberately. DESIGN-DECISIONS.md: "a player
+  // must be able to build a whole house without ever opening the orthographic
+  // plan view", and a harness that reaches for F2 cannot tell you whether that
+  // is true. Two drags in the 3D view the editor opened on, and the second one
+  // shares the first one's wall.
+  out.roomA = dragRoom(r.x0, r.z0, r.cx, r.z1);
+  out.roomB = dragRoom(r.cx, r.z0, r.x1, r.z1);
+
   out.view = ed.cameras.mode;
-
-  tool('rect');
-  out.shell = drawRect(r.x0, r.z0, r.x1, r.z1);
-
-  tool('wall');
-  out.cross = drawWall(r.cx, r.z0, r.cx, r.z1);
-  out.cross2 = drawWall(r.x0, r.cz, r.cx, r.cz);
-
-  tap('F3', { key: 'F3' });                 // back to 3D for the openings
-  step(120);
-  clickHud('Zoom extents');
-  step(40);
-  out.view3d = ed.cameras.mode;
+  out.plannedOpened = ed.cameras.mode === 'plan';
   out.rooms = Object.keys(ed.rooms().rooms).length;
+  out.walls = Object.keys(ed.model.walls).length;
+  out.slabs = Object.keys(ed.model.slabs).length;
   return out;
 }
 

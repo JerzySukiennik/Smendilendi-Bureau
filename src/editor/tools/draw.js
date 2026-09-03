@@ -131,15 +131,16 @@ export class WallTool extends TwoPointTool {
   }
 
   draw(g, p) {
-    if (!this.from || !p.snap) return;
+    const a = this.anchor;
+    if (!a || !p.snap) return;
     const b = p.snap.point;
     const color = p.snap.kind === 'axis' ? p.snap.color : COLOR.ghost;
-    g.line(this.from, b, color);
-    const len = this.from.distanceTo(b);
+    g.line(a, b, color);
+    const len = a.distanceTo(b);
     if (len < 1e-3) return;
     // the ghost of the wall itself, at its real thickness and storey height
-    const mid = new Vector3().addVectors(this.from, b).multiplyScalar(0.5);
-    const ang = Math.atan2(b.x - this.from.x, b.z - this.from.z);
+    const mid = new Vector3().addVectors(a, b).multiplyScalar(0.5);
+    const ang = Math.atan2(b.x - a.x, b.z - a.z);
     const h = this.ed.storeyHeight;
     g.ghostBox(mid.x, this.elevation + h / 2, mid.z, this.thickness, h, len, ang);
   }
@@ -197,7 +198,8 @@ export class LineTool extends TwoPointTool {
   }
 
   draw(g, p) {
-    if (this.from && p.snap) g.dotted(this.from, p.snap.point, p.snap.kind === 'axis' ? p.snap.color : COLOR.guide);
+    const a = this.anchor;
+    if (a && p.snap) g.dotted(a, p.snap.point, p.snap.kind === 'axis' ? p.snap.color : COLOR.guide);
   }
 }
 
@@ -256,10 +258,28 @@ export class RectTool extends TwoPointTool {
   onMove(p) {
     super.onMove(p);
     this.fromCentre = !!this.ed.ctx?.input?.alt;
-    if (this.from && this.to) {
-      const [x0, z0, x1, z1] = this._corners(this.from, this.to);
-      this.setDisplay(`${fmt(Math.abs(x1 - x0))} × ${fmt(Math.abs(z1 - z0))}`);
+    // `anchor`, not `from`: during a press-drag `from` is still null (base.js),
+    // and reading it here is why a dragged-out room showed no size at all until
+    // the button came up. Both gestures now read out the same two numbers.
+    const a = this.anchor;
+    if (a && this.to) {
+      const [x0, z0, x1, z1] = this._corners(a, this.to);
+      this.setDisplay(this.sizeReadout(Math.abs(x1 - x0), Math.abs(z1 - z0)));
     }
+  }
+
+  /**
+   * The two numbers the player watches while the rectangle grows.
+   *
+   * ONE UNIT FOR BOTH. `fmt` switches from millimetres to metres at 10 m on
+   * its own, which on a rectangle produced "7000 mm × 10.000 m" — two units in
+   * one dimension string, which no drawing has ever been annotated in. The
+   * larger side chooses for the pair.
+   */
+  sizeReadout(w, d) {
+    const metres = Math.max(w, d) >= 10;
+    const one = (v) => (metres ? `${v.toFixed(2)} m` : `${Math.round(v * 1000)} mm`);
+    return `${one(w)} × ${one(d)}`;
   }
 
   /**
@@ -319,8 +339,9 @@ export class RectTool extends TwoPointTool {
   }
 
   draw(g, p) {
-    if (!this.from || !p.snap) return;
-    const [x0, z0, x1, z1] = this._corners(this.from, p.snap.point);
+    const a = this.anchor;
+    if (!a || !p.snap) return;
+    const [x0, z0, x1, z1] = this._corners(a, p.snap.point);
     const h = this.ed.storeyHeight;
     const t = DEFAULT_WALL[this.wallType];
     const y = this.elevation;
@@ -369,8 +390,22 @@ export class RoomTool extends RectTool {
     ]);
     made.ids = made.ids.concat(slabs.map(o => o.id));
     const w = Math.abs(x1 - x0), d = Math.abs(z1 - z0);
-    this.flash(`Room ${w.toFixed(2)} × ${d.toFixed(2)} m — ${(w * d).toFixed(1)} m² inside the walls`);
+    this.flash(`Room ${w.toFixed(2)} × ${d.toFixed(2)} m — ${clearArea(w, d, this.wallType).toFixed(1)} m² inside the walls`);
     return made;
+  }
+
+  /**
+   * The read-out while the room grows: the two dimensions, then the floor area
+   * you could actually stand on. The drag runs along wall CENTRELINES, so the
+   * clear area is the rectangle less half a wall on each of four sides — the
+   * same arithmetic src/model/rooms.js does, and the same number the schedule
+   * will print. Quoting w x d as the area (which this used to do) overstated a
+   * 6.00 x 5.00 m room by 2.6 m2, and an architect reads that as a bug because
+   * it is one.
+   */
+  sizeReadout(w, d) {
+    if (!(w > 0) || !(d > 0)) return super.sizeReadout(w, d);
+    return `${super.sizeReadout(w, d)} · ${clearArea(w, d, this.wallType).toFixed(1)} m² inside`;
   }
 
   /** Re-typing a size has to take the slabs with it, not leave them behind. */
@@ -446,10 +481,11 @@ export class SlabTool extends TwoPointTool {
   }
 
   draw(g, p) {
-    if (!this.from || !p.snap) return;
+    const a = this.anchor;
+    if (!a || !p.snap) return;
     const b = p.snap.point;
-    g.rect((this.from.x + b.x) / 2, (this.from.z + b.z) / 2,
-      Math.abs(b.x - this.from.x), Math.abs(b.z - this.from.z), this.elevation + 0.02, COLOR.ghost);
+    g.rect((a.x + b.x) / 2, (a.z + b.z) / 2,
+      Math.abs(b.x - a.x), Math.abs(b.z - a.z), this.elevation + 0.02, COLOR.ghost);
   }
 }
 
@@ -462,6 +498,12 @@ export class SlabTool extends TwoPointTool {
 // model, the analysis or the drawing can express, and still far coarser than
 // the 1 mm node-merge tolerance in building.js, so junctions still weld.
 const r = (v) => Math.round(v * 1e6) / 1e6;
+
+/** Clear internal area of a centreline rectangle built in walls of one thickness. */
+function clearArea(w, d, wallType = 'exterior') {
+  const t = DEFAULT_WALL[wallType] ?? DEFAULT_WALL.exterior;
+  return Math.max(0, w - t) * Math.max(0, d - t);
+}
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 

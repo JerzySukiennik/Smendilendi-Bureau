@@ -120,6 +120,22 @@ export class TwoPointTool extends Tool {
     this.pressFrom = p.snap.point.clone();
   }
 
+  /**
+   * WHERE THE CURRENT OPERATION STARTED, whichever gesture started it.
+   *
+   * `from` is set by the click-move-click gesture only. Press-drag-release
+   * records `pressFrom` on the button down and did not set `from` until the
+   * release, so for the WHOLE of a drag every preview asked `if (!this.from)`
+   * and bailed: the player pressed on the ground, dragged a room across the
+   * plot, and saw absolutely nothing until he let go. DESIGN-DECISIONS.md asks
+   * for the opposite in as many words — "scaling live in the direction of the
+   * drag. It reads its own dimensions as you go."
+   *
+   * Every preview and every read-out reads THIS, so both gestures show the same
+   * thing while they are happening.
+   */
+  get anchor() { return this.from || this.pressFrom || null; }
+
   onUp(p, { dragged } = {}) {
     const here = p.snap.point.clone();
     if (dragged) {
@@ -157,8 +173,9 @@ export class TwoPointTool extends Tool {
 
   onMove(p) {
     this.to = p.snap.point.clone();
-    if (this.from) {
-      const d = this.to.distanceTo(this.from);
+    const a = this.anchor;
+    if (a) {
+      const d = this.to.distanceTo(a);
       this.setDisplay(fmt(d));
     } else {
       this.setDisplay('');
@@ -167,15 +184,16 @@ export class TwoPointTool extends Tool {
 
   /** The direction the cursor is currently indicating, normalised. */
   direction() {
-    if (!this.from || !this.to) return new Vector3(1, 0, 0);
-    const d = new Vector3().subVectors(this.to, this.from);
+    const a = this.anchor;
+    if (!a || !this.to) return new Vector3(1, 0, 0);
+    const d = new Vector3().subVectors(this.to, a);
     if (d.lengthSq() < 1e-9) return new Vector3(1, 0, 0);
     return d.normalize();
   }
 
   inferenceContext() {
     return {
-      from: this.from,
+      from: this.anchor,
       refDir: this.refDir || null,
       height: this.elevation,
       ignoreIds: null,
