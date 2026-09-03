@@ -230,6 +230,42 @@ export class Engine {
     }
   }
 
+  /**
+   * Compile every shader this mode will need, BEFORE its first frame.
+   *
+   * three.js compiles a program the first time a given material/light/shadow
+   * combination is actually drawn, and that compile is synchronous on the main
+   * thread. In a room the player walks around, that means the frame where a new
+   * corner first comes into view can block for seconds — which is exactly what
+   * Jurek reported: "normally it's fine, about 30 fps, but every so often
+   * there's a massive lag spike where I can't walk for about 5 seconds."
+   *
+   * Nothing in this project pre-compiled anything, so every one of those
+   * compiles landed mid-play. Doing them here moves the cost into the loading
+   * moment, where a pause is expected and invisible.
+   *
+   * `compileAsync` (three r152+) yields between programs instead of blocking, so
+   * the boot itself does not freeze either; we fall back to the synchronous
+   * `compile` where it is missing, and swallow failures because a warm-up that
+   * throws must never stop a mode from opening.
+   */
+  _warmShaders(mode) {
+    const scene = mode.scene;
+    const camera = mode.camera || mode.office?.camera;
+    if (!scene || !camera) return;
+    try {
+      const t0 = performance.now();
+      if (this.renderer.compileAsync) {
+        this.renderer.compileAsync(scene, camera).then(() => {
+          console.info(`[engine] "${mode.id}" shaders warm in ${(performance.now() - t0).toFixed(0)} ms`);
+        }).catch(() => {});
+      } else {
+        this.renderer.compile(scene, camera);
+        console.info(`[engine] "${mode.id}" shaders warm in ${(performance.now() - t0).toFixed(0)} ms`);
+      }
+    } catch (_) { /* a cold shader is a stutter; a thrown warm-up is a dead game */ }
+  }
+
   /** Push a mode on top of the stack. The one below is suspended, not disposed. */
   push(modeOrId, params = {}) {
     const mode = typeof modeOrId === 'string' ? this.modes.get(modeOrId) : modeOrId;
@@ -242,6 +278,7 @@ export class Engine {
     this.modeStack.push(mode);
     mode.resize?.(this.width, this.height);
     mode.enter(params);
+    this._warmShaders(mode);
     this.ctx?.state?.set('mode', mode.id);
     return mode;
   }
@@ -254,6 +291,7 @@ export class Engine {
     const cur = this.activeMode;
     cur.resize?.(this.width, this.height);
     cur.enter(params);
+    this._warmShaders(cur);
     this.ctx?.state?.set('mode', cur.id);
     return cur;
   }
