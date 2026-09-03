@@ -43,6 +43,37 @@ All four modules are required:
   furniture actually be used (wardrobe doors that cannot open, a bed blocking the
   circulation, a too-narrow kitchen run); do doors have room to swing.
 
+## Performance — the stall Jurek reported, 2026-08-30
+
+In his words: "it lags horribly. Normally it's fine, about 30 fps, that's survivable, but
+every so often there's a massive lag spike where I can't walk at all for about 5 seconds."
+
+Two things to fix, and they are different problems:
+
+  * **The baseline is 30 fps against a 60 fps target.** DESIGN-DECISIONS.md asks for 60 in
+    the office and 40 in the walkthrough on a MacBook Pro 2019.
+  * **A periodic multi-second stall.** Five seconds of frozen input at intervals is not
+    a frame-rate problem, it is something synchronous blocking the main thread.
+
+**Already ruled out, so do not spend time on them again:**
+  * The office screen audit (`office.js:_auditScreens`) — runs twice per session on a
+    9 s delay, not periodically.
+  * Shadow map rebuilds — the engine sets `renderer.shadowMap.autoUpdate = true`, but the
+    office disables it per-light (`rig.key.shadow.autoUpdate = false`, `office.js:875`)
+    and drives it through `invalidateShadows()`. That is coherent, not a per-frame bake.
+
+**Method — measure, do not guess.** Do NOT read the fps from the debug overlay: the
+Browser pane throttles rAF and the number lies (see ARCHITECTURE.md). Instrument instead:
+record every frame over 120 ms together with `renderer.info` deltas (geometries, textures,
+programs) and JS heap, and register a `PerformanceObserver` for `longtask`. Then walk
+around the office for a minute and read what coincided with each stall. The candidates
+worth checking once you have the trace: shader compilation when a material first becomes
+visible, GLB decode on the main thread, garbage collection from per-frame allocation, a
+full geometry rebuild, and texture upload of the OS canvas to the GPU.
+
+Report the ms-per-render measured with the explicit `gl.finish()` loop, the stall trace,
+and the attributed cause — not a plausible story.
+
 ## The plot in the editor — amended 2026-08-30
 
 Jurek: the editor should show a grey square where you are allowed to build; sometimes
