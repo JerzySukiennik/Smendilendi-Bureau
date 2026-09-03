@@ -43,6 +43,52 @@ All four modules are required:
   furniture actually be used (wardrobe doors that cannot open, a bed blocking the
   circulation, a too-narrow kitchen run); do doors have room to swing.
 
+## The four machines span thirty years — amended 2026-08-30
+
+All four tiers currently sit in the 1990s: TRESTLE 3.1, CORNICE 98, VELLUM 8 and
+ATELIER 9 are a grubby 16-colour box, a gradient-title descendant, Platinum and a
+polished 1997 machine. Jurek: "Melon Studio M5 should be at the macOS 26 level and
+Sunstation Pro should be Windows 11 — not that old."
+
+He is right, and it matches the original brief rather than bending it: the stated bar is
+"Windows 95/98 and early Mac OS — the bar for the fictional OS **on the starter
+computer**". Retro was always about the machine you begin with. Climbing from 1996 to
+today is a far better progression than four shades of the same decade, and it makes each
+upgrade legible at a glance.
+
+    tier 1  Pentagram 133    TRESTLE 3.1   640x480     Windows 95 era. UNCHANGED —
+                                                       this is the one the bar governs,
+                                                       and it currently scores 20/20.
+    tier 2  Kompakt 2000     CORNICE 98    800x600     Windows 98 / early XP era.
+                                                       Keep roughly as is.
+    tier 3  Sunstation Pro   VELLUM 8      1440x900    NOW MODERN — a Windows 11
+                                                       analogue: rounded corners, a
+                                                       centred taskbar, mica/acrylic
+                                                       translucency, Segoe-like UI, snap
+                                                       layouts, a light grey-blue palette.
+    tier 4  Melon Studio M5  ATELIER 9     1710x1112   NOW MODERN — a macOS 26 analogue:
+                                                       a dock with rounded app tiles, a
+                                                       translucent menu bar, deep corner
+                                                       radii, vibrancy, SF-like UI, a
+                                                       traffic-light window control set.
+
+**What this means for the retro work already done: keep it.** Tier 1 is the graded piece
+and it stays exactly as it is. Nothing about the pixel-measured Windows 95 chrome, the
+traced Chicago and Geneva glyphs, the 1-bit cursors or the 16-colour palette is wasted —
+it is the identity of the starter machine and the thing the brief actually asked for.
+
+**And the rule that made tier 1 good still applies upward.** The reason the retro OS works
+is that it was measured against real screenshots rather than remembered. Tiers 3 and 4 get
+the same treatment against modern references: pull real Windows 11 and current macOS
+screenshots into `reference/modern-os/`, measure the corner radii, the title bar heights,
+the dock geometry, the blur radius and the palette, and hold the output against them.
+"Modern-looking" by vibe is exactly the failure the original bar was written to prevent —
+in both directions.
+
+The four startup sounds already reflect this: tier 1 is Windows XP, tier 4 is macOS Big
+Sur (Jurek's own choices, see CREDITS "Third-party proprietary audio"). The visuals should
+have followed them and did not.
+
 ## Performance — the stall Jurek reported, 2026-08-30
 
 In his words: "it lags horribly. Normally it's fine, about 30 fps, that's survivable, but
