@@ -635,10 +635,13 @@ export class Office {
       this._place(K.paperStack, { position: { x: s.x + 0.44, y: 0.74, z: s.z + 0.16 }, rotationY: 0.18 });
       this._shadow(s.x + 0.44, 0.7425, s.z + 0.16, 0.40, 0.30, 0.18, 0.55);
 
-      this._place(K.taskChair, { position: { x: s.x, y: 0, z: s.z + 1.12 }, rotationY: Math.PI },
-        studio.chairFabric);
-      this._shadow(s.x, 0.004, s.z + 1.12, 0.78);
-      col(s.x, s.z + 1.12, 0.62, 0.62);
+      // NO CHAIR AT A PLAYER'S WORKSTATION. DESIGN-DECISIONS.md, "No chairs at
+      // the workstations": "Walking to your desk currently means climbing onto
+      // the chair first and then into the computer, which is clumsy and
+      // strange." It was two interactions deep — a Sit on the chair proxy and a
+      // Sit down at on the screen — plus a 0.62 m collider parked in the one
+      // place the player has to stand to reach his own monitor. All three go.
+      // The staff cubicles below keep theirs: somebody is sitting in them.
     }
     // two under-desk pedestals
     for (const x of [6.60, 8.90]) {
@@ -1046,15 +1049,14 @@ export class Office {
     const I = this.interact;
 
     for (const ws of this.workstations) {
+      // Walk to the desk, click the monitor. One interaction, no seat: there is
+      // no chair to sit on any more, and the camera flies to the screen either
+      // way. `range` is generous because the player now stands where the chair
+      // used to be.
       I.register({
         id: `screen-${ws.slot.index}`, mesh: ws.screen, label: `Workstation ${ws.slot.index + 1}`,
-        verb: 'Sit down at', kind: 'screen', workstation: ws, range: 2.2,
-        onUse: () => { this.sitAt(ws); I.focusScreen(ws); },
-      });
-      const chair = this._proxy(ws.slot.x, 0.55, ws.slot.z + 1.12, 0.62, 1.10, 0.62);
-      I.register({
-        id: `chair-${ws.slot.index}`, mesh: chair, label: `Chair ${ws.slot.index + 1}`, verb: 'Sit',
-        onUse: () => (this.player.seat ? this.stand() : this.sitAt(ws)),
+        verb: 'Use', kind: 'screen', workstation: ws, range: 2.2,
+        onUse: () => I.focusScreen(ws),
       });
       const lamp = this._proxy(ws.slot.x - 0.66, 0.98, ws.slot.z - 0.24, 0.30, 0.48, 0.30);
       I.register({
@@ -1155,16 +1157,6 @@ export class Office {
 
   // =========================================================================
   // RUNTIME
-
-  sitAt(ws) {
-    this.player.sit({ x: ws.slot.x, z: ws.slot.z + 1.04, yaw: 0, eye: PLAYER.eyeSeated });
-    this.ctx?.audio?.play('sfx.chair-sit', { position: { x: ws.slot.x, y: 0.5, z: ws.slot.z + 1.1 } });
-  }
-
-  stand() {
-    this.player.stand();
-    this.ctx?.audio?.play('sfx.chair-roll');
-  }
 
   cycleRadio(item) {
     this.radioStation = (this.radioStation + 1) % 7;   // 6 stations + off
@@ -1454,7 +1446,6 @@ export class Office {
       const r = this.interact.setDownMug(this.scene);
       if (!r) this.toast('Nothing to put it down on.');
     }
-    if (input?.pressed('cancel') && this.player.seat && !this.interact.focus) this.stand();
 
     this._decayFocus(dt);
     for (const ws of this.workstations) ws.update(dt, true);
