@@ -996,6 +996,9 @@ export class Editor {
       wallHit: c.wallHit ?? null,
       faceHit: () => this.pickFace(this._ndc),
       ignoreIds: c.ignoreIds ?? null,
+      // A tool that draws in PLAN says so, and the inference engine then stops
+      // offering it the vertical axis. See snapping.js _axes().
+      planar: !!c.planar,
       guides: this.guides,
     });
     return this._pointer.snap;

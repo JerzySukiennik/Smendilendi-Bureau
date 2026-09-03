@@ -21,6 +21,7 @@ import { COLOR } from '../constants.js';
 
 export class WallTool extends TwoPointTool {
   static id = 'wall';
+  static planar = true;   // draws in plan: no vertical axis inference
   static toolName = 'Wall';
   static valueLabel = 'Length';
   static valueMode = 'length';
@@ -155,6 +156,7 @@ export class WallTool extends TwoPointTool {
  */
 export class LineTool extends TwoPointTool {
   static id = 'line';
+  static planar = true;   // draws in plan: no vertical axis inference
   static toolName = 'Line';
   static valueLabel = 'Length';
   static valueMode = 'length';
@@ -207,6 +209,7 @@ export class LineTool extends TwoPointTool {
 
 export class RectTool extends TwoPointTool {
   static id = 'rect';
+  static planar = true;   // draws in plan: no vertical axis inference
   static toolName = 'Rectangle';
   static valueLabel = 'Length, width';
   static valueMode = 'pair';
@@ -428,6 +431,7 @@ export class RoomTool extends RectTool {
  */
 export class SlabTool extends TwoPointTool {
   static id = 'slab';
+  static planar = true;   // draws in plan: no vertical axis inference
   static toolName = 'Slab';
   static valueLabel = 'Length, width';
   static valueMode = 'pair';

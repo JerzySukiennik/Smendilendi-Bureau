@@ -22,7 +22,12 @@
 // problem between the cursor RAY and the line, and only then measured in pixels.
 
 import { Ray, Vector2, Vector3 } from 'three';
-import { AXIS, INFERENCE, SNAP_PX, GRID, FINE_GRID } from './constants.js';
+import { AXIS, AXIS_ORDER, INFERENCE, SNAP_PX, GRID, FINE_GRID } from './constants.js';
+
+// The two axes that exist for a tool drawing in plan. Z IS THE VERTICAL ONE
+// here — see constants.js, we keep SketchUp's red/green/blue naming, so the
+// blue Z axis points at the sky and X and Y are the ground plane.
+const PLAN_AXES = ['x', 'y'];
 
 const _p = new Vector3();
 const _s = new Vector2();
@@ -317,7 +322,7 @@ export class Inference {
     const p0 = this.fromPoint;
     if (!p0) return;
     if (ctx.from && p0.distanceTo(ctx.from) < 1e-4) return;   // that is just the axes
-    for (const key of ['x', 'y', 'z']) {
+    for (const key of (ctx.planar ? PLAN_AXES : AXIS_ORDER)) {
       const p = closestOnLine(ctx, p0, AXIS[key].dir);
       if (!p) continue;
       if (p.distanceTo(p0) < 1e-3) continue;                  // the primed point itself
@@ -332,9 +337,32 @@ export class Inference {
 
   // -- linear inferences -----------------------------------------------------
 
+  /**
+   * THE THREE AXES THROUGH THE START POINT — but only the two that exist for
+   * the tool asking.
+   *
+   * The vertical one is poison for anything drawn in plan. In an orbiting view
+   * the line straight up through the start point projects to a near-vertical
+   * line on screen, so dragging a room UP THE SCREEN — which is how you drag a
+   * room away from you, the commonest gesture there is — sits within the snap
+   * tolerance of it the whole way. The inference wins, and the point it returns
+   * is on that vertical line: the same x and z as the start point, every frame.
+   * The rectangle therefore stays 0 x 0 and the drag builds nothing at all.
+   *
+   * Measured 2026-09-03 in the editor: press at (-7, -4), drag 48 px up the
+   * screen, and the snap came back {x: -7, z: -4, kind: 'axis'} on all four
+   * intermediate frames — the point climbing the blue axis, y going 1.5, 3.0,
+   * 4.4, 5.8 m into the air while x and z never moved. Read-out "0 mm x 0 mm",
+   * 0 walls added. With the vertical axis withheld the same drag reads
+   * 1600 x 1900, 3400 x 3800, 5100 x 5900, 7500 x 9000 mm and lays 4 walls.
+   *
+   * Wall, Line, Rectangle, Room and Slab all set `static planar = true`. They
+   * could not use a vertical inference even in principle: a wall is
+   * (ax, az) -> (bx, bz) and has no vertical degree of freedom to snap.
+   */
   _axes(ctx, push) {
     const { from } = ctx;
-    for (const key of ['x', 'y', 'z']) {
+    for (const key of (ctx.planar ? PLAN_AXES : AXIS_ORDER)) {
       const ax = AXIS[key];
       const p = closestOnLine(ctx, from, ax.dir);
       if (!p) continue;

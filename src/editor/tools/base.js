@@ -197,6 +197,7 @@ export class TwoPointTool extends Tool {
       refDir: this.refDir || null,
       height: this.elevation,
       ignoreIds: null,
+      planar: this.constructor.planar === true,
     };
   }
 
