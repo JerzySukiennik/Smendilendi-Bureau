@@ -71,6 +71,22 @@ function lower(s) {
 // ---------------------------------------------------------------------------
 // the brief e-mail
 
+/**
+ * The rooms the client actually asks for: the heroes, capped at five, in the
+ * order the programme declares them. Anything with no `hero` flag is ancillary.
+ *
+ * Every building type declares 4-5 heroes already, so this needs no per-type
+ * table — and if a type ever declares none, we fall back to its first three
+ * rooms rather than handing the player an empty brief.
+ */
+function isRequired(r) { return !!r.hero; }
+
+function requiredProgram(program) {
+  const heroes = program.filter(isRequired);
+  if (heroes.length) return heroes.slice(0, 5);
+  return program.slice(0, 3);
+}
+
 function writeBrief(ctx) {
   const { type, params, program, plot, client, vars, rng } = ctx;
   const bank = VOICE[client.tone] || VOICE.warm;
@@ -313,7 +329,22 @@ export function generateCommission(seed, difficulty = 0.5, history = []) {
     params,
     storeys: params.storeys,
     areas: { net: netArea, gross: grossArea, footprint },
-    program,
+    // WHAT THE PLAYER IS ASKED FOR vs what the building really contains.
+    //
+    // Jurek played it and the brief asked for ten rooms with an area minimum on
+    // each. That is a specification, not an invitation, and it is why he stopped
+    // — so DESIGN-DECISIONS.md "Difficulty" now caps it at 3-5. The programme
+    // already marks its important rooms `hero: true` and gives them a phrase in
+    // plain words, so the cut is: the heroes are what the client ASKS FOR, and
+    // everything else moves to `ancillary`.
+    //
+    // Nothing is thrown away. `ancillary` still carries the utility room, the
+    // store, the cleaner's cupboard and the rest, so the analysis can still
+    // notice a house with nowhere to put a coat and mention it gently. What
+    // changes is that those rooms no longer gate acceptance and no longer arrive
+    // as a numbered list of demands.
+    program: requiredProgram(program),
+    ancillary: program.filter((r) => !isRequired(r)),
     constraints,
     plot,
     reputationDelta: {

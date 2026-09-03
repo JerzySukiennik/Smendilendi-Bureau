@@ -505,8 +505,32 @@ async function runOnce(say) {
       `nearest protected tree clearance ${JSON.stringify(repBad.metrics.site.trees.filter(t => t.protected).map(t => t.clearance))}`);
   assert(siteIssues.some(i => i.code === 'SITE_OUTSIDE_BOUNDARY'),
     'the site module did not notice a building standing in the street');
-  assert(siteIssues.some(i => i.code === 'SITE_PROTECTED_TREE'),
-    'the site module did not notice a wall through a protected tree');
+  // The protected-tree check needs its own setup now. It used to come for free,
+  // because the generator deliberately planted protected trees INSIDE the
+  // buildable area — "a protected tree only bites if it stands where you would
+  // want to build" — so shoving the house sideways was bound to hit one. That
+  // rule is gone (DESIGN-DECISIONS.md, "The plot in the editor"): a site you are
+  // handed and then quietly forbidden from using is a trick, not a constraint.
+  //
+  // The capability still matters, though. Trees now stand in the garden, and a
+  // player can absolutely extend a wall into one — so the module must still say
+  // so. Test it the honest way: put a wall across a protected crown on purpose.
+  const tree = (commission.plot.trees || []).find(t => t.protected);
+  if (tree) {
+    const onTree = applyOps(fixed, Object.keys(fixed.nodes).sort().map((id) => ({
+      t: 'node.move', id,
+      x: fixed.nodes[id].x + (tree.x - fixed.nodes[Object.keys(fixed.nodes).sort()[0]].x),
+      z: fixed.nodes[id].z + (tree.z - fixed.nodes[Object.keys(fixed.nodes).sort()[0]].z),
+    }))).model;
+    const repTree = runAnalysis(onTree, brief);
+    const treeIssues = repTree.issues.filter(i => i.code === 'SITE_PROTECTED_TREE');
+    say(`wall walked onto the protected ${tree.species} at (${tree.x}, ${tree.z}), ` +
+        `crown radius ${tree.radius} m -> ${treeIssues.length} issue(s)`);
+    assert(treeIssues.length > 0,
+      'the site module did not notice a wall driven through a protected tree');
+  } else {
+    say('no protected tree on this plot — tree check skipped');
+  }
   assert(repBad.accepted === false, 'a building in the street was accepted');
 
   // -- j. every building type ----------------------------------------------

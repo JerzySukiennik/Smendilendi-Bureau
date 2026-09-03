@@ -586,8 +586,19 @@ function buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt }) {
     if (trees.some(t => Math.hypot(t.x - x, t.z - z) < t.radius + radius + 1.5)) continue;
     const wantProtected = trees.filter(t => t.protected).length < protectedTarget;
     const inBuildable = pointInPolygon(buildableTest, x, z);
-    // a protected tree only bites if it stands where you would want to build
-    if (wantProtected && !inBuildable && i < treeCount * 10) continue;
+    // A protected tree must NOT stand on the ground the player is told to build
+    // on. This used to be the exact opposite — the rule was "a protected tree
+    // only bites if it stands where you would want to build", which put one
+    // inside the buildable area on 19 of 24 generated plots. Jurek hit it
+    // immediately: "sometimes there are trees in that square". A site you are
+    // handed and then quietly forbidden from using is not a constraint, it is a
+    // trick, and DESIGN-DECISIONS.md "The plot in the editor" now forbids it.
+    //
+    // Protected trees still matter: they sit in the garden, they shade the plot,
+    // the daylight module still tests against their crowns, and they still stop
+    // the building sprawling to the boundary. They just no longer stand in the
+    // middle of the footprint.
+    if (wantProtected && inBuildable) continue;
     const tree = {
       x, z, radius,
       height: R(lerp(7, 19, rng()), 1),
