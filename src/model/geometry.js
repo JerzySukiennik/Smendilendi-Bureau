@@ -1178,6 +1178,8 @@ function wallsOfLevel(model, levelId) {
  *   levelId       build one level only (default: every level)
  *   ao            0..1 strength of the baked vertex AO (default 1)
  *   slabs         include floor/roof slabs (default true)
+ *   roofs         include the roof/ceiling slabs (default true; false is the
+ *                 editor's doll's-house view, floors and walls only)
  *   wallHeight    override the storey height (metres)
  *   materialCache Map reused across rebuilds so materials are not re-created
  */
@@ -1241,6 +1243,13 @@ export function buildMeshes(model, opts = {}) {
       for (const id in model.slabs) {
         const slab = model.slabs[id];
         if (slab.levelId !== level.id) continue;
+        // A ceiling is a lid. Looked at from an orbiting camera it hides the
+        // whole plan, which is why every 3D modeller in the world offers a
+        // doll's-house view. `roofs: false` is that view: the editor asks for it
+        // in orbit and plan, and for the real thing at eye level. The analysis,
+        // the walkthrough and the cost never pass it, so the building they
+        // measure always has its ceilings on.
+        if (slab.kind === 'roof' && opts.roofs === false) continue;
         const before = new Map();
         for (const [k, s] of sinks) before.set(k, s.vertexCount);
         const key = emitSlab(model, slab, sinkFor, opts);

@@ -21,6 +21,7 @@ import { Vector3 } from 'three';
 import { Tool, fmt } from './base.js';
 import { AXIS, COLOR } from '../constants.js';
 import { tryEntry } from '../../model/catalog.js';
+import { backsOntoWall, snapAgainstWall } from '../snapping.js';
 
 class TransformTool extends Tool {
   constructor(ed) {
@@ -110,7 +111,34 @@ export class MoveTool extends TransformTool {
     const raw = new Vector3().subVectors(p.snap.point, this.op.anchor);
     this.op.delta.copy(this._constrain(raw));
     this.op.copy = !!this.ed.ctx?.input?.ctrl;
-    this.setDisplay(fmt(this.op.delta.length()));
+    this._wallSnap(p);
+    this.setDisplay(fmt(this.op.delta.length()) + (this.op.snapRot != null ? ' · on wall' : ''));
+  }
+
+  /**
+   * DRAGGING A WC TOWARDS A WALL PUTS IT AGAINST THE WALL — at any wall angle.
+   *
+   * Only for a single floor piece that the catalogue says backs onto something
+   * (see snapping.backsOntoWall): a selection of six chairs being shuffled, or
+   * anything on a locked axis, keeps the delta it was given. Shift suppresses.
+   */
+  _wallSnap(p) {
+    const op = this.op;
+    op.snapRot = null;
+    if (!op || op.targets.length !== 1) return;
+    const t = op.targets[0];
+    if (t.kind !== 'furniture') return;
+    if (this.ed.lockAxis || this.ed.ctx?.input?.shift) return;
+    const f = this.model.furniture[t.id];
+    const entry = f ? tryEntry(f.catalogId) : null;
+    if (!entry || !backsOntoWall(entry)) return;
+    const want = { x: t.x + op.delta.x, z: t.z + op.delta.z };
+    const hit = snapAgainstWall(this.model, this.ed.levelId, want, entry, { reach: 0.55 });
+    if (!hit) return;
+    op.delta.x = hit.x - t.x;
+    op.delta.z = hit.z - t.z;
+    op.snapRot = hit.rot;
+    void p;
   }
 
   /**
@@ -174,6 +202,12 @@ export class MoveTool extends TransformTool {
       const d = delta.clone().multiplyScalar(c);
       const dGround = flat ? new Vector3(d.x, 0, d.z) : d;
       for (const t of list) ops.push(...moveOps(this.model, t, t.kind === 'furniture' ? dGround : d, copy));
+    }
+    // A piece that found a wall takes the wall's angle with it — sliding a WC
+    // onto a slanted wall and leaving it square to the world would be worse
+    // than not snapping at all.
+    if (this.op.snapRot != null && !copy && list.length === 1 && list[0].kind === 'furniture') {
+      ops.push({ t: 'furniture.move', id: list[0].id, rot: Math.round(this.op.snapRot * 1e4) / 1e4 });
     }
     this.ed.applyMany(ops);
     this.last = { targets: list, delta: delta.clone(), copies, copy };

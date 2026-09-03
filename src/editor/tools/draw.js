@@ -335,6 +335,59 @@ export class RectTool extends TwoPointTool {
 // ---------------------------------------------------------------------------
 
 /**
+ * Room — press on the ground, drag, let go, and a room is there.
+ *
+ * THE PRIMARY VERB OF THE GAME (DESIGN-DECISIONS.md, "Dragging out a room is the
+ * primary way to build"). One gesture produces a floor, four walls at the right
+ * thickness and a ceiling, sized to the drag and reading its own dimensions as
+ * it goes. It is the model a thirteen-year-old already knows from The Sims and
+ * the way an architect blocks a plan out before drawing it properly.
+ *
+ * It costs nothing in credibility, because it emits the SAME ops the Rectangle
+ * tool emits — `wall.add` splits and welds itself against everything it crosses,
+ * so a second room dragged against the first shares its wall instead of doubling
+ * it up — plus the two `slab.add`s the player would otherwise have to remember.
+ */
+export class RoomTool extends RectTool {
+  static id = 'room';
+  static toolName = 'Room';
+  static valueLabel = 'Length, width';
+  static valueMode = 'pair';
+  static hint = 'Press on the ground and drag: a room appears — floor, walls and ceiling. '
+    + 'Drag a second one against it and they share the wall. Or type "6000,4000".';
+
+  _build(a, b, centre) {
+    const made = super._build(a, b, centre);
+    if (!made) return null;
+    const [x0, z0, x1, z1] = made.corner;
+    // The floor and the ceiling run to the wall CENTRELINES, which is where the
+    // room polygon runs and where geometry.js expects a slab to stop.
+    const poly = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+    const slabs = this.ed.applyMany([
+      { t: 'slab.add', levelId: this.ed.levelId, kind: 'floor', polygon: poly.map(p => [p[0], p[1]]), mat: 'screed' },
+      { t: 'slab.add', levelId: this.ed.levelId, kind: 'roof', polygon: poly.map(p => [p[0], p[1]]), mat: 'concrete' },
+    ]);
+    made.ids = made.ids.concat(slabs.map(o => o.id));
+    const w = Math.abs(x1 - x0), d = Math.abs(z1 - z0);
+    this.flash(`Room ${w.toFixed(2)} × ${d.toFixed(2)} m — ${(w * d).toFixed(1)} m² inside the walls`);
+    return made;
+  }
+
+  /** Re-typing a size has to take the slabs with it, not leave them behind. */
+  _resetLast(w, d) {
+    const L = this.last;
+    if (L) {
+      const dead = L.ids.filter(id => this.model.slabs[id]);
+      if (dead.length) this.ed.applyMany(dead.map(id => ({ t: 'slab.delete', id })));
+      L.ids = L.ids.filter(id => !this.model.slabs[id]);
+    }
+    return super._resetLast(w, d);
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/**
  * Slab — a floor or roof plate. Click inside a closed room and the slab takes
  * that room's polygon; drag a rectangle for anything else.
  */

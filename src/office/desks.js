@@ -471,8 +471,13 @@ export class Workstation {
     return false;
   }
 
-  /** Jump a freshly created surface straight to the desktop. */
+  /** Jump a surface straight to the desktop — through the SURFACE, not the OS. */
   skipBoot(tier = 1) {
+    // Through `this.os.setTier` (the surface adapter), never `this.os.os.setTier`
+    // (the raw OS). The adapter is what re-lays-out the view canvas and drops
+    // the stale GPU texture when the resolution changes with the tier; calling
+    // past it left the desk showing a black rectangle at the new tier.
+    if (this.os?.setTier) { this.os.setTier(tier, { boot: false }); this.os.update?.(0); return true; }
     const raw = this.os?.os;
     if (raw?.setTier) { raw.setTier(tier, { boot: false }); this.os.update?.(0); return true; }
     // Fallback for any surface without that hook: run it forward until it
@@ -485,7 +490,19 @@ export class Workstation {
     return false;
   }
 
-  setTier(tier) { this.os?.setTier?.(tier); }
+  /**
+   * A new machine on this desk.
+   *
+   * The player's own machine BOOTS: DESIGN-DECISIONS.md puts the per-tier OS
+   * identity — "a new OS theme, cursor and startup sound each time" — on the act
+   * of buying, and a POST you watch is how a new computer announces itself.
+   * Nobody else's does, because three machines booting in unison is three
+   * startup chimes over each other and a studio that looks like it lost power.
+   */
+  setTier(tier) {
+    if (this.player) this.os?.setTier?.(tier);
+    else this.skipBoot(tier);
+  }
 
   // -- desk personalisation ---------------------------------------------------
   //

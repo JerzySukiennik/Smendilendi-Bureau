@@ -13,14 +13,16 @@ import { Tool } from './base.js';
 import { COLOR } from '../constants.js';
 import { tryEntry } from '../../model/catalog.js';
 import { baseHeight } from '../furniture.js';
+import { backsOntoWall, snapAgainstWall } from '../snapping.js';
 
 export class PlaceTool extends Tool {
   static id = 'place';
   static toolName = 'Place';
   static valueLabel = 'Rotation';
   static valueMode = 'angle';
-  static hint = 'Pick a component in the catalogue, then click to place it. '
-    + '[ ] rotate 15°, type an angle for an exact one, Ctrl keeps placing copies.';
+  static hint = 'Pick a component in the catalogue, then click to place it. Things that '
+    + 'belong against a wall find one by themselves — hold Shift to place free. '
+    + 'R turns it 15°, Alt+R a right angle, Ctrl keeps placing copies.';
 
   constructor(ed) {
     super(ed);
@@ -75,11 +77,23 @@ export class PlaceTool extends Tool {
       } else {
         this.pos.copy(p.snap.point);
       }
+    } else if (backsOntoWall(entry) && !this.ed.ctx?.input?.shift) {
+      // FLOOR PIECES THAT BELONG AGAINST A WALL FIND ONE BY THEMSELVES, at any
+      // wall angle — the wall is a segment and this is plan geometry, so 37
+      // degrees behaves exactly like 90. Shift places free.
+      const hit = snapAgainstWall(this.model, this.ed.levelId, p.snap.point, entry);
+      if (hit) {
+        this.pos.set(hit.x, 0, hit.z);
+        this.rot = hit.rot;
+        this.wallAligned = true;
+      } else {
+        this.pos.copy(p.snap.point);
+      }
     } else {
       this.pos.copy(p.snap.point);
     }
     this.valid = true;
-    this.setDisplay(`${entry.name} · ${(this.rot * 180 / Math.PI).toFixed(0)}°`);
+    this.setDisplay(`${entry.name} · ${(this.rot * 180 / Math.PI).toFixed(0)}°${this.wallAligned ? ' · on wall' : ''}`);
   }
 
   onUp(p, info) {

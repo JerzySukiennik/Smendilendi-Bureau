@@ -128,7 +128,11 @@ export class Editor {
 
     this._bind();
     this.rebuildAll();
-    this.setTool('select');
+    // ARMED TO DRAW, not armed to select. The editor used to open on `select`,
+    // so the very first thing a player did — press and drag on the ground —
+    // did precisely nothing, and there was no way to find out why. The way in
+    // is the Room tool, and it is live before the first frame.
+    this.setTool('room');
     // The FIRST FRAME THE PLAYER EVER SEES has to be the plot, and framing it
     // needs a viewport. In the constructor there is none: the canvas has not
     // been resized yet and the HUD, which measures the panels into
@@ -319,7 +323,10 @@ export class Editor {
       levelId,
       materialCache: this.materialCache,
       wallHeight: this.model.levels.find(l => l.id === levelId)?.height,
+      // Doll's house while you work, real roof when you stand inside it.
+      roofs: this.cameras.mode === 'walk',
     });
+    this._builtRoofs = this.cameras.mode === 'walk';
     built.group.name = `level:${levelId}`;
     this.buildingRoot.add(built.group);
     this.builtByLevel.set(levelId, built);
@@ -536,6 +543,72 @@ export class Editor {
     return true;
   }
 
+  /**
+   * ROTATE BY A FIXED STEP — the R key.
+   *
+   * "Rotation is just really annoying right now. It should just be R — each R
+   * is, I don't know, however many degrees." (DESIGN-DECISIONS.md.) So: R turns
+   * whatever is in hand or selected by 15 degrees, Shift+R the other way, Alt+R
+   * a right angle. The free protractor rotation on Q is untouched for anyone who
+   * wants an exact centre and an exact angle.
+   *
+   * It acts on the piece being PLACED first, because that is where the player
+   * is when he wants it: a wardrobe is turned to face the room before it is put
+   * down, not after. With nothing in hand it turns the selection about its own
+   * centroid, so a run of four chairs turns as one object rather than each about
+   * its own middle.
+   *
+   * @returns {boolean} true when something actually turned
+   */
+  rotateStep(deg) {
+    const rad = deg * Math.PI / 180;
+    const t = this.tool;
+    // 1. a ghost in hand (Place, Text) — nothing is in the model yet
+    if (t && typeof t.rot === 'number' && (t.id === 'place' || t.id === 'text')) {
+      t.rot = normaliseAngle(t.rot + rad);
+      // A piece already put down this click keeps following the key, exactly as
+      // a typed angle does, so R is the same gesture before and just after.
+      if (t.last?.id && this.model.furniture[t.last.id]) {
+        this.apply({ t: 'furniture.move', id: t.last.id, rot: r3(t.rot) });
+      } else if (t.last?.id && this.model.texts[t.last.id]) {
+        this.apply({ t: 'text.edit', id: t.last.id, props: { rot: r3(t.rot) } });
+      }
+      this.hud?.flash(`${Math.round(t.rot * 180 / Math.PI)}°`);
+      return true;
+    }
+
+    // 2. the selection, about its own centroid
+    const items = [];
+    for (const id of this.selection) {
+      if (this.model.furniture[id]) items.push({ kind: 'furniture', o: this.model.furniture[id] });
+      else if (this.model.texts[id]) items.push({ kind: 'text', o: this.model.texts[id] });
+    }
+    if (!items.length) {
+      this.hud?.flash('Select something to rotate, or pick a component first');
+      return false;
+    }
+    let cx = 0, cz = 0;
+    for (const it of items) { cx += it.o.x; cz += it.o.z; }
+    cx /= items.length; cz /= items.length;
+    const cs = Math.cos(rad), sn = Math.sin(rad);
+    const ops = items.map(({ kind, o }) => {
+      const dx = o.x - cx, dz = o.z - cz;
+      const x = r3(cx + dx * cs - dz * sn);
+      const z = r3(cz + dx * sn + dz * cs);
+      const rot = r3(normaliseAngle((o.rot || 0) + rad));
+      return kind === 'furniture'
+        ? { t: 'furniture.move', id: o.id, x, z, rot }
+        : { t: 'text.edit', id: o.id, props: { x, z, rot } };
+    });
+    this.applyMany(ops);
+    const shown = items.length === 1 ? Math.round(normaliseAngle(items[0].rot ?? 0) * 180 / Math.PI) : null;
+    this.hud?.flash(items.length === 1
+      ? `Rotated ${deg > 0 ? '+' : ''}${deg}° — now ${Math.round(normaliseAngle((items[0].o.rot || 0) + rad) * 180 / Math.PI)}°`
+      : `${items.length} objects rotated ${deg > 0 ? '+' : ''}${deg}°`);
+    void shown;
+    return true;
+  }
+
   // -- tools -----------------------------------------------------------------
 
   setTool(id, params = {}) {
@@ -552,7 +625,27 @@ export class Editor {
     next.activate?.(params, false);
     this.hud?.refreshTool();
     this.cameras.forceNav = id === 'orbit' ? 'orbit' : id === 'pan' ? 'pan' : null;
+    this._applyCursor();
     return next;
+  }
+
+  /**
+   * The pointer says what the tool will do, and the editor owns that outright.
+   *
+   * Two jobs. The obvious one is affordance: a crosshair over the ground reads
+   * as "this draws", which is half of what a first-time player needs. The other
+   * is defensive — the office hides the browser cursor while a desk machine has
+   * focus, and the editor is pushed on top of the office WITH that focus live.
+   * Writing our own value here means the editor can never inherit an invisible
+   * pointer from whatever pushed it, whoever that is.
+   */
+  _applyCursor() {
+    const c = this.canvas;
+    if (!c) return;
+    const id = this.tool?.id;
+    if (id === 'orbit' || id === 'pan') c.style.cursor = 'grab';
+    else if (id === 'select' || id === 'move' || id === 'rotate' || id === 'scale') c.style.cursor = 'default';
+    else c.style.cursor = 'crosshair';
   }
 
   _onValue(parsed, text) {
@@ -788,6 +881,17 @@ export class Editor {
     if (code === 'F4') { e.preventDefault(); this.setView('walk'); return; }
     if (letterOf(e) === 'z' && e.shiftKey) { e.preventDefault(); this.cameras.zoomExtents(this.contentBounds()); return; }
 
+    // R — ROTATE BY A STEP. Checked before the tool table, because R no longer
+    // names a tool. Alt is the right-angle: right angles are what people
+    // actually want, and six presses of R to turn a wardrobe round is the thing
+    // Jurek called "just really annoying".
+    if ((e.code === 'KeyR' || letterOf(e) === 'r') && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      const step = (e.altKey ? 90 : 15) * (e.shiftKey ? -1 : 1);
+      this.rotateStep(step);
+      return;
+    }
+
     const id = shortcutFor(e);
     if (id) { e.preventDefault(); this.setTool(id); }
   }
@@ -850,6 +954,11 @@ export class Editor {
 
   _viewChanged() {
     const plan = this.cameras.mode === 'plan';
+    // Ceilings go on when the player drops to eye level and come off again the
+    // moment he orbits. Only rebuild when the answer actually changed.
+    if (this._builtRoofs !== (this.cameras.mode === 'walk')) {
+      for (const l of this.model.levels) this._rebuildLevel(l.id);
+    }
     this.plan.visible = plan;
     if (plan) this._buildPlan();
     for (const built of this.builtByLevel.values()) built.group.visible = !plan;
@@ -1096,8 +1205,12 @@ export class Editor {
  */
 export const SHORTCUTS = {
   Space: 'select', KeyV: 'select',
+  KeyP: 'room',
   KeyL: 'line',
-  KeyR: 'rect',
+  // KeyR used to be Rectangle. R is now ROTATE BY A STEP, at Jurek's request
+  // (DESIGN-DECISIONS.md, "Rotation is just really annoying right now"), and the
+  // Rectangle tool is the palette-only survivor of the Room tool that replaced
+  // it. See _rotateStep() below.
   KeyW: 'wall',
   KeyD: 'door',
   KeyN: 'window',
@@ -1170,5 +1283,14 @@ function colorHex(css) {
 }
 
 const r3 = (v) => Math.round(v * 1000) / 1000;
+
+/** Keep an angle in (-PI, PI] so the read-out never says "-735 degrees". */
+function normaliseAngle(a) {
+  const TAU = Math.PI * 2;
+  let v = a % TAU;
+  if (v <= -Math.PI) v += TAU;
+  if (v > Math.PI) v -= TAU;
+  return v;
+}
 
 const cap = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);

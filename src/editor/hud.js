@@ -67,6 +67,10 @@ export class EditorHUD {
     this.flashEl = div('ed-flash');
     this.root.appendChild(this.flashEl);
 
+    this.coachEl = div('ed-coach');
+    this.root.appendChild(this.coachEl);
+    this.refreshCoach();
+
     this.playersEl = div('ed-players');
     this.root.appendChild(this.playersEl);
 
@@ -499,8 +503,43 @@ export class EditorHUD {
     this._flashUntil = performance.now() + 1600;
   }
 
+  /**
+   * THE COACH LINE — what to do next, in one sentence, and then it gets out.
+   *
+   * A first-time player must be able to draw a wall without being told how.
+   * "The editor for building is really hard to get to grips with — you can't
+   * draw those lines at all. Or anything." (DESIGN-DECISIONS.md.) A visible
+   * armed tool and a changed cursor are two thirds of that; this is the third.
+   * It is driven by the MODEL, not by a timer, so it can only ever say a thing
+   * that is still true, and it disappears the instant the player has done it.
+   */
+  refreshCoach() {
+    if (!this.coachEl) return;
+    const m = this.ed.model;
+    const walls = Object.keys(m.walls).length;
+    const objects = Object.keys(m.furniture).length;
+    const openings = Object.keys(m.openings).length;
+    let html = '';
+    if (walls === 0) {
+      html = this.ed.tool?.id === 'room'
+        ? 'Press and drag on the pale ground — that is your plot — and a <b>room</b> appears.'
+        : 'Pick <b>Room</b> in the palette (<kbd>P</kbd>), then press and drag on the pale ground.';
+    } else if (openings === 0) {
+      html = 'Good. Now a way in: <b>Door</b> (<kbd>D</kbd>), then click on a wall. '
+        + '<kbd>N</kbd> puts a window in one.';
+    } else if (objects === 0) {
+      html = 'Furnish it: <b>Catalogue</b> on the right, pick something, then click. '
+        + 'Things that belong against a wall find one on their own; <kbd>R</kbd> turns them.';
+    }
+    if (html === this._coachHtml) return;
+    this._coachHtml = html;
+    if (html) this.coachEl.innerHTML = html;
+    this.coachEl.classList.toggle('on', !!html);
+  }
+
   tick(dt = 0) {
     this._insetAge = (this._insetAge ?? 1) + dt;
+    this.refreshCoach();
     if (this._insetAge > 0.5) { this._insetAge = 0; this.syncInsets(); }
     if (this._flashUntil && performance.now() > this._flashUntil) {
       this.flashEl.classList.remove('on');
@@ -577,6 +616,9 @@ const ICONS = {
   select: wrap('<path d="M4 2l9 7-4 1 2.5 5-2 1L7 11l-3 2z" fill="currentColor" stroke="none"/>'),
   line: wrap('<path d="M2 15L15 3"/><circle cx="2.6" cy="14.4" r="1.3"/><circle cx="14.4" cy="3.6" r="1.3"/>'),
   rect: wrap('<rect x="2.5" y="4.5" width="13" height="9"/>'),
+  // A room: four walls in plan with a doorway in one of them, drawn thick so it
+  // does not read as the bare Rectangle sitting two rows below it.
+  room: wrap('<path d="M2.5 3.5h13v11h-13z" stroke-width="2"/><path d="M6.5 14.5v-11" stroke-width="0"/><path d="M2.5 10.5v4" stroke-width="2"/>'),
   wall: wrap('<rect x="2" y="6" width="14" height="7"/><path d="M2 9.5h14M6 6v3.5M11 9.5V13M13 6v3.5M4 9.5V13M9 6v3.5"/>'),
   door: wrap('<path d="M4 15V3h7v12"/><path d="M11 15a7 7 0 0 0-7-7" stroke-dasharray="1.5 1.5"/><circle cx="9" cy="9.5" r="0.7" fill="currentColor"/>'),
   window: wrap('<rect x="2.5" y="4.5" width="13" height="9"/><path d="M9 4.5v9M2.5 9h13"/>'),

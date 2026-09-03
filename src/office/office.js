@@ -1194,6 +1194,25 @@ export class Office {
     this._setHostCursorHidden(on);
   }
 
+  /**
+   * The office is no longer the mode on screen: give the pointer back.
+   *
+   * Screen focus is NOT cleared — the player is still sitting at his machine and
+   * will be looking at it again the moment the editor pops — but nothing the
+   * office draws may outlive it. That means the browser cursor comes back (the
+   * editor needs it) and our fake in-OS cursor element stops floating over
+   * whatever is now on screen, frozen at the last place the office saw it.
+   */
+  suspendCursor() {
+    this.cursorEl?.classList.remove('on');
+    this._setHostCursorHidden(false);
+  }
+
+  /** Back on screen: re-hide the pointer only if a machine still has focus. */
+  resumeCursor() {
+    this._setHostCursorHidden(!!this.interact?.focus);
+  }
+
   /** Hide or restore the browser's own cursor over the 3D canvas. */
   _setHostCursorHidden(hidden) {
     const canvas = this.ctx?.engine?.canvas || document.getElementById('view');
@@ -1211,9 +1230,12 @@ export class Office {
 
   _applyUpgrade(track, tier) {
     if (track === 'computer') {
+      // The player's desk boots (Workstation.setTier decides that), and the
+      // startup sound belongs to that boot — the OS plays its own tier chime, so
+      // the office must not play a second one over the top of it.
       for (const ws of this.workstations) ws.setTier(tier);
-      this.ctx?.audio?.play(computerTier(tier).bootSound);
-      this.toast(`Installed: ${computerTier(tier).name}.`);
+      const spec = computerTier(tier);
+      this.toast(`Installed: ${spec.name}. Sit down and switch it on.`);
     } else {
       const spec = studioTier(tier);
       for (let i = 0; i < this.lights.pendants.length; i++) {
@@ -1323,11 +1345,17 @@ export class Office {
     clearTimeout(this._auditTimer);
     this._auditTimer = setTimeout(() => {
       const rows = this.workstations.map((ws) => {
-        const l = screenLuma(ws.os);
+        // A machine that is SWITCHED OFF is supposed to be dark. The player's
+        // own starts that way on purpose so he gets to switch it on, and this
+        // audit reported it as a defect on every single boot — a false alarm in
+        // the console is worse than no alarm, because it teaches you to ignore
+        // the real one. `assertPainting` already knew this; the audit did not.
+        const off = ws.os?.os?.phase === 'off';
+        const l = off ? null : screenLuma(ws.os);
         return {
           desk: ws.slot.index + 1,
           player: ws.player?.nick || 'empty',
-          mean: l ? +l.mean.toFixed(1) : null,
+          mean: off ? 'off' : (l ? +l.mean.toFixed(1) : null),
           max: l ? Math.round(l.max) : null,
           glow: ws.glow.intensity,
         };
@@ -1345,7 +1373,7 @@ export class Office {
         mean: (cub && cub.parent && cub.material.map && cubTris >= CUBICLES.length * 2) ? 100 : null,
         max: null, glow: 0,
       });
-      const dead = rows.filter((r) => r.mean === null || r.mean < 12);
+      const dead = rows.filter((r) => r.mean === null || (typeof r.mean === 'number' && r.mean < 12));
       if (dead.length) {
         console.warn('[office] monitor(s) painting nothing — the in-game OS is not '
           + 'reaching the desk. This is finish bar item 1 AND the signature '

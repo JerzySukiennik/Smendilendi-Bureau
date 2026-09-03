@@ -547,3 +547,87 @@ export function snapToGrid(p, grid = GRID) {
   p.z = Math.round(p.z / grid) * grid;
   return p;
 }
+
+// ---------------------------------------------------------------------------
+// FURNITURE AGAINST A WALL
+//
+// "Things should snap by themselves. If walls are at an angle, toilets should
+// snap to them." (DESIGN-DECISIONS.md, from the play-through.) This is that,
+// and the reason it is a plan-space routine rather than a raycast is the "at an
+// angle" part: nothing here knows or cares whether a wall runs along an axis.
+// A wall is a segment; the object's back goes against its face; the object
+// slides along it. 37 degrees works exactly as well as 90.
+//
+// A piece "backs onto a wall" when the catalogue says it needs no clearance
+// BEHIND it and does need some in front — which is precisely the difference
+// between a WC, a basin, a wardrobe or a kitchen unit (back 0) and a dining
+// chair or a table (back 0.80). That is the catalogue's own ergonomic data
+// deciding it, not a hand-written list of ids that would drift out of date the
+// first time somebody adds a component.
+
+/** Should this catalogue entry sit flat against a wall when placed near one? */
+export function backsOntoWall(entry) {
+  if (!entry || entry.anchor !== 'floor') return false;
+  const c = entry.clearance;
+  if (!c) return false;
+  return (c.back || 0) <= 0.001 && (c.front || 0) > 0.001;
+}
+
+/**
+ * The nearest wall to sit against, in the wall's own direction.
+ *
+ * @param {object}  model     the BuildingModel
+ * @param {string}  levelId   which storey's walls count
+ * @param {{x:number,z:number}} point  where the cursor is
+ * @param {object}  entry     the catalogue entry being placed
+ * @param {object} [opts]     { reach } extra metres of pull beyond the object's own depth
+ * @returns {{x:number,z:number,rot:number,wallId:string,distance:number}|null}
+ */
+export function snapAgainstWall(model, levelId, point, entry, opts = {}) {
+  if (!model || !entry) return null;
+  const width = entry.size?.[0] ?? 0.6;
+  const depth = entry.size?.[2] ?? 0.6;
+  const reach = opts.reach ?? 0.75;
+  let best = null;
+
+  for (const id in model.walls) {
+    const w = model.walls[id];
+    if (levelId && w.levelId !== levelId) continue;
+    const a = model.nodes[w.a], b = model.nodes[w.b];
+    if (!a || !b) continue;
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-4) continue;
+    const ux = dx / len, uz = dz / len;
+    // Along the wall, then clamped so the piece cannot hang off the end of it.
+    // A 1.8 m wardrobe on a 1.2 m wall simply will not fit, and the clamp then
+    // parks it centred rather than pretending.
+    const raw = (point.x - a.x) * ux + (point.z - a.z) * uz;
+    const half = Math.min(width / 2, len / 2);
+    const t = Math.max(half, Math.min(len - half, raw));
+    // Perpendicular offset decides which side of the wall we are on.
+    const nx = -uz, nz = ux;
+    const perp = (point.x - a.x) * nx + (point.z - a.z) * nz;
+    const side = perp < 0 ? -1 : 1;
+    const clear = Math.abs(perp) - (w.thickness || 0.24) / 2;
+    // Too far away to be meant, or the cursor is past the end of the wall by
+    // more than the piece is wide — in both cases the player means free placing.
+    if (clear > depth + reach) continue;
+    if (raw < -reach || raw > len + reach) continue;
+    const score = Math.abs(clear) + Math.abs(raw - t) * 0.5;
+    if (best && score >= best.score) continue;
+    const off = (w.thickness || 0.24) / 2 + depth / 2;
+    best = {
+      score,
+      wallId: id,
+      distance: clear,
+      x: a.x + ux * t + nx * off * side,
+      z: a.z + uz * t + nz * off * side,
+      // The piece FACES THE ROOM: its front is the wall normal on the cursor's
+      // side. Same convention place.js already uses for wall-hung items, so a
+      // basin and a WC on the same wall end up parallel.
+      rot: Math.atan2(nx * side, nz * side),
+    };
+  }
+  return best;
+}

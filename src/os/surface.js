@@ -51,6 +51,7 @@ export async function createOsSurface(opts = {}) {
   const vg = view.getContext('2d', { alpha: false });
 
   let ox = 0, oy = 0;
+  /** @returns {boolean} true when the view canvas actually changed size. */
   function relayout() {
     const sw = os.theme.w, sh = os.theme.h;
     const want = (width > 0 && height > 0) ? width / height : sw / sh;
@@ -58,10 +59,12 @@ export async function createOsSurface(opts = {}) {
     if (want > sw / sh) vw = Math.round(sh * want);
     else if (want < sw / sh) vh = Math.round(sw / want);
     vw += vw & 1; vh += vh & 1;                      // even, so the offsets are integers
-    if (view.width !== vw || view.height !== vh) { view.width = vw; view.height = vh; }
+    let resized = false;
+    if (view.width !== vw || view.height !== vh) { view.width = vw; view.height = vh; resized = true; }
     ox = (vw - sw) >> 1;
     oy = (vh - sh) >> 1;
     vg.imageSmoothingEnabled = false;
+    return resized;
   }
   relayout();
 
@@ -149,9 +152,25 @@ export async function createOsSurface(opts = {}) {
       });
     },
 
-    setTier(n) {
-      os.setTier(n, { boot: true });
-      relayout();
+    setTier(n, opts = {}) {
+      os.setTier(n, { boot: opts.boot !== false });
+      // A NEW MACHINE IS A NEW SCREEN SIZE, AND THAT MEANS A NEW GPU TEXTURE.
+      //
+      // Each tier runs a different desktop resolution (640x480 -> 800x600 ->
+      // 1120x630 -> 1280x720), so relayout() resizes the canvas the CanvasTexture
+      // is bound to. three.js allocates immutable storage for a texture at the
+      // size it first saw (texStorage2D), and every later upload is a
+      // texSubImage2D into that storage: hand it a bigger canvas and the upload
+      // is rejected, the sampler keeps returning the old — or no — pixels, and
+      // the monitor in the office goes BLACK while the OS behind it is running
+      // perfectly. Measured 2026-09-02 on the tier 1 -> 2 upgrade: the view
+      // canvas had mean luma 114.5 and the screen mesh rendered pure black; a
+      // bare texture.dispose() brought Kompakt 2000 up instantly.
+      //
+      // That is Jurek's "when I upgrade the computer, the operating system
+      // doesn't change, and the machine name in the OS doesn't change either" —
+      // it had changed, he just could not see any of it.
+      if (relayout()) texture.dispose();               // forces a fresh allocation
       os.update(0);
       blit();
     },

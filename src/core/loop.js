@@ -101,6 +101,10 @@ export class GameLoop {
     const prev = this._lastMode;
     this._lastMode = id;
     if (id === prev) return;
+    // A stage overlay belongs to the moment between two stages. Arriving in a
+    // mode means that moment is over, so nothing full-screen may still be
+    // sitting on the player's mouse whatever route we took to get here.
+    if (!this._busy) this.clearWipes();
     if (id === 'office' && !this._started) { this._started = true; this.startCampaign(); }
     if (id === 'office' && prev === 'walk') this._settle();
   }
@@ -246,6 +250,23 @@ export class GameLoop {
     }
 
     this._busy = true;
+    try {
+      return await this._submit(model);
+    } catch (err) {
+      // A throw anywhere past this point used to leave `_busy` true forever —
+      // Submit dead, Back to desk still working, and no message. Now it says so.
+      console.error('[loop] submit failed', err);
+      this.flash(`Something went wrong handing the drawings over: ${err.message || err}`);
+      return null;
+    } finally {
+      // `_busy` and the overlay are released together, on every path out,
+      // including the ones nobody has thought of yet.
+      this._busy = false;
+      this.clearWipes();
+    }
+  }
+
+  async _submit(model) {
     const brief = this.brief();
     let report;
     try {
@@ -253,7 +274,6 @@ export class GameLoop {
     } catch (err) {
       console.error('[loop] analysis failed', err);
       this.flash(`The checker fell over: ${err.message || err}`);
-      this._busy = false;
       return null;
     }
     this.round += 1;
@@ -276,7 +296,6 @@ export class GameLoop {
       this.postMail({ ...mail, kind: 'revision' });
       this._setPhase('revising');
       this.toast(`${mail.from} has replied. One revision round — read it and fix it.`);
-      this._busy = false;
       return report;
     }
 
@@ -285,7 +304,6 @@ export class GameLoop {
     this.toast(report.accepted
       ? 'Signed off. Thirty years from now, it is still standing.'
       : 'Signed off under protest. The fee takes the hit.');
-    this._busy = false;
     // A beat at the desk so the letter is visibly delivered, then the cut.
     await wait(1.6);
     this.startWalkthrough();
@@ -414,6 +432,19 @@ export class GameLoop {
    */
   wipe(title, sub = '', hold = WIPE_HOLD) {
     const host = document.getElementById('ui') || document.body;
+    // NOTHING SURVIVES ITS OWN WIPE. `.loop-wipe` is `position:fixed; inset:0;
+    // pointer-events:all` — a full-screen click eater — and it used to be
+    // removed only by a setTimeout chain hanging off the end of this method. Any
+    // throw between creating it and removing it, or a second wipe overlapping
+    // the first, left one in the DOM for the rest of the session and every click
+    // in the game went into it. That is the shape of "I can't click anything.
+    // The game goes on, I can't do anything."
+    //
+    // Three belts, because this one is not allowed to fail: any stale overlay is
+    // swept before a new one is made, the removal is a `finally`, and the
+    // element carries a hard self-destruct that does not depend on any promise
+    // being awaited by anybody.
+    this.clearWipes();
     const el = document.createElement('div');
     el.className = 'loop-wipe';
     el.innerHTML = `<div class="loop-wipe-in"><h1></h1><p></p></div>`;
@@ -430,10 +461,27 @@ export class GameLoop {
     // player watches the editor while the client reads the drawings.
     void el.offsetWidth;
     el.classList.add('on');
-    return wait(hold).then(() => {
-      el.classList.remove('on');
-      return wait(0.5).then(() => { el.remove(); if (this._overlay === el) this._overlay = null; });
-    });
+    const drop = () => {
+      clearTimeout(el._selfDestruct);
+      el.remove();
+      if (this._overlay === el) this._overlay = null;
+    };
+    // The self-destruct. It is not a fallback for a bug we know about; it is the
+    // guarantee that a bug we do not know about cannot take the mouse away.
+    el._selfDestruct = setTimeout(drop, (hold + 3) * 1000);
+    return wait(hold)
+      .then(() => { el.classList.remove('on'); return wait(0.5); })
+      .catch(() => {})
+      .finally(drop);
+  }
+
+  /** Remove every stage overlay in the document, whoever put it there. */
+  clearWipes() {
+    for (const el of document.querySelectorAll('.loop-wipe')) {
+      clearTimeout(el._selfDestruct);
+      el.remove();
+    }
+    this._overlay = null;
   }
 
   // -- talking to the player -------------------------------------------------

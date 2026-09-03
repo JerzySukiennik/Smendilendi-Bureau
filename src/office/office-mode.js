@@ -62,6 +62,9 @@ export class OfficeMode extends Mode {
     audio?.musicPlaylist(['music.office-ambient-1', 'music.office-ambient-2']);
     this.office.refreshHud();
     this.office.hudEl?.classList.remove('hidden');
+    // The office owns the mouse pointer's VISIBILITY, and only while it is the
+    // mode on screen. See suspendCursor() in office.js for why that matters.
+    this.office.resumeCursor();
 
     this._onCanvasClick = () => {
       if (this.office.interact.focus || this.office.panelOpen) return;
@@ -99,6 +102,18 @@ export class OfficeMode extends Mode {
     this.ctx.audio?.stopLoop('amb.street-outside');
     this.ctx.input?.exitLock();
     this.office?.hudEl?.classList.add('hidden');
+    // THE ONE LINE THAT MADE THE EDITOR UNUSABLE.
+    //
+    // Focusing a desk machine hides the browser's own pointer, because the OS
+    // draws its own 1-bit one on the screen texture. That is right while the
+    // office is on screen — and catastrophic the moment it is not, because the
+    // Design app pushes EditorMode ON TOP of the office without ever releasing
+    // the screen. `canvas.style.cursor` stayed 'none' for the whole editor
+    // session, so the player was asked to draw walls with an invisible mouse.
+    // Measured 2026-09-02: entering the editor through the game left
+    // getComputedStyle(canvas).cursor === 'none'. That is Jurek's "you can't
+    // draw those lines at all. Or anything."
+    this.office?.suspendCursor();
     if (this._onCanvasClick) {
       this.ctx.engine.renderer.domElement.removeEventListener('mousedown', this._onCanvasClick);
       this._onCanvasClick = null;
