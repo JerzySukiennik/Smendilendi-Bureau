@@ -163,8 +163,25 @@ export function revisionMail(report, brief = {}) {
   const issues = [...(report?.issues ?? [])].sort(
     (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]
   );
-  const must = issues.filter(i => i.severity === 'blocker' || i.severity === 'major');
-  const nice = issues.filter(i => i.severity === 'minor');
+  // HOW MANY THINGS A CLIENT ACTUALLY SAYS AT ONCE.
+  //
+  // This letter used to list every issue the engine found. On a first attempt
+  // that is routinely ten or more, and Jurek stopped playing because of it:
+  // DESIGN-DECISIONS.md "Difficulty" now caps what the player is handed. A
+  // client who lists ten faults is not giving feedback, he is refusing the job.
+  //
+  // The engine still finds all of them — nothing here weakens the analysis, and
+  // `report.issues` is untouched for the cost sheet and the validation panel.
+  // The LETTER just leads with the few that matter most, in severity order, and
+  // says plainly that there is more underneath rather than pretending there is
+  // not. Fix these, resubmit, and the next letter surfaces the next ones.
+  const MUST_SHOWN = 3;
+  const NICE_SHOWN = 1;
+  const allMust = issues.filter(i => i.severity === 'blocker' || i.severity === 'major');
+  const allNice = issues.filter(i => i.severity === 'minor');
+  const must = allMust.slice(0, MUST_SHOWN);
+  const nice = allNice.slice(0, NICE_SHOWN);
+  const hiddenMust = allMust.length - must.length;
   const blockers = issues.filter(i => i.severity === 'blocker').length;
   const majors = issues.filter(i => i.severity === 'major').length;
 
@@ -177,6 +194,12 @@ export function revisionMail(report, brief = {}) {
     lines.push('');
     lines.push(tone.mustLead);
     for (const i of must) lines.push(bullet(i));
+    // Honest about the rest rather than silently hiding it. One sentence, no list.
+    if (hiddenMust > 0) {
+      lines.push(hiddenMust === 1
+        ? '  - ...and one more of the same sort, which I will point out once these are sorted.'
+        : `  - ...and ${hiddenMust} more of the same sort. Sort these first and we will get to them.`);
+    }
   }
   if (nice.length) {
     lines.push('');
