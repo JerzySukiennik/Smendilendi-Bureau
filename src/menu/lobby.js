@@ -142,7 +142,7 @@ export class Lobby {
     // it — but this line points at the scene, not at the panel.
     const hint = el('div', 'mn-hint');
     hint.innerHTML = `The signage is the menu — hover a line.<br>
-      <span class="mn-dim">The blue tags are the ${this.crimes.length} defects. Click one and the camera goes there.</span>`;
+      ${this.crimes.length ? `<span class="mn-dim">The blue tags are the ${this.crimes.length} defects. Click one and the camera goes there.</span>` : ''}`;
     root.appendChild(hint);
     this.hint = hint;
 
