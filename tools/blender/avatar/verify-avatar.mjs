@@ -253,18 +253,27 @@ function audit(file) {
   console.log(`    heaviest = ${heavySpec}`);
   console.log('    ' + [...tri].map(([n, t]) => `${n}=${t}`).join(' '));
 
-  // -- stature, rest pose, dressed
+  // -- stature, rest pose, dressed. Measured once per HAIRSTYLE and once with the
+  //    cap, because a hat is the part of an outfit that decides how tall a player is.
   const rest = av.matrices(av.locals(null, 0));
-  let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-  for (const n of OUTFIT) for (const prim of pieces.get(n)) {
-    for (let i = 0; i < prim.pos.length / 3; i++) {
-      const p = skinPoint(prim, i, rest);
-      for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p[k]); hi[k] = Math.max(hi[k], p[k]); }
+  const bboxOf = (names) => {
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (const n of names) for (const prim of pieces.get(n)) {
+      for (let i = 0; i < prim.pos.length / 3; i++) {
+        const p = skinPoint(prim, i, rest);
+        for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p[k]); hi[k] = Math.max(hi[k], p[k]); }
+      }
     }
-  }
-  const size = hi.map((v, k) => v - lo[k]);
+    return { lo, size: hi.map((v, k) => v - lo[k]) };
+  };
+  const base = OUTFIT.filter((n) => !n.startsWith('hair_'));
+  const heads = [...tri.keys()].filter((n) => n.startsWith('hair_')).map((h) => [h, bboxOf([...base, h]).size[1]]);
+  heads.push(['short+cap', bboxOf([...base, 'hair_short', 'extra_cap']).size[1]]);
+  const { lo, size } = bboxOf(OUTFIT);
   console.log(`  bbox (dressed, rest): ${size[0].toFixed(3)} x ${size[1].toFixed(3)} x ${size[2].toFixed(3)} m`
     + `   feet at y=${lo[1].toFixed(4)}`);
+  console.log('  stature by head: ' + heads.map(([h, y]) => `${h.replace('hair_', '')} ${y.toFixed(3)}`).join('  '));
+  const tallest = Math.max(...heads.map((h) => h[1]));
 
   // -- clips
   console.log('  clips: ' + Object.entries(av.clips)
@@ -353,7 +362,7 @@ function audit(file) {
     console.log(`  ${label.toUpperCase()} SWING (peak-to-peak over the walk):`
       + ` widest vertex ${(bestPeak * 1000).toFixed(1)} mm, top-8 mean ${(best * 1000).toFixed(1)} mm`);
   }
-  return { bytes: av.bytes, height: size[1], heavy, light };
+  return { bytes: av.bytes, height: size[1], tallest, heavy, light };
 }
 
 const files = process.argv.slice(2).length ? process.argv.slice(2)
@@ -362,7 +371,7 @@ let total = 0, fail = 0;
 for (const f of files) {
   const r = audit(f);
   total += r.bytes;
-  if (r.height < 1.70 || r.height > 1.80) { console.log(`  !! stature out of the 1.70-1.80 band`); fail++; }
+  if (r.height < 1.70 || r.tallest > 1.80) { console.log(`  !! stature out of the 1.70-1.80 band (tallest head ${r.tallest.toFixed(3)})`); fail++; }
   if (r.heavy > 3200) { console.log(`  !! heaviest outfit ${r.heavy} tris`); fail++; }
 }
 for (const f of fs.readdirSync('assets/avatars')) total += 0;

@@ -393,8 +393,11 @@ def build_tops(P):
     def torso(piece, slot, pad, top_pad, bottom_y, bevel=0.022):
         piece.add(tbox(bw + pad, cw * 0.97 + pad, P.chest_bot - bottom_y + 0.01, bd + pad, cd * 0.97 + pad,
                        (0, bottom_y, 0), bevel), slot, gradient('spine', 'hips', P.chest_bot, bottom_y))
-        piece.add(tbox(cw * 0.97 + pad, cw + top_pad, P.chest_top - P.chest_bot + 0.02, cd * 0.97 + pad, cd + top_pad,
-                       (0, P.chest_bot - 0.01, 0), 0.03), slot, 'chest')
+        # the chest slots INSIDE the belly box (narrower at the overlap, 70 mm of it)
+        # rather than meeting it face to face: two bevelled boxes that merely touch
+        # leave a chamfered V groove, which flat shading draws as a crack.
+        piece.add(tbox(cw * 0.90 + pad, cw + top_pad, P.chest_top - P.chest_bot + 0.08, cd * 0.90 + pad, cd + top_pad,
+                       (0, P.chest_bot - 0.07, 0), 0.03), slot, 'chest')
 
     def sleeves(piece, slot, pad, long, cuff=True):
         for s, sg in (('L', -1), ('R', 1)):
@@ -426,19 +429,22 @@ def build_tops(P):
     # hoodie: baggy, hem flaps on their own bones, pocket, hood, drawstrings
     h = Piece('top_hoodie')
     hem_top = P.belly_bot + 0.02
-    torso(h, 'tint_top', 0.05, 0.05, hem_top - 0.005, bevel=0.026)
+    # the torso carries on BEHIND the hem, and the hem flaps stand 7 mm proud of it:
+    # a hem that merely hangs off the bottom edge opens a hollow black band the
+    # moment the cloth bones swing it out.
+    torso(h, 'tint_top', 0.05, 0.05, hem_top - 0.075, bevel=0.026)
     sleeves(h, 'tint_top', 0.022, True)
-    flap_w = bw + 0.05
-    flap_d = bd + 0.05
+    flap_w = bw + 0.064
+    flap_d = bd + 0.064
     # front and back hem flaps hinged at hem_top, swinging on hem_F / hem_B
-    h.add(box(flap_w, 0.15, 0.03, (0, hem_top - 0.15, flap_d / 2 - 0.015), 0.01),
-          'tint_top', gradient('spine', 'hem_F', hem_top, hem_top - 0.15))
-    h.add(box(flap_w, 0.15, 0.03, (0, hem_top - 0.15, -flap_d / 2 + 0.015), 0.01),
-          'tint_top', gradient('spine', 'hem_B', hem_top, hem_top - 0.15))
+    h.add(box(flap_w, 0.20, 0.03, (0, hem_top - 0.15, flap_d / 2 - 0.015), 0.01),
+          'tint_top', gradient('spine', 'hem_F', hem_top + 0.05, hem_top - 0.15))
+    h.add(box(flap_w, 0.20, 0.03, (0, hem_top - 0.15, -flap_d / 2 + 0.015), 0.01),
+          'tint_top', gradient('spine', 'hem_B', hem_top + 0.05, hem_top - 0.15))
     for sg in (-1, 1):   # side panels stay with the hips so the hem never opens at the side
-        h.add(box(0.03, 0.15, flap_d - 0.05, (sg * (flap_w / 2 - 0.015), hem_top - 0.15, 0), 0.01), 'tint_top', 'hips')
+        h.add(box(0.03, 0.20, flap_d - 0.05, (sg * (flap_w / 2 - 0.015), hem_top - 0.15, 0), 0.01), 'tint_top', 'hips')
     # kangaroo pocket
-    h.add(box(bw * 0.7, 0.12, 0.024, (0, hem_top + 0.02, flap_d / 2 - 0.004), 0.008), 'tint_top', 'spine')
+    h.add(box(bw * 0.7, 0.12, 0.024, (0, hem_top + 0.055, flap_d / 2 - 0.010), 0.008), 'tint_top', 'spine')
     # hood: a collar around the back of the neck and a bag hanging on the shoulders
     h.add(box(0.22, 0.075, 0.07, (0, P.shoulder_y - 0.02, -0.10), 0.02), 'tint_top', 'chest')
     for sg in (-1, 1):
@@ -466,7 +472,8 @@ def build_bottoms(P):
         r_cuff = 0.075 * lim
         tr.add(cyl(r_knee, r_top, P.L1 + 0.04, (x, P.knee_y - 0.01, 0), bevel=0.012, cuts=2),
                'tint_bottom', bulge(f'thigh_{s}', f'pant_up_{s}', P.hip_y, P.knee_y, peak=0.6))
-        tr.add(cyl(r_cuff + 0.01, r_knee + 0.004, P.L2 - 0.02, (x, P.ankle_y + 0.04, 0), bevel=0.012, cuts=2),
+        tr.add(cyl(r_cuff + 0.01, r_knee + 0.018, (P.knee_y + 0.055) - (P.ankle_y + 0.04),
+                   (x, P.ankle_y + 0.04, 0), bevel=0.012, cuts=2),
                'tint_bottom', bulge(f'shin_{s}', f'pant_lo_{s}', P.knee_y, P.ankle_y + 0.04, peak=0.55))
         tr.add(cyl(r_cuff, r_cuff, 0.045, (x, P.ankle_y + 0.02, 0), bevel=0.006),
                'tint_bottom', f'pant_lo_{s}')
@@ -485,14 +492,17 @@ def build_bottoms(P):
     for s, sg in (('L', -1), ('R', 1)):
         x = sg * P.hip_x
         ch.add(cyl(0.080 * lim, 0.092 * lim, P.L1 + 0.04, (x, P.knee_y - 0.01, 0)), 'tint_bottom', f'thigh_{s}')
-        ch.add(cyl(0.064 * lim, 0.080 * lim, P.L2 - 0.01, (x, P.ankle_y + 0.03, 0)), 'tint_bottom', f'shin_{s}')
+        ch.add(cyl(0.064 * lim, 0.094 * lim, (P.knee_y + 0.05) - (P.ankle_y + 0.03),
+                   (x, P.ankle_y + 0.03, 0)), 'tint_bottom', f'shin_{s}')
     out.append(ch)
 
     # skirt: an A-line cone on four hem bones
     sk = Piece('bottom_skirt')
     sk.add(tbox(hw + 0.026, hw + 0.026, waist - P.pelvis_bot + 0.02, hd + 0.026, hd + 0.026, (0, P.pelvis_bot, 0), 0.018), 'tint_bottom', 'hips')
     hem_y = 0.33 * P.H
-    sk.add(cyl(0.25, hw / 2 + 0.03, waist - hem_y - 0.02, (0, hem_y, 0), seg=12, bevel=0.0, cap=False, sx=1.0, sz=0.82),
+    # wide enough that a swinging thigh stays inside it: the cone is open, so a
+    # leg that leaves the skirt reads as a tear rather than as a leg.
+    sk.add(cyl(0.295, hw / 2 + 0.03, waist - hem_y - 0.02, (0, hem_y, 0), seg=12, bevel=0.0, cap=False, sx=1.0, sz=0.90),
            'tint_bottom', skirt_bind(waist - 0.02, hem_y))
     out.append(sk)
     return out
@@ -543,11 +553,16 @@ def build_hair(P):
     p.add(box(hw_ + 0.02, 0.035, 0.03, (0, hc + 0.045, hd_ / 2 - 0.004), 0.01), 'tint_hair', 'head'); out.append(p)
     p = Piece('hair_bun'); cap(p, 0.06)
     p.add(box(0.085, 0.08, 0.08, (0, top - 0.09, -hd_ / 2 - 0.045), 0.03, seg=2), 'tint_hair', 'head'); out.append(p)
+    # the curls sit LOWER than they read: a hairstyle must not push the stature
+    # out of the 1.70-1.80 band the office is dimensioned for.
     p = Piece('hair_curly')
-    p.add(box(hw_ + 0.05, 0.10, hd_ + 0.05, (0, top - 0.075, -0.006), 0.04, seg=2), 'tint_hair', 'head')
-    for (x, y, z) in ((-0.07, -0.03, 0.03), (0.07, -0.03, 0.03), (0, 0.02, 0.06), (-0.05, 0.02, -0.06), (0.05, 0.02, -0.06),
-                      (-0.075, -0.06, -0.05), (0.075, -0.06, -0.05), (0, -0.05, -0.10)):
-        p.add(box(0.075, 0.07, 0.075, (x * hs, top - 0.05 + y, z), 0.028, seg=1), 'tint_hair', 'head')
+    p.add(box(hw_ + 0.03, 0.09, hd_ + 0.03, (0, top - 0.085, -0.006), 0.035, seg=2), 'tint_hair', 'head')
+    # the curls sit OUTSIDE the skull cap, or they are buried in it and the style
+    # is indistinguishable from 'short' -- which is exactly how it shipped once.
+    for (x, y, z) in ((-0.105, -0.03, 0.04), (0.105, -0.03, 0.04), (0, 0.015, 0.105),
+                      (-0.085, 0.01, -0.085), (0.085, 0.01, -0.085),
+                      (-0.115, -0.07, -0.045), (0.115, -0.07, -0.045), (0, -0.045, -0.135)):
+        p.add(box(0.085, 0.08, 0.085, (x * hs, top - 0.075 + y, z), 0.032, seg=1), 'tint_hair', 'head')
     out.append(p)
     return out
 
@@ -1015,14 +1030,21 @@ def add_cloth(frames, loop, fps):
         for i, f in enumerate(frames):
             f[f'pant_up_{s}']['rot'] = (up[i], 0.0, 0.0)
             f[f'pant_lo_{s}']['rot'] = (lo[i], 0.0, 0.0)
-    # hoodie hem: pushed out by the thigh coming forward (front) or going back (back)
-    front = [0.55 * max(0.0, th['L'][i], th['R'][i]) for i in range(n)]
-    back = [0.55 * max(0.0, -th['L'][i], -th['R'][i]) for i in range(n)]
+    # hoodie hem: pushed out by the thigh coming forward (front) or going back (back),
+    # driven by the thigh angle MEASURED FROM THIS CLIP'S OWN MEAN. The raw angle is
+    # the wrong driver: a seated thigh sits at 85 degrees for the whole clip, and the
+    # hem was thrown out over the lap like a board and held there. What actually
+    # pushes a hem is the leg moving relative to where it is resting, which is what
+    # the centred angle measures -- zero in a held pose, full swing in a walk.
+    thc = {s: [v - sum(th[s][:n - 1 if loop else n]) / (n - 1 if loop else n) for v in th[s]] for s in 'LR'}
+    HEM_CAP = 0.55
+    front = [min(HEM_CAP, 0.55 * max(0.0, thc['L'][i], thc['R'][i])) for i in range(n)]
+    back = [min(HEM_CAP, 0.55 * max(0.0, -thc['L'][i], -thc['R'][i])) for i in range(n)]
     hf = spring_track(zero, front, dt, loop, k=140.0, zeta=0.35, clamp=0.9)
     hb = spring_track(zero, back, dt, loop, k=140.0, zeta=0.35, clamp=0.9)
     # skirt: front panel lifts with the thighs, sides breathe with the abduction
-    sfront = [0.85 * max(0.0, th['L'][i], th['R'][i]) for i in range(n)]
-    sback = [0.6 * max(0.0, -th['L'][i], -th['R'][i]) for i in range(n)]
+    sfront = [min(0.80, 0.85 * max(0.0, thc['L'][i], thc['R'][i])) for i in range(n)]
+    sback = [min(0.50, 0.6 * max(0.0, -thc['L'][i], -thc['R'][i])) for i in range(n)]
     sf = spring_track(zero, sfront, dt, loop, k=120.0, zeta=0.35, clamp=1.7)
     sb = spring_track(zero, sback, dt, loop, k=120.0, zeta=0.35, clamp=1.0)
     ab = {s: [abs(f[f'thigh_{s}']['rot'][2]) for f in frames] for s in 'LR'}

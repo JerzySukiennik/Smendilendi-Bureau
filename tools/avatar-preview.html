@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Avatar turntable — Smendiłendi Bureau</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+         background: #ece8e0; color: #2b2825; display: flex; height: 100vh; overflow: hidden; }
+  canvas { display: block; }
+  #view { flex: 1; min-width: 0; }
+  #panel { width: 268px; flex: none; overflow-y: auto; padding: 14px 16px 40px;
+           background: #f6f3ee; border-left: 1px solid #d8d2c6; }
+  h1 { font-size: 14px; margin: 0 0 12px; letter-spacing: .02em; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: #8a8073;
+       margin: 16px 0 6px; font-weight: 700; }
+  .row { display: flex; flex-wrap: wrap; gap: 5px; }
+  button { font: inherit; padding: 5px 9px; border: 1px solid #cfc7b8; border-radius: 7px;
+           background: #fff; cursor: pointer; }
+  button:hover { border-color: #8a8073; }
+  button[aria-pressed="true"] { background: #3a6ea5; border-color: #2f5d8a; color: #fff; }
+  .sw { width: 24px; height: 24px; padding: 0; border-radius: 6px; }
+  label { display: flex; align-items: center; gap: 7px; margin: 4px 0; }
+  input[type=text] { font: inherit; width: 100%; padding: 5px 8px; border: 1px solid #cfc7b8;
+                     border-radius: 7px; }
+  #stats { margin-top: 14px; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+           color: #6b6357; white-space: pre-wrap; }
+  #err { color: #a8332a; font-weight: 700; }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="panel">
+  <h1>Avatar turntable</h1>
+  <div class="row">
+    <button id="rand">Random</button>
+    <button id="spin" aria-pressed="true">Turntable</button>
+    <button id="three">Three of them</button>
+  </div>
+
+  <h2>Clip</h2><div class="row" id="clips"></div>
+  <h2>Build</h2><div class="row" id="build"></div>
+  <h2>Top</h2><div class="row" id="top"></div>
+  <h2>Bottom</h2><div class="row" id="bottom"></div>
+  <h2>Shoes</h2><div class="row" id="shoes"></div>
+  <h2>Hair</h2><div class="row" id="hair"></div>
+  <h2>Extras</h2>
+  <label><input type="checkbox" id="cap"> cap</label>
+  <label><input type="checkbox" id="glasses"> glasses</label>
+
+  <h2>Colours</h2><div id="colors"></div>
+
+  <h2>Nick</h2>
+  <input type="text" id="nick" value="Jurek" maxlength="18">
+
+  <div id="stats"></div>
+  <div id="err"></div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import {
+  loadAvatar, randomSpec, DEFAULT_SPEC, makeNickLabel, NICK_Y,
+  BUILDS, TOPS, BOTTOMS, SHOES, HAIR, TINT_SLOTS, CLIPS,
+} from '../src/office/avatar.js';
+
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#ece8e0');
+scene.fog = new THREE.Fog('#ece8e0', 9, 22);
+
+const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 60);
+camera.position.set(2.2, 1.55, 2.9);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 0.95, 0);
+controls.enableDamping = true;
+
+// a plain, warm studio: one key with a shadow, a fill, and a sky/ground ambient
+const key = new THREE.DirectionalLight('#fff3e2', 2.1);
+key.position.set(3.4, 5.6, 3.0);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -3; key.shadow.camera.right = 3;
+key.shadow.camera.top = 4; key.shadow.camera.bottom = -1;
+key.shadow.bias = -0.0009;
+scene.add(key, new THREE.DirectionalLight('#dbe6f2', 0.55).translateX(-4).translateY(2).translateZ(-3));
+scene.add(new THREE.HemisphereLight('#f4efe6', '#8d8477', 1.05));
+
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(9, 64).rotateX(-Math.PI / 2),
+  new THREE.MeshStandardMaterial({ color: '#ded8cc', roughness: 0.95 }),
+);
+floor.receiveShadow = true;
+scene.add(floor);
+const grid = new THREE.GridHelper(8, 16, '#b9b1a2', '#cdc6b8');
+grid.position.y = 0.002;
+grid.material.transparent = true; grid.material.opacity = 0.5;
+scene.add(grid);
+
+// the office props the seated clips are authored against: a 0.45 m seat, a
+// 0.74 m desk. If the avatar does not sit ON these, the clip is wrong.
+const propMat = new THREE.MeshStandardMaterial({ color: '#9a7f5f', roughness: 0.8 });
+const props = new THREE.Group();
+const slab = (w, h, d, x, y, z) => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), propMat);
+  m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; props.add(m);
+};
+slab(0.46, 0.04, 0.46, 0, 0.43, 0);            // seat, top at 0.45
+slab(0.06, 0.42, 0.06, 0, 0.21, 0);            // post
+slab(0.44, 0.40, 0.03, 0, 0.65, -0.24);        // back
+slab(1.60, 0.03, 0.70, 0, 0.725, 0.65);        // desk, top at 0.74
+slab(0.44, 0.02, 0.15, 0, 0.75, 0.45);         // keyboard
+props.visible = false;
+scene.add(props);
+
+// ---------------------------------------------------------------------------
+
+const state = { spec: structuredClone(DEFAULT_SPEC), clip: 'walk', spin: true, crowd: false };
+const avatars = [];
+const clock = new THREE.Clock();
+let loading = 0;
+
+async function rebuild() {
+  const token = ++loading;
+  for (const a of avatars) { a.label?.dispose(); a.dispose(); }
+  avatars.length = 0;
+  const specs = state.crowd
+    ? [randomSpec('one'), state.spec, randomSpec('three')]
+    : [state.spec];
+  const nick = document.getElementById('nick').value;
+  const nicks = ['Ala', nick, 'Narek'];
+  for (let i = 0; i < specs.length; i++) {
+    let av;
+    try {
+      av = await loadAvatar(specs[i]);
+    } catch (e) {
+      document.getElementById('err').textContent = String(e);
+      return;
+    }
+    if (token !== loading) { av.dispose(); return; }
+    av.group.position.x = state.crowd ? (i - 1) * 0.95 : 0;
+    const label = makeNickLabel(state.crowd ? nicks[i] : nick,
+      ['#ffd7a0', '#ffffff', '#a9e0ff'][i] || '#ffffff');
+    label.position.y = NICK_Y;
+    av.group.add(label);
+    av.label = label;
+    av.play(state.clip, { fade: 0 });
+    scene.add(av.group);
+    avatars.push(av);
+  }
+  props.visible = ['sit', 'sit_idle', 'type'].includes(state.clip);
+  stats();
+}
+
+function stats() {
+  const a = avatars[avatars.length > 1 ? 1 : 0];
+  if (!a) return;
+  let tris = 0, meshes = 0;
+  a.group.traverse((o) => {
+    if ((o.isMesh || o.isSkinnedMesh) && o.visible) {
+      meshes++;
+      tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3;
+    }
+  });
+  document.getElementById('stats').textContent =
+    `build     ${a.spec.build}\nheight    ${a.height.toFixed(3)} m\n`
+    + `worn      ${meshes} meshes, ${tris} tris\nclip      ${state.clip}\n`
+    + `draws     ${renderer.info.render.calls}`;
+}
+
+// --- the panel --------------------------------------------------------------
+
+function group(id, list, key) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  for (const v of list) {
+    const b = document.createElement('button');
+    b.textContent = v;
+    b.setAttribute('aria-pressed', String(state.spec[key] === v));
+    b.onclick = () => { state.spec[key] = v; syncButtons(); apply(key === 'build'); };
+    el.append(b);
+  }
+}
+function syncButtons() {
+  for (const [id, key] of [['build', 'build'], ['top', 'top'], ['bottom', 'bottom'],
+    ['shoes', 'shoes'], ['hair', 'hair']]) {
+    for (const b of document.getElementById(id).children)
+      b.setAttribute('aria-pressed', String(state.spec[key] === b.textContent));
+  }
+  for (const b of document.getElementById('clips').children)
+    b.setAttribute('aria-pressed', String(state.clip === b.textContent));
+  document.getElementById('cap').checked = state.spec.cap;
+  document.getElementById('glasses').checked = state.spec.glasses;
+  for (const i of document.querySelectorAll('#colors input'))
+    i.value = state.spec.colors[i.dataset.slot];
+}
+
+function apply(reload = false) {
+  if (reload) return rebuild();
+  for (const a of avatars.slice(state.crowd ? 1 : 0, state.crowd ? 2 : 1)) a.setSpec(state.spec);
+  stats();
+}
+
+group('build', BUILDS, 'build');
+group('top', TOPS, 'top');
+group('bottom', BOTTOMS, 'bottom');
+group('shoes', SHOES, 'shoes');
+group('hair', HAIR, 'hair');
+
+for (const c of CLIPS) {
+  const b = document.createElement('button');
+  b.textContent = c;
+  b.onclick = () => {
+    state.clip = c;
+    for (const a of avatars) a.play(c, { reset: true });
+    props.visible = ['sit', 'sit_idle', 'type'].includes(c);
+    syncButtons(); stats();
+  };
+  document.getElementById('clips').append(b);
+}
+
+const colors = document.getElementById('colors');
+for (const slot of TINT_SLOTS) {
+  const l = document.createElement('label');
+  const i = document.createElement('input');
+  i.type = 'color'; i.className = 'sw'; i.dataset.slot = slot;
+  i.value = state.spec.colors[slot];
+  i.oninput = () => {
+    state.spec.colors[slot] = i.value;
+    for (const a of avatars.slice(state.crowd ? 1 : 0, state.crowd ? 2 : 1)) a.setTint(slot, i.value);
+  };
+  l.append(i, document.createTextNode(slot));
+  colors.append(l);
+}
+
+document.getElementById('cap').onchange = (e) => { state.spec.cap = e.target.checked; apply(); };
+document.getElementById('glasses').onchange = (e) => { state.spec.glasses = e.target.checked; apply(); };
+document.getElementById('nick').oninput = (e) => {
+  const n = e.target.value;
+  avatars.forEach((a, i) => a.label?.setNick(state.crowd && i !== 1 ? a.label.text : n));
+};
+document.getElementById('rand').onclick = () => {
+  state.spec = randomSpec();
+  syncButtons();
+  rebuild();
+};
+document.getElementById('spin').onclick = (e) => {
+  state.spin = !state.spin;
+  e.target.setAttribute('aria-pressed', String(state.spin));
+};
+document.getElementById('three').onclick = (e) => {
+  state.crowd = !state.crowd;
+  e.target.setAttribute('aria-pressed', String(state.crowd));
+  rebuild();
+};
+
+// --- the loop ---------------------------------------------------------------
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * renderer.getPixelRatio() || canvas.height !== h * renderer.getPixelRatio()) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+}
+
+let turn = 0;
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.1);
+  resize();
+  if (state.spin) turn += dt * 0.45;
+  for (const a of avatars) { a.update(dt); a.group.rotation.y = turn; }
+  controls.update();
+  renderer.render(scene, camera);
+});
+
+// a deterministic hook for a screenshot harness: freeze the turntable, set the
+// clip time, render, and post the real framebuffer to the dev server. The
+// Browser pane does not composite a hidden panel, so a pane screenshot of this
+// page is black — the canvas read-back is not (ARCHITECTURE.md, "black
+// screenshot").
+window.AVATAR_PREVIEW = {
+  state, avatars, renderer, camera, controls, scene,
+  async shot(name, opts = {}) {
+    const { w = 900, h = 1150 } = opts;
+    const dpr = renderer.getPixelRatio();
+    renderer.setPixelRatio(2);
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+    const url = canvas.toDataURL('image/png');
+    renderer.setPixelRatio(dpr);
+    const r = await fetch(`/__shot/${name}`, { method: 'POST', body: url });
+    return `${await r.text()} ${url.length} bytes`;
+  },
+  async set(spec, clip, t = 0, yaw = 0.6, opts_cam = null) {
+    state.spin = false;
+    Object.assign(state.spec, structuredClone(DEFAULT_SPEC), spec);
+    state.clip = clip;
+    await rebuild();
+    turn = yaw;
+    for (const a of avatars) {
+      const act = a.play(clip, { reset: true });
+      a.mixer.setTime(t);
+      if (act) act.time = t;
+      a.mixer.update(0);
+      a.group.rotation.y = yaw;
+    }
+    if (opts_cam) { camera.position.set(...opts_cam.pos); controls.target.set(...opts_cam.at); }
+    controls.update();
+    renderer.render(scene, camera);
+    return { height: avatars[0]?.height, clip, worn: document.getElementById('stats').textContent };
+  },
+};
+
+await rebuild();
+syncButtons();
+</script>
+</body>
+</html>

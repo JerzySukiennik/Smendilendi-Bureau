@@ -1,4 +1,4 @@
-# Credits — audio
+# Credits — audio and fonts
 
 Audio in Smendiłendi Bureau comes from two places, and they are **not** under the same licence.
 
@@ -110,3 +110,18 @@ The twelve files replaced in the 2026-08-27 sign-off were rebuilt by `assets/aud
 The six CC0 UI sounds replaced in that sign-off are **edits of physical recordings already licensed in this pack** — a real mouse switch, a real toggle switch, a real key, a real door latch, a real sheet of paper. They were rejected for being too synthetic, or for being the Kenney interface pack that already appears in the owner's other games; nothing from Kenney was used to replace them. The freesound page and author of each underlying recording is the row given above, and the trim/pitch applied to it is stated in the row.
 
 These edits do not affect the CC0 licences: CC0 permits modification and redistribution without conditions. They do not launder the proprietary six either — editing Microsoft's or Apple's audio does not make it ours.
+
+## Fonts
+
+One font file ships in the build. It is bundled rather than fetched from a CDN
+because the nick plaque is drawn to a canvas and uploaded as a texture: a font
+that arrives late redraws the plaque, and a font that never arrives leaves three
+players with different-looking names.
+
+| Game path | Family | Author | Source | Licence | Fetched |
+|---|---|---|---|---|---|
+| `assets/avatars/Nunito-Bold.ttf` | Nunito Bold 3.602 | The Nunito Project Authors (Vernon Adams, Cyreal, Jacques Le Bailly) | <https://github.com/googlefonts/nunito> | SIL Open Font License 1.1 — <https://scripts.sil.org/OFL> | 2026-09-04 |
+
+The OFL permits bundling and redistribution inside a larger work. The two
+conditions that bind us are met: the file is unmodified and keeps its original
+name, and it is not sold on its own.
