@@ -24,6 +24,9 @@ import { sortIssues, scoreOf } from './issues.js';
 import { revisionMail, acceptanceMail, clientMail } from './mail.js';
 
 export { revisionMail, acceptanceMail, clientMail };
+
+/** The score a first submission must clear to be signed off with majors outstanding. */
+export const ACCEPT_SCORE = 50;
 export { ISSUE_DEFS, SEVERITY_RANK, SEVERITY_WEIGHT } from './issues.js';
 export { buildWalkGrid, walkableGrid } from './access.js';
 export { solarPosition, sunVector, SUN_SAMPLES } from './daylight.js';
@@ -53,7 +56,14 @@ export function runAnalysis(model, brief = {}) {
   // exactly the "too demanding" Jurek reported. Majors still count against the
   // score, still appear in the letter, and still cost fee and reputation; they
   // just do not send the drawings back a second time.
-  const accepted = !issues.some(i => i.severity === 'blocker');
+  // ...but leniency needs a floor. The smoke's first submission scored 0/100
+  // with thirteen majors and, under "blockers alone", came back ACCEPTED —
+  // a client signing off a house he has thirteen serious complaints about.
+  // So: no blockers, AND the score clears 50. A house under that comes back
+  // once, with its three biggest points in plain words, which is the gentle
+  // letter the contract asks for; a house over it is signed, majors and all,
+  // and the fee settlement docks 3% per major instead of sending it back.
+  const accepted = !issues.some(i => i.severity === 'blocker') && score >= ACCEPT_SCORE;
 
   return {
     score,

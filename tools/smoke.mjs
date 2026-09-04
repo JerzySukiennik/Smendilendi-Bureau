@@ -403,7 +403,7 @@ async function runOnce(say) {
   const commission = generateCommission(SEED, DIFFICULTY, []);
   commission.plot = plotAroundHouse(generatePlot(mulberry32(SEED + ':smoke-plot'), {
     difficulty: DIFFICULTY, targetFootprint: HOUSE_FOOTPRINT, shape: 'rect',
-    aspect: 18.24 / 9.64, turn: 0,          // wide and shallow, street to the south, like the house
+    aspect: 18.24 / 9.64, turn: 2,          // wide and shallow; turn 2 puts the street to the SOUTH, like the house
   }));
   {
     const poly = buildableArea(commission.plot);
