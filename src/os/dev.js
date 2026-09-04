@@ -65,7 +65,20 @@ const RETRO_PALETTE = new Set([
   '808080', 'ff0000', '00ff00', 'ffff00', '0000ff', 'ff00ff', '00ffff', 'ffffff',
   'dfdfdf', 'ffffe1',
 ]);
+const RETRO_TIERS = [1, 2];          // the eras this gate governs; 3-4 are modern
+
 async function retroGuard(tier = 1, { maxDistinct = 20 } = {}) {
+  // PIN THE GATE TO THE ERAS IT GOVERNS. A critic pointed out that the guard
+  // would happily be aimed at tier 3 or 4 and fail them, because a Windows 11
+  // or macOS analogue MUST exceed 20 colours — so the one check protecting the
+  // best-scoring piece in the game could be "disproved" by misuse and switched
+  // off. It now refuses tiers it does not govern instead of failing them.
+  if (!RETRO_TIERS.includes(tier)) {
+    const r = { tier, skipped: true, pass: true,
+      why: `tier ${tier} is a modern analogue; the retro palette gate does not apply` };
+    console.info('[retro-guard]', 'SKIP', r);
+    return r;
+  }
   os.setTier(tier, { boot: false });
   // a few frames so the desktop, taskbar and any open window are all painted
   for (let i = 0; i < 6; i++) { os.update(1 / 60); await new Promise((r) => requestAnimationFrame(r)); }
@@ -77,17 +90,71 @@ async function retroGuard(tier = 1, { maxDistinct = 20 } = {}) {
     seen.set(k, (seen.get(k) || 0) + 1);
     if (img[i + 3] !== 255) seen.set('ALPHA<255', (seen.get('ALPHA<255') || 0) + 1);
   }
-  const offPalette = [...seen.entries()].filter(([k]) => !RETRO_PALETTE.has(k)).sort((a, b) => b[1] - a[1]);
+  // TIER 2's SANCTIONED GRADIENT. CORNICE 98's active title bar is the Windows 98
+  // ramp #000080 -> #1084D0, which is a legitimate period feature and by
+  // definition a few hundred distinct colours. Excluding the whole title bar by
+  // row would also excuse anything else drawn there, so instead a colour is
+  // forgiven only if it actually sits ON that ramp, within a couple of levels.
+  const onWin98Ramp = (hex) => {
+    const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+    const t = g / 132;                                   // green runs 0 -> 132 across the ramp
+    if (t < -0.02 || t > 1.02) return false;
+    return Math.abs(r - 16 * t) <= 3 && Math.abs(b - (128 + 80 * t)) <= 3;
+  };
+  const forgiven = tier === 2 ? onWin98Ramp : () => false;
+  const offPalette = [...seen.entries()]
+    .filter(([k]) => !RETRO_PALETTE.has(k) && !forgiven(k))
+    .sort((a, b) => b[1] - a[1]);
   const distinct = seen.size;
-  const pass = distinct <= maxDistinct && offPalette.length === 0;
-  const report = { tier, size: `${c.width}x${c.height}`, distinct, maxDistinct,
+  // The ramp's own colours do not count against the budget either.
+  const rampCount = tier === 2 ? [...seen.keys()].filter(forgiven).length : 0;
+  const budget = distinct - rampCount;
+  const pass = budget <= maxDistinct && offPalette.length === 0;
+  const report = { tier, size: `${c.width}x${c.height}`, distinct, offRamp: budget, maxDistinct,
     offPalette: offPalette.slice(0, 12).map(([k, n]) => `#${k} x${n}`), pass };
   console[pass ? 'info' : 'error']('[retro-guard]', pass ? 'PASS' : 'FAIL', report);
   return report;
 }
 
+/**
+ * The whole standing gate, for anything that wants one call: every retro tier,
+ * plus a structural assertion that modern chrome has not leaked into the shared
+ * drawing surface. The palette check catches colour; this catches the shapes
+ * that would produce it — alpha, blur, rounded corners, fractional coordinates.
+ */
+async function retroGate() {
+  const results = [];
+  for (const t of RETRO_TIERS) results.push(await retroGuard(t));
+  const src = [themesSource, osSource].filter(Boolean).join('\n');
+  const banned = [
+    [/\brgba\s*\(/, 'rgba() — the era has no alpha; 50 % is a 1 px checkerboard'],
+    [/shadowBlur\s*=/, 'shadowBlur — nothing in 1995 had a soft shadow'],
+    [/\broundRect\s*\(/, 'roundRect — every corner is a hard 90 degree pixel corner'],
+    [/borderRadius/, 'borderRadius — same'],
+    [/globalAlpha\s*=\s*0?\.[0-9]/, 'fractional globalAlpha'],
+  ];
+  const leaks = [];
+  for (const [re, why] of banned) {
+    const m = src.match(new RegExp(re.source, 'g'));
+    if (m) leaks.push(`${why} (${m.length}x)`);
+  }
+  const pass = results.every((r) => r.pass) && leaks.length === 0;
+  const out = { tiers: results.map((r) => `${r.tier}:${r.pass ? 'pass' : 'FAIL'}${r.skipped ? ' (skipped)' : ''}`), leaks, pass };
+  console[pass ? 'info' : 'error']('[retro-gate]', pass ? 'PASS' : 'FAIL', out);
+  return out;
+}
+
+// The retro drawing surface's own source, read once, so the structural check
+// above looks at what actually ships rather than at a remembered rule.
+let themesSource = '', osSource = '';
+try {
+  themesSource = await (await fetch(new URL('./themes.js', import.meta.url))).text();
+  osSource = await (await fetch(new URL('./os.js', import.meta.url))).text();
+} catch (_) { /* file:// or offline — the palette check still runs */ }
+
 window.OSDEV = {
   retroGuard,
+  retroGate,
   os,
   state,
   tier(n) {
