@@ -1040,7 +1040,23 @@
    "status": "pass",
    "headline": "Retro gate pinned to tiers 1-2 and made survivable: modern tiers are skipped not failed, the Win98 title ramp is forgiven by colour, and a structural check forbids rgba/blur/rounded corners in the shared surface. Tier 1: 9 colours, tier 2: 10 off-ramp, no leaks.",
    "at": "2026-09-04T23:34:43.388Z"
+  },
+  {
+   "piece": "editor",
+   "role": "builder",
+   "round": 8,
+   "status": "pass",
+   "headline": "Outline thickness computed in screen pixels (was 1 px on a 1600 px canvas); validation panel re-runs itself 0.5 s after the last edit — cutting a door clears ACCESS_NO_ENTRANCE with no button press.",
+   "at": "2026-09-04T23:51:28.763Z"
+  },
+  {
+   "piece": "office",
+   "role": "builder",
+   "round": 7,
+   "status": "pass",
+   "headline": "World beyond the glass: three depth bands lifted toward the sky, windowed blocks, real conifers. Exterior 1872 -> 12788 triangles in 2 merged meshes. Luma unverified this session — the readback control was also dark.",
+   "at": "2026-09-04T23:53:27.967Z"
   }
  ],
- "updated": "2026-09-04T23:34:43.388Z"
+ "updated": "2026-09-04T23:53:27.967Z"
 }

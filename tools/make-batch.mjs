@@ -30,8 +30,8 @@ const AUDIO_DIR = join(root, 'assets/audio');
 const MODEL_DIR = join(root, 'assets/models');
 
 const mode = (process.argv[2] || 'all').toLowerCase();
-if (!['audio', 'models', 'all'].includes(mode)) {
-  console.error('usage: node tools/make-batch.mjs [audio|models|all]');
+if (!['audio', 'models', 'avatars', 'all'].includes(mode)) {
+  console.error('usage: node tools/make-batch.mjs [audio|models|avatars|all]');
   process.exit(1);
 }
 
@@ -450,6 +450,45 @@ function defaultModelWhy(e) {
 // routine `make-batch.mjs audio` dropped all five recorded verdicts.)
 const HUMAN_FIELDS = ['decided', 'note'];
 
+/**
+ * The avatars. They are key assets by the contract's own test — the player
+ * looks at one the whole time he is in the office and at everybody else's in
+ * multiplayer — so they go in front of the owner rather than "following the
+ * agreed style automatically".
+ */
+function buildAvatarBatch() {
+  const dir = join(root, 'assets/avatars');
+  const files = listFiles(dir, ['.glb']).sort();
+  const WHY = {
+    'avatar-slim.glb': 'The slim build. 1.740 m dressed, whatever hairstyle is on it.',
+    'avatar-regular.glb': 'The default build, 1.770 m. This is the one you get if you change nothing.',
+    'avatar-broad.glb': 'The broad build, 1.795 m — the tallest, and the one a hairstyle could once push past 1.80 m.',
+  };
+  const items = files.map((f) => ({
+    id: f.replace(/\.glb$/, ''),
+    name: f.replace(/^avatar-/, '').replace(/\.glb$/, '').replace(/^./, (c) => c.toUpperCase()) + ' build',
+    why: WHY[f] || 'Avatar build.',
+    glb: `../assets/avatars/${f}`,
+    meta: {
+      clips: 'idle 4.0 s · walk 1.0 s · sit 3.2 s · sit_idle 2.4 s · type 2.0 s · wave 1.6 s',
+      wearables: 'tops: t-shirt / shirt / hoodie · bottoms: tracksuit / chinos / skirt · shoes: trainers / boots · hair: 6 · cap, glasses',
+      tints: 'top, bottom, shoes, hair, skin, extra',
+      measured: 'foot slide 0.3 mm · trouser hem swing 225 mm peak-to-peak · 1884-3036 triangles worn',
+    },
+  }));
+  return {
+    batch: {
+      id: 'avatars-1', title: 'Avatars', kind: 'model',
+      note: 'Three builds, wardrobe pieces switchable, six tint slots. Look at the walk: the '
+          + 'trousers should swing like fabric, and the feet should not slide. Known weak spots the '
+          + 'builder flagged: hands are two-finger mittens, the hoodie is boxy, the bun reads as short '
+          + 'hair from the front, and the glasses are heavy blocks up close.',
+      items,
+    },
+    stats: { files: files.length },
+  };
+}
+
 function mergeBatch(prevBatches, next) {
   const prev = prevBatches.find(b => b.id === next.id);
   if (!prev) return next;
@@ -486,9 +525,16 @@ if (mode === 'models' || mode === 'all') {
   produced.push(r.batch);
 }
 
+let avatarStats = null;
+if (mode === 'avatars' || mode === 'all') {
+  const r = buildAvatarBatch();
+  avatarStats = r.stats;
+  produced.push(r.batch);
+}
+
 const producedIds = new Set(produced.map(b => b.id));
 // keep batches this run did not regenerate, in their original position
-const ORDER = ['audio-music', 'audio-ui', 'models-1'];
+const ORDER = ['audio-music', 'audio-ui', 'models-1', 'avatars-1'];
 const merged = [
   ...produced.map(b => mergeBatch(prevBatches, b)),
   ...prevBatches.filter(b => !producedIds.has(b.id)),

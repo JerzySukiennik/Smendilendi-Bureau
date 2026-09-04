@@ -5,7 +5,7 @@
       "id": "audio-music",
       "title": "Music",
       "kind": "audio",
-      "note": "The four long-form tracks. Listen with the loop toggle on: the only question that matters for music here is whether you can hear the seam when it wraps. — SIGN-OFF 2026-08-27: 4 of these are already approved and unchanged (Menu, Office ambient 1, Office ambient 2, Walkthrough) — no need to judge them again.",
+      "note": "The four long-form tracks. Listen with the loop toggle on: the only question that matters for music here is whether you can hear the seam when it wraps.",
       "items": [
         {
           "id": "music.menu",
@@ -141,7 +141,7 @@
       "id": "audio-ui",
       "title": "UI sounds",
       "kind": "audio",
-      "note": "Every click, snap and chime the player hears through the in-game computer. Play them back to back — they have to sound like one set of hardware, not thirteen downloads. — SIGN-OFF 2026-08-27: 1 of these is already approved and unchanged (Click soft) — no need to judge it again. 12 are NEW since you last listened and need a fresh verdict.",
+      "note": "Every click, snap and chime the player hears through the in-game computer. Play them back to back — they have to sound like one set of hardware, not thirteen downloads.",
       "items": [
         {
           "id": "ui.click-soft",
@@ -200,11 +200,6 @@
             "source": "https://freesound.org/people/Pepe827/sounds/596879/",
             "author": "Pepe827",
             "origTitle": "AA Foley Mouse Click Central.wav — press only, trimmed to 57 ms"
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Zbyt syntetyczne",
-            "applied": "REPLACED — you rejected the old one as too synthetic. This is a real mouse switch (freesound CC0, Pepe827), press only, 57 ms."
           }
         },
         {
@@ -232,11 +227,6 @@
             "source": "owner-supplied file: erro.mp3",
             "author": "Unknown — treat as third-party rights-reserved",
             "origTitle": "A system error / critical-stop tone. Not identifiable from the file — no metadata, no title; measures as three low buzzed pulses 0.09 / 0.22 / 0.37 s over a harmonic series on ≈ 32 Hz. Presented here as unidentified third-party audio, **not** as CC0."
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Chcę swoje dodać: /Users/jurek/Downloads/erro.mp3",
-            "applied": "REPLACED with your own file (erro.mp3), trimmed and levelled. NOT CC0 — see CREDITS.md."
           }
         },
         {
@@ -264,11 +254,6 @@
             "source": "owner-supplied file: windows-10-notification.mp3",
             "author": "Microsoft Corporation",
             "origTitle": "Microsoft Windows 10 notification chime — a descending glockenspiel figure, C5 → G4 → C4, with a long reverb tail."
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Chcę to: /Users/jurek/Downloads/windows-10-notification.mp3",
-            "applied": "REPLACED with your own file (windows-10-notification.mp3). Microsoft audio, NOT CC0 — see CREDITS.md."
           }
         },
         {
@@ -296,11 +281,6 @@
             "source": "https://freesound.org/people/Lau7/sounds/153341/",
             "author": "Lau7",
             "origTitle": "014_throw_paper.wav — sheet gathered and released, trimmed to 440 ms"
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Jest już w za dużej ilości moich gier.",
-            "applied": "REPLACED — same reason. A real sheet of paper gathered and released (freesound CC0, Lau7). Nothing from Kenney."
           }
         },
         {
@@ -328,11 +308,6 @@
             "source": "https://freesound.org/people/chris112233/sounds/738440/",
             "author": "chris112233",
             "origTitle": "key-clack1 — one key, down and up, trimmed to 119 ms"
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Jest już w za dużej ilości moich gier.",
-            "applied": "REPLACED — same reason. One real key, down and up (freesound CC0, chris112233). Nothing from Kenney."
           }
         },
         {
@@ -360,11 +335,6 @@
             "source": "https://freesound.org/people/JohnyTud/sounds/710063/",
             "author": "JohnyTud",
             "origTitle": "door01_close — the latch catching, trimmed and pitched up 14 %"
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Zbyt syntetyczne",
-            "applied": "REPLACED — too synthetic. Same door, the latch catching. Same trim and pitch, so open and close are one object."
           }
         },
         {
@@ -392,11 +362,6 @@
             "source": "https://freesound.org/people/JohnyTud/sounds/710064/",
             "author": "JohnyTud",
             "origTitle": "door01_open — the handle press only, trimmed and pitched up 14 %"
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Zbyt syntetyczne",
-            "applied": "REPLACED — too synthetic. This is a real door latch being pressed (freesound CC0, JohnyTud), trimmed and pitched up 14 % so it reads as a drawer front."
           }
         },
         {
@@ -424,11 +389,6 @@
             "source": "owner-supplied file: windows-xp-startup.mp3",
             "author": "Microsoft Corporation",
             "origTitle": "Microsoft Windows XP startup sound (2001)."
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Chcę to: /Users/jurek/Downloads/windows-xp-startup.mp3",
-            "applied": "REPLACED with your own file (windows-xp-startup.mp3). Microsoft audio, NOT CC0 — see CREDITS.md."
           }
         },
         {
@@ -456,11 +416,6 @@
             "source": "owner-supplied file: windows-vista-startup.mp3",
             "author": "Microsoft Corporation",
             "origTitle": "Microsoft Windows Vista startup sound (2006). The source file's own ID3 tags say so: artist *Microsoft*, album *Windows*, title *Vista*, date *2006*."
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Chcę to: /Users/jurek/Downloads/windows-vista-startup.mp3",
-            "applied": "REPLACED with your own file (windows-vista-startup.mp3). Microsoft audio, NOT CC0 — see CREDITS.md."
           }
         },
         {
@@ -488,11 +443,6 @@
             "source": "owner-supplied file: w.mp3",
             "author": "Microsoft Corporation",
             "origTitle": "A Microsoft Windows startup chime, **release not identified**: the file arrived as an unlabelled `w.mp3` with no title metadata. Measured: three struck bell notes, F♯3 → C♯4 → G♯4 over 0.9 s, then a 1.6 s shimmering decay. It is demonstrably neither the XP nor the Vista chime (both supplied separately here and measured differently), and matches the Windows 7 / Windows 8-era startup chime in structure. Named by measurement rather than by guess."
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Chcę to: /Users/jurek/Downloads/w.mp3",
-            "applied": "REPLACED with your own file (w.mp3): an unlabelled Microsoft startup chime, three struck notes F#3 -> C#4 -> G#4 and a 1.6 s tail. NOT CC0 — see CREDITS.md."
           }
         },
         {
@@ -520,11 +470,6 @@
             "source": "owner-supplied file: mac-os-big-sur-startup.mp3",
             "author": "Apple Inc.",
             "origTitle": "Apple macOS Big Sur startup chime — the Mac startup chord, low F♯/G♭ major with a long tail."
-          },
-          "changedSince": {
-            "previousVerdict": "reject",
-            "previousNote": "Chcę to: /Users/jurek/Downloads/mac-os-big-sur-startup.mp3",
-            "applied": "REPLACED with your own file (mac-os-big-sur-startup.mp3). Apple audio, NOT CC0 — see CREDITS.md."
           }
         }
       ]
@@ -908,6 +853,50 @@
             "workHeight": null,
             "licence": "authored in Blender for this project",
             "source": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "avatars-1",
+      "title": "Avatars",
+      "kind": "model",
+      "note": "Three builds, wardrobe pieces switchable, six tint slots. Look at the walk: the trousers should swing like fabric, and the feet should not slide. Known weak spots the builder flagged: hands are two-finger mittens, the hoodie is boxy, the bun reads as short hair from the front, and the glasses are heavy blocks up close.",
+      "items": [
+        {
+          "id": "avatar-broad",
+          "name": "Broad build",
+          "why": "The broad build, 1.795 m — the tallest, and the one a hairstyle could once push past 1.80 m.",
+          "glb": "../assets/avatars/avatar-broad.glb",
+          "meta": {
+            "clips": "idle 4.0 s · walk 1.0 s · sit 3.2 s · sit_idle 2.4 s · type 2.0 s · wave 1.6 s",
+            "wearables": "tops: t-shirt / shirt / hoodie · bottoms: tracksuit / chinos / skirt · shoes: trainers / boots · hair: 6 · cap, glasses",
+            "tints": "top, bottom, shoes, hair, skin, extra",
+            "measured": "foot slide 0.3 mm · trouser hem swing 225 mm peak-to-peak · 1884-3036 triangles worn"
+          }
+        },
+        {
+          "id": "avatar-regular",
+          "name": "Regular build",
+          "why": "The default build, 1.770 m. This is the one you get if you change nothing.",
+          "glb": "../assets/avatars/avatar-regular.glb",
+          "meta": {
+            "clips": "idle 4.0 s · walk 1.0 s · sit 3.2 s · sit_idle 2.4 s · type 2.0 s · wave 1.6 s",
+            "wearables": "tops: t-shirt / shirt / hoodie · bottoms: tracksuit / chinos / skirt · shoes: trainers / boots · hair: 6 · cap, glasses",
+            "tints": "top, bottom, shoes, hair, skin, extra",
+            "measured": "foot slide 0.3 mm · trouser hem swing 225 mm peak-to-peak · 1884-3036 triangles worn"
+          }
+        },
+        {
+          "id": "avatar-slim",
+          "name": "Slim build",
+          "why": "The slim build. 1.740 m dressed, whatever hairstyle is on it.",
+          "glb": "../assets/avatars/avatar-slim.glb",
+          "meta": {
+            "clips": "idle 4.0 s · walk 1.0 s · sit 3.2 s · sit_idle 2.4 s · type 2.0 s · wave 1.6 s",
+            "wearables": "tops: t-shirt / shirt / hoodie · bottoms: tracksuit / chinos / skirt · shoes: trainers / boots · hair: 6 · cap, glasses",
+            "tints": "top, bottom, shoes, hair, skin, extra",
+            "measured": "foot slide 0.3 mm · trouser hem swing 225 mm peak-to-peak · 1884-3036 triangles worn"
           }
         }
       ]
