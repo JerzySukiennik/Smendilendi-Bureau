@@ -294,28 +294,80 @@ export class Office {
     // the fog (40..150 m) lifts them most of the way to the sky colour, which
     // is the aerial perspective the reference relies on; the base colour is
     // deliberately dark so a muted silhouette survives the lift.
-    const skyline = [
-      [-96, -62, 12, 28, 14], [-104, -44, 16, 22, 18], [-92, -28, 10, 30, 12],
-      [-108, -12, 20, 26, 16], [-98, 4, 14, 30, 14], [-106, 22, 18, 24, 20],
-      [-94, 40, 12, 27, 12], [-102, 58, 16, 21, 18], [-110, 76, 22, 25, 22],
+    // THREE BANDS, AND THE BUILDINGS HAVE WINDOWS.
+    //
+    // A critic told ours from the reference inside a second and named this: the
+    // whole exterior was 1 872 triangles over 260 x 260 m, slabs with no
+    // openings, no value separation between near and far, and a flat trapezoid
+    // standing in for a conifer. A city where nothing has a window does not read
+    // as a city at any distance — it reads as painted card, which is what it was.
+    //
+    // So: near, middle and far, each lifted further toward the sky colour (the
+    // aerial perspective the reference leans on, done in vertex tint rather than
+    // by fog alone so the bands separate even where fog is thin), and every block
+    // carries an instanced grid of windows. Windows are the one detail that
+    // makes a distant box read as a building, and at this range they cost a quad
+    // each.
+    const bands = [
+      { z0: -60, z1: 90, x: -52, n: 7, w: [10, 18], h: [10, 20], lift: 0.00, base: 0x6e7d8b },
+      { z0: -70, z1: 100, x: -82, n: 8, w: [12, 22], h: [12, 26], lift: 0.18, base: 0x7b8894 },
+      { z0: -80, z1: 110, x: -116, n: 9, w: [16, 28], h: [14, 30], lift: 0.38, base: 0x8894a0 },
     ];
-    for (const [x, z, w, h, d] of skyline) {
-      b.boxUp(w, h, d, { x, y: -14, z, color: 0x7e8c99 });
-      b.boxUp(w * 0.35, h * 0.18, d * 0.35, { x: x - w * 0.2, y: -14 + h, z: z + d * 0.15, color: 0x7e8c99, shade: 0.9 });
+    const sky = new Color(0xb9cbd9);
+    const winGeo = [];
+    let blockCount = 0;
+    for (const bd of bands) {
+      const tint = new Color(bd.base).lerp(sky, bd.lift);
+      const hex = tint.getHex();
+      for (let i = 0; i < bd.n; i++) {
+        const t = (i + 0.5) / bd.n;
+        const z = bd.z0 + (bd.z1 - bd.z0) * t + ((i * 37) % 11 - 5);
+        const x = bd.x + ((i * 53) % 13 - 6);
+        const w = bd.w[0] + ((i * 29) % 100) / 100 * (bd.w[1] - bd.w[0]);
+        const h = bd.h[0] + ((i * 71) % 100) / 100 * (bd.h[1] - bd.h[0]);
+        const d = w * 0.9;
+        b.boxUp(w, h, d, { x, y: -14, z, color: hex });
+        b.boxUp(w + 0.5, 0.6, d + 0.5, { x, y: -14 + h, z, color: hex, shade: 0.88 });
+        blockCount++;
+        // the window grid on the face that looks back at us (+x side)
+        const cols = Math.max(2, Math.round(w / 3.2));
+        const rows = Math.max(2, Math.round(h / 3.4));
+        const lit = new Color(0xf2e6c8).lerp(tint, 0.35 + bd.lift * 0.4).getHex();
+        const dark = new Color(0x2f3a45).lerp(tint, 0.30 + bd.lift * 0.5).getHex();
+        for (let cxi = 0; cxi < cols; cxi++) {
+          for (let ryi = 0; ryi < rows; ryi++) {
+            const on = ((cxi * 7 + ryi * 13 + i * 5) % 9) < 3;
+            const wx = x + w / 2 + 0.06;
+            const wy = -14 + 1.6 + ryi * (h - 2.6) / Math.max(1, rows - 1);
+            const wz = z - d / 2 + 0.9 + cxi * (d - 1.8) / Math.max(1, cols - 1);
+            b.box(0.08, 1.5, 1.0, { x: wx, y: wy, z: wz, color: on ? lit : dark });
+            winGeo.push(1);
+          }
+        }
+      }
     }
 
     // Tall trees between us and the near roofs: mature spruce, 16-19 m from
     // the ground, so their crowns are the only green that reaches the glass.
     // Three stacked frusta each — a low-poly conifer, the reference's tell 2.
-    const spruce = [[-9.5, -9, 17.5], [-11.5, 1.5, 19], [-9, 11, 16.5], [-12.5, 21, 18], [-10.5, -19, 17]];
-    for (const [x, z, h] of spruce) {
-      b.cylUp(0.32, 0.22, h * 0.55, 6, { x, y: -14, z, color: 0x5b4a3c });
-      const c = [0x5e7b64, 0x66876c, 0x6e9174];
-      for (let t = 0; t < 3; t++) {
-        const base = -14 + h * (0.28 + t * 0.22);
-        b.ccylUp(2.6 - t * 0.6, 0.15, h * 0.30, 7, { x, y: base, z, color: c[t], shade: 0.92 + t * 0.03 });
+    // The conifers get the menu's treatment rather than a trapezoid: five
+    // stacked frusta with a slight taper and a small tilt each, so no two read
+    // as the same silhouette, plus a trunk that shows below the lowest skirt.
+    const spruce = [[-9.5, -9, 17.5], [-11.5, 1.5, 19], [-9, 11, 16.5], [-12.5, 21, 18], [-10.5, -19, 17], [-8.5, 30, 15.5]];
+    spruce.forEach(([x, z, h], si) => {
+      b.cylUp(0.34, 0.20, h * 0.34, 6, { x, y: -14, z, color: 0x574536 });
+      const greens = [0x4f6c58, 0x577460, 0x5f7c66, 0x67856e, 0x6f8d76];
+      const lean = ((si * 31) % 7 - 3) * 0.012;
+      for (let t = 0; t < 5; t++) {
+        const f = t / 4;
+        const base = -14 + h * (0.20 + f * 0.17);
+        const rad = 2.9 * (1 - f * 0.78);
+        b.ccylUp(rad, rad * 0.30, h * 0.24, 7, {
+          x: x + lean * t * h * 0.1, y: base, z, color: greens[t],
+          shade: 0.90 + t * 0.025,
+        });
       }
-    }
+    });
 
     for (const { mat, geometry } of b.build()) {
       const m = new Mesh(geometry, builderMaterial(mat));
