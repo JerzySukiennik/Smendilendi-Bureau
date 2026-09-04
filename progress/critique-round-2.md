@@ -456,3 +456,65 @@ starting exactly on the node. Fix `src/editor/camera.js:431` to map through
 above it already uses. Then add the standing check that would have caught it: with the
 editor on a monitor, project a known model node, place the cursor there, and assert the
 snap name is `Endpoint`. Every inference in the program is gated on this one function.
+
+---
+
+# Scores
+
+| Bar | Score | Change from round 1 |
+|---|---|---|
+| Architect Life finish checklist (office + menu) | **15/15** | held; both round-1 exceptions (flat west wall, nothing beyond the glass) cleared |
+| SketchUp click counts + gates (editor) | **8/9** — 5/5 benchmarks, 3/4 gates | down from 6/6, because the inference gate now fails in the shipping configuration (editor on the monitor), which round 1 could not see |
+| Retro OS authenticity, tier 1 | **20/20**, `retroGuard()` passes (9 colours bare, 13 loaded, 0 off-palette) | held |
+
+Round-1 findings re-tested: **partition flat slab — fixed** (vertical ramp 47 -> 27
+luma over 340 px); **west wall flat — fixed** (141 -> 87 into the floor junction);
+**nothing beyond the glass — partly fixed** (geometry exists, but 1 872 triangles of
+untextured slab); **buildable area is decoration — fixed** (red ghost + hard refusal);
+**`selftest.js:280` asserts `KeyR -> rect`** — I did not re-check this one.
+
+# The three things that would most improve this game, hardest first
+
+## 1. Make the editor's inference work where the player actually uses it — and stop testing the editor anywhere else
+
+The three-line coordinate fix in `camera.js:431` is easy. The hard part is that this
+class of bug is structural: the editor has two configurations (standalone harness, and
+inside the monitor), the harness is the one every critic and every self-test has ever
+driven, and the monitor is now the only one a player can reach. Round 1 scored this
+gate 4/4 on the harness while it was already broken in the game. **The fix is to retire
+the harness as the place correctness is proved.** Move `src/editor/selftest.js` — and
+every future editor check — onto a session that boots the office, focuses a
+workstation, opens the Design app, and drives the render-target path, with at least
+these three assertions: the cursor over a known node reports `Endpoint`; a wall run
+sweeping the viewport reports `On Red Axis` and `On Blue Axis`; `toScreen(p)` and the
+cursor pixel agree to within 2 px for a point under the cursor. Until that exists,
+"the editor works" is a statement about a page no player opens.
+
+## 2. Give the world outside the window three depth bands and the buildings windows
+
+This is the one thing that gives our render away against the reference, and it is the
+last item on the Architect Life bar that is failing in spirit while passing on numbers.
+The entire exterior — everything seen through every window of the office, and the
+context around every plot in the editor — is **1 872 triangles over a 260 x 260 m
+bounding box**: flat slabs with no fenestration, no value separation with distance,
+and a trapezoid standing in for a conifer. Fixes, in order of value per hour:
+give each block an instanced window grid (one draw call); lift mid and far blocks
+~15 % and ~35 % toward the sky colour so aerial perspective does the depth work; swap
+the trapezoid for the cone-stack conifer already built for the menu scene. Verify by
+measuring three luma bands separated by >= 15/255 across the exterior seen through one
+window, and no single flat facade larger than 2 % of the frame.
+
+## 3. Make the game survive its own last commit
+
+The build at HEAD **does not start**: one undefined property (`this.tagRing`, left
+behind when the survey tags were switched off) throws in `MenuMode.update()` on frame
+one, the engine stops the loop, and there is no menu. The commit immediately after the
+one that caused it records an end-to-end proof reading `menu -> office | ok`, because
+that proof drove the game's internals and never let the loop render a menu frame. The
+code fix is four guards; the thing worth fixing is the proof. **A run that does not
+start from a cold page load with the engine's own loop running is not an end-to-end
+proof**, and a build that has one should refuse to be called green. The cheapest
+possible guard: a smoke page that loads `/`, waits for `engine.frame > 5` and
+`renderer.info.render.calls > 0`, and fails otherwise. Both this crash and the
+inference bug would have been caught by it — the first outright, the second by the
+inference assertion in item 1 riding the same harness.
