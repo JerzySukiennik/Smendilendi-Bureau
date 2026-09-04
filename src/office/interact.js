@@ -15,8 +15,9 @@
 
 import {
   Vector3, Vector2, Quaternion, Raycaster, LineSegments, EdgesGeometry,
-  LineBasicMaterial, Group, Mesh, BoxGeometry, MeshBasicMaterial, MathUtils,
-  CanvasTexture, PlaneGeometry, SRGBColorSpace,
+  LineBasicMaterial, Group, Mesh, BoxGeometry, MeshBasicMaterial,
+  MathUtils, CanvasTexture, PlaneGeometry, SRGBColorSpace, BufferGeometry,
+  BackSide
 } from 'three';
 import { MeshBuilder, builderMaterial, propMug, propCrumpledPaper, OFFICE } from './props.js';
 
@@ -46,10 +47,26 @@ export class Interaction {
     // partitions, so it advertised things the player could not see — and with
     // the occlusion test below in place, a hover that survives to be drawn is by
     // definition unoccluded, which means the outline never needs to cheat.
-    this.outline = new LineSegments(new EdgesGeometry(new BoxGeometry(1, 1, 1)),
-      new LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthTest: true, toneMapped: false }));
-    this.outline.renderOrder = 10;
+    // THE OUTLINE FOLLOWS THE OBJECT'S OWN SHAPE. It used to be one wireframe
+    // BOX scaled to the bounding box, so a task chair, a kettle and a plant all
+    // advertised themselves as the same rectangle — and at 1 px it was a
+    // hairline you had to hunt for across the room. Now the edges come from the
+    // hovered mesh's own geometry (cached per geometry, built once), and it is
+    // drawn as a thick shell: the mesh again, slightly inflated along its
+    // normals, in BackSide, which gives an even outline at any distance without
+    // needing line-width support the platform does not have.
+    this.outline = new Group();
+    this.outlineEdges = new LineSegments(new BufferGeometry(),
+      new LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.98, depthTest: true, toneMapped: false }));
+    this.outlineShell = new Mesh(new BufferGeometry(), new MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.34, side: BackSide,
+      depthTest: true, depthWrite: false, toneMapped: false,
+    }));
+    this.outline.add(this.outlineShell, this.outlineEdges);
+    this.outlineEdges.renderOrder = 11;
+    this.outlineShell.renderOrder = 10;
     this.outline.visible = false;
+    this._edgeCache = new Map();          // geometry.uuid -> EdgesGeometry
     this.scene.add(this.outline);
 
     this.focus = null;              // { workstation, t, dir, from:{pos,quat,fov}, to:{...} }
@@ -148,19 +165,32 @@ export class Interaction {
   _fitOutline(obj) {
     obj.updateWorldMatrix(true, false);
     const g = obj.geometry;
-    if (!g.boundingBox) g.computeBoundingBox();
-    const bb = g.boundingBox;
-    this.outline.scale.set(
-      Math.max(0.02, bb.max.x - bb.min.x) * 1.02,
-      Math.max(0.02, bb.max.y - bb.min.y) * 1.02,
-      Math.max(0.02, bb.max.z - bb.min.z) * 1.02 + 0.006,
-    );
-    obj.getWorldPosition(this._v);
-    const cx = (bb.max.x + bb.min.x) / 2, cy = (bb.max.y + bb.min.y) / 2, cz = (bb.max.z + bb.min.z) / 2;
-    this.outline.position.copy(this._v).add(
-      new Vector3(cx, cy, cz).applyQuaternion(obj.getWorldQuaternion(this._q)),
-    );
+    if (!g) return;
+    // Edges of THIS shape, computed once per geometry. 24 degrees keeps a
+    // low-poly silhouette (a mug's barrel, a chair's five-star base) without
+    // drawing every triangle of a bevel.
+    // Prefer the real prop's silhouette when the office attached one: the
+    // pickable mesh is a cheap invisible box (a plant is a miserable thing to
+    // raycast), so outlining IT would be outlining the box again.
+    const shape = obj.userData?.outlineGeometry || g;
+    let edges = this._edgeCache.get(shape.uuid);
+    if (!edges) { edges = new EdgesGeometry(shape, 24); this._edgeCache.set(shape.uuid, edges); }
+    if (this.outlineEdges.geometry !== edges) this.outlineEdges.geometry = edges;
+    if (this.outlineShell.geometry !== shape) this.outlineShell.geometry = shape;
+
+    // The shell is the same mesh grown a little, so the white reads as a rim
+    // around the object rather than a box around its extent. The amount scales
+    // with the object so a mug and a plan chest both get a visible edge.
+    if (!shape.boundingSphere) shape.computeBoundingSphere();
+    const r = shape.boundingSphere?.radius || 0.2;
+    const grow = 1 + Math.min(0.06, Math.max(0.012, 0.02 / Math.max(0.08, r)));
+    this.outlineShell.scale.setScalar(grow);
+
+    // Match the hovered mesh exactly: same world position, rotation and scale.
+    obj.matrixWorld.decompose(this._v, this._q, this._s || (this._s = new Vector3(1, 1, 1)));
+    this.outline.position.copy(this._v);
     this.outline.quaternion.copy(this._q);
+    this.outline.scale.copy(this._s);
   }
 
   // -- the monitor transition -----------------------------------------------

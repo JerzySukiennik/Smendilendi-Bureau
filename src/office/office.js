@@ -1114,12 +1114,48 @@ export class Office {
 
   // -- interactables ---------------------------------------------------------
 
-  _proxy(x, y, z, w, h, d, ry = 0) {
+  _proxy(x, y, z, w, h, d, ry = 0, shape = null) {
     const m = new Mesh(new BoxGeometry(w, h, d), new MeshBasicMaterial({ visible: false }));
     m.position.set(x, y, z);
     m.rotation.y = ry;
+    // The hover outline follows the OBJECT, not its bounding box (Jurek, item
+    // 15). Ray-picking still uses this cheap box — a plant's silhouette is a
+    // miserable thing to raycast against — but `outlineGeometry` gives the
+    // highlight the prop's own shape. `shape` is { fn, opts, at } naming the
+    // same prop function and placement the room was built from, so the two can
+    // never drift: bakeProp() re-runs the generator, the parts are merged, and
+    // the result is expressed in the proxy's local space.
+    if (shape) m.userData.outlineGeometry = this._outlineGeometry(shape, { x, y, z, ry });
     this.scene.add(m);
     return m;
+  }
+
+  /** One merged geometry for a prop, in a proxy's local space. Cached by key. */
+  _outlineGeometry(shape, proxy) {
+    const key = shape.key || shape.fn?.name || 'prop';
+    this._outlineCache = this._outlineCache || new Map();
+    const hit = this._outlineCache.get(key);
+    if (hit) return hit;
+    let geo = null;
+    try {
+      const parts = bakeProp(shape.fn, shape.opts || {});
+      const geos = parts.map((p) => p.geometry.clone());
+      if (!geos.length) return null;
+      geo = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+      for (const g of geos) if (g !== geo) g.dispose();
+      if (!geo) return null;
+      // bakeProp works in the prop's own space with its origin on the floor;
+      // move it into the proxy's local space so the outline lands on the object.
+      const at = shape.at || {};
+      const m = new Matrix4().makeRotationY((at.ry || 0) - (proxy.ry || 0));
+      m.setPosition((at.x || 0) - proxy.x, (at.y || 0) - proxy.y, (at.z || 0) - proxy.z);
+      geo.applyMatrix4(m);
+    } catch (err) {
+      console.warn('[office] outline geometry failed for', key, err);
+      return null;
+    }
+    this._outlineCache.set(key, geo);
+    return geo;
   }
 
   _registerInteractables() {
@@ -1150,7 +1186,8 @@ export class Office {
     }
 
     // coffee machine
-    const cm = this._proxy(14.55, 1.12, 7.30, 0.50, 0.50, 0.36);
+    const cm = this._proxy(14.55, 1.12, 7.30, 0.50, 0.50, 0.36, 0,
+      { key: 'coffeeMachine', fn: PROPS.coffeeMachine, at: { x: 14.62, y: 0.90, z: 7.30, ry: -Math.PI / 2 } });
     I.register({
       id: 'coffee', mesh: cm, label: 'Coffee machine', verb: 'Pour a cup',
       onUse: () => {
@@ -1161,7 +1198,8 @@ export class Office {
     });
 
     // radio
-    const rd = this._proxy(12.20, 1.00, 0.60, 0.34, 0.24, 0.22, 0.35);
+    const rd = this._proxy(12.20, 1.00, 0.60, 0.34, 0.24, 0.22, 0.35,
+      { key: 'radio', fn: PROPS.radio, at: { x: 12.20, y: 0.90, z: 0.60, ry: 0.35 } });
     I.register({
       id: 'radio', mesh: rd, label: 'Radio', verb: 'Next station',
       onUse: (it) => this.cycleRadio(it),
@@ -1183,7 +1221,8 @@ export class Office {
     });
 
     // bin
-    const bn = this._proxy(11.30, 0.20, 4.10, 0.34, 0.40, 0.34);
+    const bn = this._proxy(11.30, 0.20, 4.10, 0.34, 0.40, 0.34, 0,
+      { key: 'bin', fn: PROPS.bin, at: { x: 11.30, y: 0, z: 4.10 } });
     I.register({
       id: 'bin', mesh: bn, label: 'Bin', verb: 'Empty',
       onUse: () => this.toast('Emptied. Someone has to.'),
@@ -1202,14 +1241,16 @@ export class Office {
     }
 
     // corkboard -> the brief
-    const cb = this._proxy(7.70, 1.55, 0.10, 1.60, 1.10, 0.10);
+    const cb = this._proxy(7.70, 1.55, 0.10, 1.60, 1.10, 0.10, 0,
+      { key: 'corkboard', fn: PROPS.corkboard, opts: { w: 1.60, h: 1.10 }, at: { x: 7.70, y: 1.55, z: 0.030 } });
     I.register({
       id: 'corkboard', mesh: cb, label: 'The brief', verb: 'Read',
       onUse: () => this.showBrief(),
     });
 
     // plan chest
-    const pc = this._proxy(12.90, 0.50, 1.16, 1.37, 0.90, 0.10);
+    const pc = this._proxy(12.90, 0.50, 1.16, 1.37, 0.90, 0.10, 0,
+      { key: 'planChest', fn: PROPS.planChest, at: { x: 12.90, y: 0, z: 0.72 } });
     I.register({
       id: 'planchest', mesh: pc, label: 'Plan chest', verb: 'Open a drawer',
       onUse: () => {
@@ -1664,7 +1705,7 @@ export class Office {
       <div class="reticle"></div>
       <div class="stack tl roster" id="office-roster"></div>
       <div class="stack tr" id="office-tr"></div>
-      <div class="stack bl"><div class="prompt" id="office-prompt"></div></div>
+      <div class="prompt-centre"><div class="prompt" id="office-prompt"></div></div>
       <div class="stack br" id="office-br"></div>`;
     uiRoot.appendChild(el);
     this.hudEl = el;

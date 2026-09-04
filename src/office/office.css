@@ -84,6 +84,20 @@
 }
 #office-hud .chip .value.accent { color: var(--accent); }
 
+/* THE PROMPT SITS UNDER THE CROSSHAIR, not in a corner. Jurek, item 16: the
+   bottom-left is nowhere near where the player is looking. The crosshair is at
+   the centre of the canvas, so this band is centred and offset just below it —
+   the eye is already there, and the object being offered is right above it. */
+#office-hud .prompt-centre {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 26px);
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
 #office-hud .prompt {
   background: var(--chip);
   border: 1px solid var(--line);
@@ -98,6 +112,8 @@
   max-width: 340px;
 }
 #office-hud .prompt.on { opacity: 1; transform: none; }
+/* centred, so it grows from the middle rather than off to one side */
+#office-hud .prompt-centre .prompt { text-align: center; white-space: nowrap; }
 #office-hud .prompt kbd {
   display: inline-block;
   min-width: 15px;
