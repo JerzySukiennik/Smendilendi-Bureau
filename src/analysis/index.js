@@ -48,7 +48,12 @@ export function runAnalysis(model, brief = {}) {
     ...program.issues, ...site.issues,
   ]);
   const score = scoreOf(issues);
-  const accepted = !issues.some(i => i.severity === 'blocker' || i.severity === 'major');
+  // Acceptance turns on BLOCKERS alone. It used to need zero majors as well,
+  // which meant a tight corridor or a dim bedroom could refuse a whole house —
+  // exactly the "too demanding" Jurek reported. Majors still count against the
+  // score, still appear in the letter, and still cost fee and reputation; they
+  // just do not send the drawings back a second time.
+  const accepted = !issues.some(i => i.severity === 'blocker');
 
   return {
     score,

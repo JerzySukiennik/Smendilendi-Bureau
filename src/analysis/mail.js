@@ -150,8 +150,9 @@ function budgetLine(report, brief) {
   const c = report?.metrics?.cost;
   if (!c || !c.budget) return null;
   const diff = c.total - c.budget;
-  if (diff > 0) return `The bill as drawn is ${money(c.total)} against ${money(c.budget)} — ${money(diff)} over.`;
-  return `The bill as drawn is ${money(c.total)} against ${money(c.budget)}, so we are inside the budget by ${money(-diff)}.`;
+  // The one number a letter is allowed, and only when it is the point.
+  if (diff > 0) return `The bill as drawn is ${money(c.total)} against my ${money(c.budget)} — ${money(diff)} over.`;
+  return `And it comes in under the budget, which I had not dared expect.`;
 }
 
 /**
@@ -175,31 +176,31 @@ export function revisionMail(report, brief = {}) {
   // The LETTER just leads with the few that matter most, in severity order, and
   // says plainly that there is more underneath rather than pretending there is
   // not. Fix these, resubmit, and the next letter surfaces the next ones.
+  // A client refuses only over BLOCKERS, and he names every one of them — the
+  // rule is that he never signs off under protest for something he did not
+  // mention. Majors fill the list up to three; anything beyond that waits, and
+  // since majors no longer refuse (see runAnalysis), waiting costs the player
+  // nothing but a gentler second letter. "...and 10 more of the same sort" is
+  // gone: that line was a refusal dressed as feedback, and it is what made
+  // Jurek put the game down.
   const MUST_SHOWN = 3;
   const NICE_SHOWN = 1;
-  const allMust = issues.filter(i => i.severity === 'blocker' || i.severity === 'major');
+  const blockersAll = issues.filter(i => i.severity === 'blocker');
+  const majorsAll = issues.filter(i => i.severity === 'major');
   const allNice = issues.filter(i => i.severity === 'minor');
-  const must = allMust.slice(0, MUST_SHOWN);
+  const must = [...blockersAll, ...majorsAll].slice(0, Math.max(MUST_SHOWN, blockersAll.length));
   const nice = allNice.slice(0, NICE_SHOWN);
-  const hiddenMust = allMust.length - must.length;
-  const blockers = issues.filter(i => i.severity === 'blocker').length;
-  const majors = issues.filter(i => i.severity === 'major').length;
 
   const lines = [];
   lines.push(tone.greet(brief));
   lines.push('');
-  lines.push(`${tone.opener()} ${tone.tally(blockers, majors, nice.length)}`);
+  // The tally counts what is IN the letter, so "three points" means three points.
+  lines.push(`${tone.opener()} ${tone.tally(must.length, 0, nice.length)}`);
 
   if (must.length) {
     lines.push('');
     lines.push(tone.mustLead);
     for (const i of must) lines.push(bullet(i));
-    // Honest about the rest rather than silently hiding it. One sentence, no list.
-    if (hiddenMust > 0) {
-      lines.push(hiddenMust === 1
-        ? '  - ...and one more of the same sort, which I will point out once these are sorted.'
-        : `  - ...and ${hiddenMust} more of the same sort. Sort these first and we will get to them.`);
-    }
   }
   if (nice.length) {
     lines.push('');
