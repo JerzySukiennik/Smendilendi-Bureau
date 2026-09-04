@@ -102,6 +102,16 @@ export function formatCode(code) {
  * kept in localStorage so a reload rejoins as the same person.
  */
 export function playerIdFor(storageKey = 'smendilendi.pid') {
+  // Test override: two tabs of one browser share localStorage and therefore
+  // one identity, so a two-tab multiplayer check silently collapses into one
+  // player replacing itself. `?pid=<name>` gives a tab its own id without
+  // touching the stored one — for harnesses only; real players never pass it.
+  try {
+    const q = new URLSearchParams(globalThis.location?.search || '');
+    const forced = q.get('pid');
+    if (forced && /^[a-z0-9_-]{2,32}$/i.test(forced)) return 'p' + forced.toLowerCase();
+  } catch (_) { /* no location in node */ }
+
   const fresh = () => 'p' + generateCode(12).toLowerCase();
   try {
     const store = globalThis.localStorage;
