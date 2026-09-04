@@ -1382,6 +1382,12 @@ export class MenuMode extends Mode {
     if (session) {
       this.ctx.net = session;
       if (this.ctx.app) this.ctx.app.net = session;
+      // Wire the loop to the session NOW, not on the next frame. The loop
+      // otherwise discovers ctx.net from its per-frame tick, and a tab that is
+      // not on screen gets no frames — so the roster bridge (loop._wireNet)
+      // never ran for a background tab and the office seated nobody. A session
+      // exists at exactly one moment, this one; the loop should hear about it here.
+      this.ctx.loop?._wireNet?.();
       state?.patch({
         'session.code': session.code,
         'session.host': !!session.isHost,

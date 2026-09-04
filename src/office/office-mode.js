@@ -31,10 +31,17 @@ export class OfficeMode extends Mode {
     // Seat whoever is in the session. In single player that is one architect.
     const state = ctx.state;
     const players = Object.values(state?.get('players') || {});
-    const me = players.find((p) => p.id === state?.get('session.playerId'))
-      || players[0]
-      || { id: 'local', nick: state?.get('session.nick') || 'Architect', color: '#e2725b' };
-    this.office.assignPlayers([me, ...players.filter((p) => p.id !== me.id)]);
+    // Desks are dealt in ROSTER order — join order — the same on every client,
+    // so two players agree on who sits where. The local player is whoever the
+    // roster says they are, not forced to desk 1; forcing `me` first here and
+    // then re-seating in roster order on the first 'players' event reshuffled
+    // the room in front of a joining player. Single player: one entry, desk 1.
+    const myId = state?.get('session.playerId');
+    const me = players.find((p) => p.id === myId);
+    const seated = players.length ? players
+      : [{ id: 'local', nick: state?.get('session.nick') || 'Architect', color: '#e2725b', local: true }];
+    if (me) me.local = true;
+    this.office.assignPlayers(seated);
 
     // 'office.drop' is not a global binding — the office adds it for the mug.
     ctx.input?.rebind('office.drop', ['KeyG']);

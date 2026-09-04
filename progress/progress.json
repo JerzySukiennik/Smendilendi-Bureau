@@ -968,7 +968,23 @@
    "status": "pass",
    "headline": "Client letters in plain words: no measurements, every blocker named, no hidden tail, one number at most (the budget, only when over). Acceptance on blockers alone; three severities demoted.",
    "at": "2026-09-04T06:06:23.850Z"
+  },
+  {
+   "piece": "analysis",
+   "role": "builder",
+   "round": 3,
+   "status": "pass",
+   "headline": "Acceptance = no blockers AND score >= 50 (a 0/100 house was being accepted). Smoke fixture asks the generator for a rect plot sized for its house; first 0/100 refused, revision 94/100 accepted, street-crossing control refused.",
+   "at": "2026-09-04T07:35:54.587Z"
+  },
+  {
+   "piece": "net",
+   "role": "builder",
+   "round": 3,
+   "status": "pass",
+   "headline": "Multiplayer transport proven over the live database with two identities: join by code, [Ada, Bo] on both sides, an op and a chat line from the host received by the guest. Root cause of every failed join: the rules did not allow the bot flag.",
+   "at": "2026-09-04T19:17:59.257Z"
   }
  ],
- "updated": "2026-09-04T06:06:23.850Z"
+ "updated": "2026-09-04T19:17:59.257Z"
 }

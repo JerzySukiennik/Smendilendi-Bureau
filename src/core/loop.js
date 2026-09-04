@@ -95,6 +95,22 @@ export class GameLoop {
     net.on('op', publish);
     net.on('snapshot', publish);
     if (net.model) this.state.set('model', net.model);
+    // THE ROSTER. The office seats whoever is in `state.players` and subscribes
+    // to it (office-mode.js) — but nobody ever wrote the session's roster INTO
+    // state.players. So two players could share an office over the live
+    // database, trade ops and chat, and still each see three desks reading
+    // "Architect / – / –" and no avatar of the other. Measured 2026-09-04 with
+    // two identities (?pid=ada / ?pid=bo): both sessions held [Ada, Bo], both
+    // offices seated nobody. This is the missing bridge: every 'players' event
+    // becomes state.players, keyed by id, local player first.
+    const roster = (list) => {
+      const arr = Array.isArray(list) ? list : Object.values(list || {});
+      const byId = {};
+      for (const p of arr) if (p && p.id) byId[p.id] = { ...p, local: p.id === net.playerId };
+      this.state.set('players', byId);
+    };
+    net.on('players', roster);
+    if (net.players && (Array.isArray(net.players) ? net.players.length : Object.keys(net.players).length)) roster(net.players);
   }
 
   _onMode(id) {

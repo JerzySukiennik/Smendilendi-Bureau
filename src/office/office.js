@@ -1336,7 +1336,13 @@ export class Office {
       if (ws.assigned && (ws.player?.id ?? null) === (p?.id ?? null)) continue;
       ws.assign(p, { tier: this.upgrades.computer, ctx: this.ctx }).then(() => this._auditScreens());
     }
-    this._syncAvatars(list.slice(1));
+    // Avatars are everyone who is NOT me. This used to be `list.slice(1)`,
+    // which assumes the local player is always first — true in single player,
+    // false the moment you join somebody else's office, where the roster is in
+    // join order. Measured 2026-09-04: Bo joined Ada, his office grew an avatar
+    // of Bo and none of Ada.
+    const myId = this.ctx?.state?.get('session.playerId') ?? this.ctx?.net?.playerId ?? null;
+    this._syncAvatars(list.filter((p) => !p.local && p.id !== myId));
     this.refreshHud();
   }
 
