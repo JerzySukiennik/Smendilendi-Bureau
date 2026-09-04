@@ -301,6 +301,13 @@ export class MeshBuilder {
         }
       }
       if (opts.shade !== undefined) k *= opts.shade;
+      // A caller-supplied ramp, in prop space (the geometry has already had its
+      // matrix applied by the time we get here). This exists because the built-in
+      // AO only ever darkens the bottom `AO.floorReach` metres of a prop: anything
+      // taller than that — a 1.35 m felt partition — renders as one dead uniform
+      // slab above the first 0.42 m, and a critic picked our frame out of a blind
+      // A/B by that slab alone. `grad` lets a prop shade its own height.
+      if (opts.grad) k *= opts.grad(pos.getX(i), pos.getY(i), pos.getZ(i));
       col[i * 3] = cr * k; col[i * 3 + 1] = cg * k; col[i * 3 + 2] = cb * k;
     }
     geo.setAttribute('color', new BufferAttribute(col, 3));
@@ -1628,7 +1635,23 @@ export function propPartition(b, o = {}) {
   const y0 = 0.10;                     // the panel starts above the feet
   const rail = 0.032;
   // felt panel, recessed inside the frame on both faces
-  b.cboxUp(w - 2 * rail, h - y0 - rail, 0.030, { y: y0 + rail / 2, color: felt, c: 0.004 });
+  // The felt panel used to be one uniform rectangle from 0.12 m to 1.33 m — the
+  // single loudest tell in the office's blind A/B against the finish bar. Felt
+  // in a real room is never that even: it sits in the desk's shadow at the
+  // bottom, catches the pendants at the top, and its 30 mm side returns face
+  // away from the light. So: darker at the base easing to full at the top edge,
+  // and the stile-side returns pulled down a step.
+  const panelBottom = y0 + rail / 2, panelTop = h - rail / 2;
+  const halfW = (w - 2 * rail) / 2;
+  b.cboxUp(w - 2 * rail, h - y0 - rail, 0.030, {
+    y: y0 + rail / 2, color: felt, c: 0.004,
+    grad: (x, y) => {
+      const t = Math.min(1, Math.max(0, (y - panelBottom) / (panelTop - panelBottom)));
+      const vertical = 0.74 + 0.26 * (t * t * (3 - 2 * t));
+      const side = Math.abs(x) > halfW - 0.012 ? 0.84 : 1;
+      return vertical * side;
+    },
+  });
   // frame: two stiles, a head and a sill, 32 mm aluminium
   for (const sx of [-1, 1]) {
     b.cboxUp(rail, h - y0, 0.044, { x: sx * (w / 2 - rail / 2), y: y0, color: frame, mat: 'metal', c: 0.004 });
