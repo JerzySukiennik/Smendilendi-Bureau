@@ -1024,7 +1024,23 @@
    "status": "pass",
    "headline": "Full arc proven end to end in the browser: menu -> office -> commission + brief in Mail -> editor inside the monitor -> draw -> submit (report) -> revision phase + client letter -> resubmit -> walkthrough with 20 NPCs and 1400 presim steps. Mail newest-first: acceptance, revision, brief.",
    "at": "2026-09-04T22:28:19.036Z"
+  },
+  {
+   "piece": "editor",
+   "role": "builder",
+   "round": 7,
+   "status": "pass",
+   "headline": "Building outside the grey buildable area is refused at the op level, not warned after the fact: 0 walls added outside, 4 inside, reason flashed.",
+   "at": "2026-09-04T22:45:52.506Z"
+  },
+  {
+   "piece": "os",
+   "role": "builder",
+   "round": 4,
+   "status": "pass",
+   "headline": "Retro gate pinned to tiers 1-2 and made survivable: modern tiers are skipped not failed, the Win98 title ramp is forgiven by colour, and a structural check forbids rgba/blur/rounded corners in the shared surface. Tier 1: 9 colours, tier 2: 10 off-ramp, no leaks.",
+   "at": "2026-09-04T23:34:43.388Z"
   }
  ],
- "updated": "2026-09-04T22:28:19.036Z"
+ "updated": "2026-09-04T23:34:43.388Z"
 }

@@ -1224,24 +1224,32 @@ export class MenuMode extends Mode {
       this.hoverTag = tag;
       if (tag >= 0) {
         this._showTagCard(tag);
-        this.tagRing.visible = true;
+        if (this.tagRing) this.tagRing.visible = true;
         this.ctx?.audio?.play('ui.click-soft');
       } else if (this.pinnedTag < 0) {
         this.lobby?.hideTag();
-        this.tagRing.visible = false;
+        if (this.tagRing) this.tagRing.visible = false;
       } else {
         this._showTagCard(this.pinnedTag);
       }
     }
     // the ring rides the hovered (or pinned) disc, which is now a moving target
     const ringOn = this.hoverTag >= 0 ? this.hoverTag : this.pinnedTag;
-    if (ringOn >= 0) {
-      const fwd = this._tagTmp.fwd;
-      this._tagPos(ringOn, this.tagRing.position).addScaledVector(fwd, 0.44);
-      this.tagRing.quaternion.copy(this.camera.quaternion);
-      this.tagRing.visible = true;
-    } else {
-      this.tagRing.visible = false;
+    // The ring belongs to the survey tags. With SHOW_SURVEY_TAGS off there are
+    // no tags and no ring, and this ran unguarded on EVERY frame where nothing
+    // was hovered — so turning the tags off threw on frame 1, Engine._tick
+    // caught it and stopped the loop, and the game never drew a menu. Guard the
+    // whole block, not just the assignment: with no tags there is nothing here
+    // to do at all.
+    if (this.tagRing) {
+      if (ringOn >= 0) {
+        const fwd = this._tagTmp.fwd;
+        this._tagPos(ringOn, this.tagRing.position).addScaledVector(fwd, 0.44);
+        this.tagRing.quaternion.copy(this.camera.quaternion);
+        this.tagRing.visible = true;
+      } else {
+        this.tagRing.visible = false;
+      }
     }
 
     let item = -1;

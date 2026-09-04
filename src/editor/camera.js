@@ -374,7 +374,13 @@ export class EditorCameras {
    * on-screen rectangle first. Set by the office each frame from the projected
    * corners of the screen quad; every caller of ndcFromPixel gets it for free.
    */
-  setViewportRect(rect) { this.viewportRect = rect || null; }
+  setViewportRect(rect) {
+    // A degenerate rectangle is worse than none: a hidden pane reports a canvas
+    // of zero CSS size, which collapsed every projected point onto a 2x1 px box
+    // and would make snapping wilder than the bug this fixes. Below a sane
+    // minimum, fall back to the render target's own space.
+    this.viewportRect = (rect && rect.w >= 8 && rect.h >= 8) ? rect : null;
+  }
 
   /** NDC (-1..1) from a canvas-relative pixel position. */
   ndcFromPixel(px, py, out = new Vector2()) {
@@ -428,16 +434,38 @@ export class EditorCameras {
   }
 
   /** Project a world point to canvas pixels. */
+  /**
+   * A world point in the SAME pixel space the cursor arrives in.
+   *
+   * This is the other half of setViewportRect, and it was missing. Snapping
+   * compares toScreen(point) against the cursor pixel with a ~14 px tolerance
+   * (snapping.js). While the editor runs on the in-game monitor the render
+   * target is the machine's own resolution (806x480) and the cursor is in
+   * canvas pixels (1600x900), so the two were measured in different spaces:
+   * a cursor sitting exactly on a wall node measured a 437 px gap, and over
+   * four corners of a clean room 484.9 / 429.5 / 429.5 / 484.4 px. No point
+   * inference could EVER fire on the monitor — only the `On Face` fallback —
+   * which is exactly the reported "no way to draw a wall from one wall end to
+   * another". ndcFromPixel already re-bases the cursor; this re-bases the
+   * point, so both live in canvas pixels and the tolerance means something.
+   */
   toScreen(p, out = new Vector2()) {
     this._tmp.copy(p).project(this.camera);
+    const r = this.viewportRect;
+    if (r && r.w > 0 && r.h > 0) {
+      return out.set(r.x + (this._tmp.x * 0.5 + 0.5) * r.w, r.y + (-this._tmp.y * 0.5 + 0.5) * r.h);
+    }
     return out.set((this._tmp.x * 0.5 + 0.5) * this.width, (-this._tmp.y * 0.5 + 0.5) * this.height);
   }
 
   /** Metres per CSS pixel at a world point — drives every screen-space tolerance. */
   metresPerPixel(at) {
-    if (this.camera.isOrthographicCamera) return this.planHeight / this.height;
+    // Same correction: a tolerance in CSS pixels has to be converted at the
+    // scale the player actually sees, not the render target's.
+    const h = (this.viewportRect && this.viewportRect.h > 0) ? this.viewportRect.h : this.height;
+    if (this.camera.isOrthographicCamera) return this.planHeight / h;
     const d = this.camera.position.distanceTo(at ?? this.target);
-    return (2 * Math.tan(MathUtils.degToRad(this.camera.fov * 0.5)) * d) / this.height;
+    return (2 * Math.tan(MathUtils.degToRad(this.camera.fov * 0.5)) * d) / h;
   }
 
   // -- input -----------------------------------------------------------------
