@@ -146,6 +146,36 @@ function bullet(issue) {
   return `  - ${issue.clientText}`;
 }
 
+/**
+ * Two identical complaints about two rooms read as a form letter: "The way to
+ * the store gets too tight…" followed by "The way to the kitchen gets too
+ * tight…". A person says it once and names both rooms. Issues that share a
+ * code and differ only in the room are folded into one bullet; anything else
+ * is left alone, because merging different complaints would lose the verb.
+ */
+function foldSameCode(list) {
+  const out = [];
+  const seen = new Map();
+  for (const i of list) {
+    const key = i.code;
+    const room = String(i.roomId ?? '');
+    const prev = seen.get(key);
+    if (prev && prev.rooms && room && !prev.rooms.includes(room) && i.roomName) {
+      prev.rooms.push(room); prev.names.push(i.roomName);
+      continue;
+    }
+    const entry = { ...i, rooms: room ? [room] : null, names: i.roomName ? [i.roomName] : [] };
+    seen.set(key, entry);
+    out.push(entry);
+  }
+  return out.map((e) => {
+    if (e.names.length < 2 || !e.roomName) return e;
+    const all = e.names.slice(0, -1).join(', ') + ' and ' + e.names[e.names.length - 1];
+    // replace the first occurrence of the single room name with the list
+    return { ...e, clientText: e.clientText.replace(e.roomName, all) };
+  });
+}
+
 function budgetLine(report, brief) {
   const c = report?.metrics?.cost;
   if (!c || !c.budget) return null;
@@ -200,12 +230,12 @@ export function revisionMail(report, brief = {}) {
   if (must.length) {
     lines.push('');
     lines.push(tone.mustLead);
-    for (const i of must) lines.push(bullet(i));
+    for (const i of foldSameCode(must)) lines.push(bullet(i));
   }
   if (nice.length) {
     lines.push('');
     lines.push(tone.minorLead);
-    for (const i of nice) lines.push(bullet(i));
+    for (const i of foldSameCode(nice)) lines.push(bullet(i));
   }
 
   const budget = budgetLine(report, brief);

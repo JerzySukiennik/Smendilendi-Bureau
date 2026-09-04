@@ -433,7 +433,7 @@ export function generatePlot(rng, opts = {}) {
 
   let plot = null;
   for (let attempt = 0; attempt < 8; attempt++) {
-    plot = buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt });
+    plot = buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt, shape: opts.shape, aspect: opts.aspect, turn: opts.turn });
     if (plot.solvable.ok) return plot;
   }
   // Last resort: a site the brief cannot be built on is a bug, so strip its
@@ -464,7 +464,8 @@ function disarmPlot(plot, targetFootprint) {
 }
 
 /** One attempt at a site. `attempt` > 0 means the previous one was unbuildable. */
-function buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt }) {
+function buildPlot(rng, opts) {
+  const { difficulty, targetFootprint, minPlotArea, attempt } = opts;
   // ---- shape ------------------------------------------------------------
   // Even an easy commission deserves a site with a bit of character; a plain
   // rectangle every other time is what made them blur together. Difficulty now
@@ -487,7 +488,11 @@ function buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt }) {
   // within a family, harder briefs lean to the more awkward member
   const mi = fam.length === 1 ? 0
     : Math.min(fam.length - 1, Math.floor(rng() * fam.length * (0.75 + 0.5 * difficulty)));
-  const kind = fam[mi];
+  // An explicit outline, when the caller has a reason: the smoke fixture draws
+  // its house at fixed coordinates and needs a rectangle around it; a future
+  // "starter plot" at difficulty 0 may want the same. Left undefined, the
+  // family pick above decides.
+  const kind = opts.shape && SHAPES.includes(opts.shape) ? opts.shape : fam[mi];
 
   // each retry buys the building more room
   const roomier = 1 + 0.18 * attempt;
@@ -499,6 +504,8 @@ function buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt }) {
   if (kind === 'deep-narrow') aspect = lerp(0.34, 0.26, rng());
   else if (kind === 'wide-shallow') aspect = lerp(2.2, 3.0, rng());
   else aspect = lerp(0.72, 1.45, rng());
+  // explicit proportions, for the same callers that pass `shape`
+  if (Number.isFinite(opts.aspect) && opts.aspect > 0) aspect = opts.aspect;
 
   const setbacks = {
     front: R(lerp(4.0, 6.5, difficulty) + rng() * 1.0),
@@ -541,6 +548,7 @@ function buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt }) {
   const cx = (b0.minX + b0.maxX) / 2, cz = (b0.minZ + b0.maxZ) / 2;
   poly = poly.map(([x, z]) => [R(x - cx), R(z - cz)]);
   k = Math.floor(rng() * 4) % 4;
+  if (Number.isInteger(opts.turn)) k = ((opts.turn % 4) + 4) % 4;   // explicit orientation
   poly = ensureCCW(rot90(poly, k).map(([x, z]) => [R(x), R(z)]));
 
   const streetSides = (cornerPlot ? ['north', 'east'] : ['north']).map(s => rotDir(s, k));

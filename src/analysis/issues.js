@@ -219,6 +219,10 @@ export function makeIssue(code, ctx = {}, target = {}) {
     // sheet and the validation panel — the client just does not quote them.
     clientText: (def.plain || def.text)(ctx),
     detailText: def.text(ctx),
+    // The room's display name, so the letter can fold "the way to the store is
+    // too tight" and "the way to the kitchen is too tight" into one sentence
+    // that names both, the way a person would.
+    roomName: ctx.room ?? null,
   };
   if (target.roomId) issue.roomId = target.roomId;
   if (target.wallId) issue.wallId = target.wallId;

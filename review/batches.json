@@ -533,7 +533,7 @@
       "id": "models-1",
       "title": "Headline models",
       "kind": "model",
-      "note": "The headline pieces — every catalogue item that is modelled by hand rather than generated. Judge them at the scale figure: 1.75 m, standing next to the model, with the real bounding box in metres under it. If a dimension looks wrong to you, it is wrong. — 15 of 15 GLBs are not on disk yet; those tiles render the procedural proxy solid instead, clearly marked.",
+      "note": "The headline pieces — every catalogue item that is modelled by hand rather than generated. Judge them at the scale figure: 1.75 m, standing next to the model, with the real bounding box in metres under it. If a dimension looks wrong to you, it is wrong. — unclaimed GLBs in assets/models: armchair-lounge.glb, balustrade-1100.glb, basin-clinical.glb, basin-cloak-400.glb, basin-vanity-800.glb, bath-1700.glb, bed-bunk-900.glb, bed-king-1800.glb, bed-single-900.glb, bedside-table.glb, bench-waiting-3.glb, bin-office.glb, bookshelf-800.glb, chair-dining.glb, chair-stacking.glb, chair-visitor.glb, chest-drawers-800.glb, cot-child.glb, counter-cafe-3000.glb, counter-till.glb, desk-1600.glb, desk-corner.glb, dishwasher-600.glb, display-fridge-glass.glb, display-table-retail.glb, door-double-1600.glb, door-entrance-1000.glb, door-fire-ei30-900.glb, door-glazed-900.glb, door-internal-1000.glb, door-internal-800.glb, door-sliding-900.glb, downlight.glb, exam-stool.glb, extractor-hood-600.glb, filing-cabinet-4.glb, fitting-room-cubicle.glb, hob-induction-600.glb, kids-basin-row.glb, kids-chair-sm1.glb, kids-chair-sm2.glb, kids-table-rect-sm2.glb, kids-table-round-sm1.glb, kids-wc.glb, kitchen-base-600.glb, kitchen-base-corner.glb, kitchen-island-1800.glb, kitchen-tall-oven.glb, kitchen-wall-600.glb, lamp-desk.glb, lamp-floor.glb, lift-passenger-630.glb, lockers-4.glb, luminaire-linear-1200.glb, medicine-cabinet.glb, monitor-24.glb, nap-mat.glb, piano-upright.glb, plant-monstera.glb, plant-pot-small.glb, planter-trough-1200.glb, play-rug.glb, printer-mfp.glb, radiator-panel-1000.glb, radiator-towel.glb, ramp-accessible.glb, rooflight-1000.glb, scales-column.glb, sconce-wall.glb, screen-meeting-65.glb, shelving-gondola.glb, shower-900.glb, shower-walkin-1200.glb, sideboard-1600.glb, sofa-2seat.glb, sofa-corner.glb, stair-straight.glb, stair-u-return.glb, stool-bar.glb, stove-wood.glb, table-bar-high.glb, table-cafe-2.glb, table-coffee.glb, table-dining-6.glb, table-dining-round-4.glb, table-meeting-8.glb, toy-storage-unit.glb, track-light-2000.glb, treatment-trolley.glb, tv-wall-55.glb, urinal.glb, wardrobe-hinged-1000.glb, wardrobe-sliding-1800.glb, washing-machine.glb, water-cooler.glb, wc-accessible.glb, wc-wall-hung.glb, whiteboard-2000.glb, window-1500x1400.glb, window-600x600.glb, window-900x1400.glb, window-escape-1000x1200.glb, window-full-height-1200.glb, window-patio-2400.glb, window-shopfront-3000.glb, window-strip-3000x900.glb, workstation-bench-2.glb.",
       "items": [
         {
           "id": "chair-task",
@@ -541,7 +541,7 @@
           "why": "Seat adjusts 0.42-0.53. Needs 1.00 m clear behind the desk edge to roll back.",
           "whyAuto": false,
           "glb": "../assets/models/chair-task.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             0.65,
@@ -566,7 +566,7 @@
           "why": "Sofa, 3 seats — 2.1 x 0.82 x 0.92 m, 3800 units. No rationale recorded in the catalogue; check the dimensions against the scale figure.",
           "whyAuto": true,
           "glb": "../assets/models/sofa-3seat.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             2.1,
@@ -591,7 +591,7 @@
           "why": "Top at 0.75. 0.60 m of edge per diner; 0.80 m all round to seat and pass.",
           "whyAuto": false,
           "glb": "../assets/models/table-dining-4.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             1.4,
@@ -616,7 +616,7 @@
           "why": "Both sides need 0.70 m when two people sleep in it.",
           "whyAuto": false,
           "glb": "../assets/models/bed-double-1600.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             1.6,
@@ -641,7 +641,7 @@
           "why": "Pan projection 0.70, cistern against the wall. 0.60 m clear in front, 0.20 m each side of the centre line.",
           "whyAuto": false,
           "glb": "../assets/models/wc-floor.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             0.38,
@@ -666,7 +666,7 @@
           "why": "Rim at 0.85. 0.70 m of activity space in front (0.60 is the absolute minimum).",
           "whyAuto": false,
           "glb": "../assets/models/basin-560.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             0.56,
@@ -691,7 +691,7 @@
           "why": "Single bowl 0.50 x 0.40 x 0.18 deep, mixer to the rear.",
           "whyAuto": false,
           "glb": "../assets/models/kitchen-base-sink-800.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             0.8,
@@ -716,7 +716,7 @@
           "why": "The door sweeps 0.65 m; 1.20 m keeps the run usable with the door open.",
           "whyAuto": false,
           "glb": "../assets/models/fridge-freezer-tall.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             0.6,
@@ -741,7 +741,7 @@
           "why": "The default. Leaf 0.90 x 2.05; 0.90 m clear width satisfies wheelchair access.",
           "whyAuto": false,
           "glb": "../assets/models/door-internal-900.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             0.9,
@@ -766,7 +766,7 @@
           "why": "The workhorse. 1.68 m2 of opening; 0.86 m2 of glass per 1.00 m2 of hole.",
           "whyAuto": false,
           "glb": "../assets/models/window-1200x1400.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             1.2,
@@ -791,7 +791,7 @@
           "why": "Hung 1.20 below the ceiling — 1.50 m above a dining table top.",
           "whyAuto": false,
           "glb": "../assets/models/pendant-lamp.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             0.4,
@@ -816,7 +816,7 @@
           "why": "Large ficus — 0.8 x 1.8 x 0.8 m, 900 units. No rationale recorded in the catalogue; check the dimensions against the scale figure.",
           "whyAuto": true,
           "glb": "../assets/models/plant-ficus-large.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             0.8,
@@ -841,7 +841,7 @@
           "why": "Counter at 1.10 with a 0.75 m accessible ledge. 1.20 m of queuing space in front.",
           "whyAuto": false,
           "glb": "../assets/models/desk-reception.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             2.2,
@@ -866,7 +866,7 @@
           "why": "Two-group commercial machine, sits on the 0.95 m bar top.",
           "whyAuto": false,
           "glb": "../assets/models/espresso-machine.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             0.75,
@@ -891,7 +891,7 @@
           "why": "1900 x 620 mm at 0.70 m. Clinicians need 0.90 m on the examination side.",
           "whyAuto": false,
           "glb": "../assets/models/exam-couch.glb",
-          "present": false,
+          "present": true,
           "proc": true,
           "size": [
             0.62,

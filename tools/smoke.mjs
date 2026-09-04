@@ -15,12 +15,39 @@
 // does not match the first byte for byte.
 
 import { generateCommission, TYPE_KEYS } from '../src/commission/index.js';
+import { buildableArea, generatePlot } from '../src/commission/plot.js';
 import { createModel, applyOps, rectOps, serialize, deserialize, wallLength } from '../src/model/building.js';
 import { computeRooms, roomGraph, roomCentroid } from '../src/model/rooms.js';
 import { buildMeshes, disposeBuilt } from '../src/model/geometry.js';
 import { runAnalysis, revisionMail, acceptanceMail, clientMail, solarPosition } from '../src/analysis/index.js';
 import { createLocalTransport, resetLocalHubs } from '../src/net/local.js';
 
+// THE PLOT IS ASKED FOR, NOT ASSUMED. The house below is drawn by hand at fixed
+// coordinates (18.24 x 9.64 m outer). Plots now come in six outline families,
+// and a stepped, flag or wedge plot sized for the brief's 84-126 m2 footprint
+// will not hold a 176 m2 rectangle — measured across 20 seeds at three
+// difficulties: not one did. That is the fixture's shape problem, not the
+// generator's, so the smoke replaces the commission's plot with one generated
+// FOR this house: same seeded rng, difficulty as the brief, shape 'rect',
+// target footprint the house's own. Everything downstream — setbacks, the
+// buildable line, the protected tree, the street side, the negative controls —
+// still comes from the real generator.
+const HOUSE_FOOTPRINT = 18.24 * 9.64;
+const HOUSE_CORNERS = [[-9.12, -7.52], [9.12, -7.52], [9.12, 2.12], [-9.12, 2.12]];   // outer faces
+function pointInPolygonLocal(poly, x, z) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i], [xj, zj] = poly[j];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function mulberry32(seedStr) {
+  let h = 1779033703 ^ seedStr.length;
+  for (let i = 0; i < seedStr.length; i++) { h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  let a = h >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
 const SEED = 'a';
 const DIFFICULTY = 0.3;
 const DEG = 180 / Math.PI;
@@ -339,10 +366,50 @@ async function netRoundTrip(say, model) {
   assert(same, 'two players applying the same ops produced different models');
 }
 
+/**
+ * Slide a generated plot so its buildable area is centred on the fixture house.
+ * The generator centres the BOUNDARY on the origin and then insets it by an
+ * asymmetric front/rear setback, so the buildable rectangle sits a few metres
+ * off the origin — while the house is drawn at a fixed spot. Every absolute
+ * coordinate the plot carries moves by the same vector, so the setbacks, the
+ * protected tree, the neighbours and the street stay exactly as generated,
+ * just relative to the house. If the buildable rectangle is smaller than the
+ * house in either axis that is a real generator-sizing finding, and the assert
+ * after this says so.
+ */
+function plotAroundHouse(plot) {
+  const bb = (poly) => poly.reduce((a, [x, z]) => [Math.min(a[0], x), Math.min(a[1], z), Math.max(a[2], x), Math.max(a[3], z)], [Infinity, Infinity, -Infinity, -Infinity]);
+  const U = bb(buildableArea(plot));
+  const dx = 0.0 - (U[0] + U[2]) / 2;
+  const dz = -2.70 - (U[1] + U[3]) / 2;
+  const mv = ([x, z]) => [Number((x + dx).toFixed(2)), Number((z + dz).toFixed(2))];
+  const out = { ...plot };
+  out.boundary = plot.boundary.map(mv);
+  out.trees = (plot.trees || []).map((t) => ({ ...t, x: Number((t.x + dx).toFixed(2)), z: Number((t.z + dz).toFixed(2)) }));
+  out.neighbours = (plot.neighbours || []).map((n) => ({ ...n, polygon: n.polygon.map(mv) }));
+  out.street = { ...plot.street, centreline: plot.street.centreline.map(mv) };
+  delete out.buildable; delete out.bounds;                 // recomputed from the new boundary
+  if (plot.terrain?.heightAt) {
+    const h = plot.terrain.heightAt;
+    out.terrain = { ...plot.terrain, heightAt: (x, z) => h(x - dx, z - dz) };
+  }
+  out.buildable = buildableArea(out);
+  return out;
+}
+
 async function runOnce(say) {
   // -- a. the commission ---------------------------------------------------
   say.rule('a. COMMISSION');
   const commission = generateCommission(SEED, DIFFICULTY, []);
+  commission.plot = plotAroundHouse(generatePlot(mulberry32(SEED + ':smoke-plot'), {
+    difficulty: DIFFICULTY, targetFootprint: HOUSE_FOOTPRINT, shape: 'rect',
+    aspect: 18.24 / 9.64, turn: 0,          // wide and shallow, street to the south, like the house
+  }));
+  {
+    const poly = buildableArea(commission.plot);
+    const inside = HOUSE_CORNERS.filter(([x, z]) => pointInPolygonLocal(poly, x, z)).length;
+    assert(inside === 4, `the generated rectangular plot does not hold the fixture house (${inside}/4 corners inside)`);
+  }
   say(`seed "${SEED}" difficulty ${DIFFICULTY} -> ${commission.id}`);
   say(`${commission.title}`);
   say(`client ${commission.client.name}${commission.client.company ? `, ${commission.client.company}` : ''} (tone: ${commission.client.tone}, quirk: ${commission.client.quirk})`);

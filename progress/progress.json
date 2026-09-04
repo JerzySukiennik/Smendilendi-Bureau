@@ -935,7 +935,40 @@
    "status": "pass",
    "headline": "Loop verified in the running game: office -> editor (room tool armed) -> 13 walls, 4 rooms -> submit -> client letter -> revising, no stranded overlay. Letter cut from 10 items to 3.",
    "at": "2026-09-03T21:41:08.578Z"
+  },
+  {
+   "piece": "office",
+   "role": "builder",
+   "round": 5,
+   "status": "pass",
+   "headline": "Finish bar: partition shaded (luma 84->214 across its height), and the west glazing shows a sky gradient, skyline and trees (194->143 sill to head, was 178->179 flat). Buildable area is now enforced in the editor.",
+   "metrics": {
+    "glassLumaSpan": 51,
+    "partitionLumaSpan": 130
+   },
+   "at": "2026-09-04T05:59:12.363Z"
+  },
+  {
+   "piece": "commission",
+   "role": "builder",
+   "round": 3,
+   "status": "pass",
+   "headline": "Plots differ now: 4/24 true rectangles (was 20/24), six shape families, corner plots splayed; briefs ask for 4-5 rooms with no area minimums; 0/24 protected trees in the buildable area (was 19/24).",
+   "metrics": {
+    "rectangles": "4/24",
+    "treesInBuildable": "0/24",
+    "roomsRequired": "4-5"
+   },
+   "at": "2026-09-04T06:02:35.008Z"
+  },
+  {
+   "piece": "analysis",
+   "role": "builder",
+   "round": 2,
+   "status": "pass",
+   "headline": "Client letters in plain words: no measurements, every blocker named, no hidden tail, one number at most (the budget, only when over). Acceptance on blockers alone; three severities demoted.",
+   "at": "2026-09-04T06:06:23.850Z"
   }
  ],
- "updated": "2026-09-03T21:41:08.578Z"
+ "updated": "2026-09-04T06:06:23.850Z"
 }
