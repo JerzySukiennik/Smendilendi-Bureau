@@ -20,7 +20,7 @@
 import {
   Scene, PerspectiveCamera, Color, Fog, Group, Mesh, InstancedMesh, Object3D,
   PointLight, Vector3, MathUtils, BoxGeometry, MeshBasicMaterial, SphereGeometry,
-  InstancedBufferAttribute, Frustum, Matrix4, Sphere,
+  InstancedBufferAttribute, Frustum, Matrix4, Sphere, BackSide, BufferAttribute,
   PlaneGeometry, CanvasTexture, SRGBColorSpace, NearestFilter,
   LinearMipmapLinearFilter,
 } from 'three';
@@ -268,11 +268,88 @@ export class Office {
     }
     // ground beyond the building, well below the studio floor (top storey)
     b.boxUp(120, 1, 120, { x: -40, y: -14, z: 0, color: 0x9aa39f });
+
+    // WHY THERE WAS NOTHING TO SEE. The studio is a top floor, the ground is at
+    // y = -14, and every roof above stops at y = +0.6 at most — which is BELOW
+    // the 0.45 m sill once you stand at eye height. So through the west glazing
+    // a standing player saw exactly one thing: scene.background. A critic
+    // measured it — 178 -> 179 luma over 45 px, dead flat — and called the
+    // glazed wall "the largest single surface when you face west", which it
+    // is. Nothing out here casts a shadow (see the loop below), so adding depth
+    // costs the sun patch nothing. What it needs is what any window has: a sky
+    // with a gradient in it, a horizon with something on it, and a few things
+    // near enough to have edges.
+
+    // The near roofs, lifted so their parapets clear the sill. Angular height
+    // from the window is still under 3 degrees, so the 32 degree afternoon sun
+    // comes over them without argument — an architect looking out would not
+    // expect these to shade the room, and they do not.
+    b.boxUp(9.0, 2.8, 8.0, { x: -17, y: -1.4, z: -6, color: 0xb9c2c8 });
+    b.boxUp(9.4, 0.5, 8.4, { x: -17, y: 1.4, z: -6, color: 0xb9c2c8, shade: 0.9 });
+    b.boxUp(7.0, 3.0, 7.0, { x: -14, y: -0.6, z: 15, color: 0xaeb8bf });
+    b.boxUp(7.4, 0.5, 7.4, { x: -14, y: 2.4, z: 15, color: 0xaeb8bf, shade: 0.9 });
+
+    // A city on the horizon, 90-110 m out. Tops sit at +6..+16 m, i.e. 3-9
+    // degrees up from the window — a low band, not a wall. At that distance
+    // the fog (40..150 m) lifts them most of the way to the sky colour, which
+    // is the aerial perspective the reference relies on; the base colour is
+    // deliberately dark so a muted silhouette survives the lift.
+    const skyline = [
+      [-96, -62, 12, 28, 14], [-104, -44, 16, 22, 18], [-92, -28, 10, 30, 12],
+      [-108, -12, 20, 26, 16], [-98, 4, 14, 30, 14], [-106, 22, 18, 24, 20],
+      [-94, 40, 12, 27, 12], [-102, 58, 16, 21, 18], [-110, 76, 22, 25, 22],
+    ];
+    for (const [x, z, w, h, d] of skyline) {
+      b.boxUp(w, h, d, { x, y: -14, z, color: 0x7e8c99 });
+      b.boxUp(w * 0.35, h * 0.18, d * 0.35, { x: x - w * 0.2, y: -14 + h, z: z + d * 0.15, color: 0x7e8c99, shade: 0.9 });
+    }
+
+    // Tall trees between us and the near roofs: mature spruce, 16-19 m from
+    // the ground, so their crowns are the only green that reaches the glass.
+    // Three stacked frusta each — a low-poly conifer, the reference's tell 2.
+    const spruce = [[-9.5, -9, 17.5], [-11.5, 1.5, 19], [-9, 11, 16.5], [-12.5, 21, 18], [-10.5, -19, 17]];
+    for (const [x, z, h] of spruce) {
+      b.cylUp(0.32, 0.22, h * 0.55, 6, { x, y: -14, z, color: 0x5b4a3c });
+      const c = [0x5e7b64, 0x66876c, 0x6e9174];
+      for (let t = 0; t < 3; t++) {
+        const base = -14 + h * (0.28 + t * 0.22);
+        b.ccylUp(2.6 - t * 0.6, 0.15, h * 0.30, 7, { x, y: base, z, color: c[t], shade: 0.92 + t * 0.03 });
+      }
+    }
+
     for (const { mat, geometry } of b.build()) {
       const m = new Mesh(geometry, builderMaterial(mat));
       m.castShadow = false;
       m.receiveShadow = false;
       g.add(m);
+    }
+
+    // The sky itself: an inverted dome with a vertex gradient — warmer and
+    // lighter at the horizon, bluer at the zenith. fog:false, because fog would
+    // flatten it to one colour at this radius; depthWrite:false and renderOrder
+    // -1 so it is a backdrop and never a surface. This is what turns the glass
+    // from a flat fill into a window.
+    {
+      const R = 130;
+      const geo = new SphereGeometry(R, 28, 14);
+      const pos = geo.attributes.position, n = pos.count;
+      const col = new Float32Array(n * 3);
+      const hz = new Color(0xdbe3ea), zen = new Color(0x8bacca), tmp = new Color();
+      for (let i = 0; i < n; i++) {
+        const t = Math.max(0, pos.getY(i) / R);            // 0 at horizon, 1 at zenith
+        const k = Math.pow(t, 0.55);                        // keep the warm band wide
+        tmp.copy(hz).lerp(zen, k);
+        col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
+      }
+      geo.setAttribute('color', new BufferAttribute(col, 3));
+      const sky = new Mesh(geo, new MeshBasicMaterial({
+        vertexColors: true, side: BackSide, fog: false, depthWrite: false, toneMapped: true,
+      }));
+      sky.position.set(7.5, -2, 4.8);
+      sky.renderOrder = -1;
+      sky.castShadow = false; sky.receiveShadow = false;
+      sky.name = 'sky';
+      g.add(sky);
     }
     return g;
   }
