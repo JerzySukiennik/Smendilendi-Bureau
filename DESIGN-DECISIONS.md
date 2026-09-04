@@ -90,6 +90,21 @@ One agent builds the avatars; everything else is done by hand, in order.
 Two of his own directions to hold onto while doing these: make it genuinely nice, and
 keep the retro OS untouched.
 
+## Interface — added 2026-09-04, same playtest
+
+15. **Highlight the SHAPE, not a box.** Interactive things (the monitor, the coffee
+    machine, the bin, the radio, the blinds, the lamp) currently get a rectangle. The
+    outline must follow the model's own silhouette, and it must be **thicker** — legible
+    across the room, not a hairline.
+16. **Prompts belong under the crosshair.** "Press F to…" sits in the bottom-left
+    corner, away from where the player is looking. Put it centred, just below the
+    cursor dot, where the eye already is.
+17. **The whole interface needs lifting, and the EDITOR MOST OF ALL.** Jurek: "it is
+    terrible that you cannot get your bearings in it at all." That is the priority of
+    this item — the designer's UI is the thing he cannot read. Tool palette, what is
+    armed, what a tool wants next, dimensions, the room schedule, cost, and the way out:
+    all of it has to be findable without being told.
+
 ## The four machines span thirty years — amended 2026-08-30
 
 All four tiers currently sit in the 1990s: TRESTLE 3.1, CORNICE 98, VELLUM 8 and
