@@ -50,7 +50,44 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
+// THE RETRO GUARD. Tier 1 scored 20/20 against real Windows 95 captures and
+// survived a blind A/B; tiers 3 and 4 are about to be rebuilt as Windows 11 and
+// macOS analogues ON THE SAME DRAWING SURFACE. The one way that work can break
+// tier 1 is by letting alpha, easing, anti-aliased type or a rounded corner
+// leak into the shared code — every one of which shows up as colours that are
+// not in the palette. So: paint the tier-1 desktop, count distinct colours,
+// and refuse anything outside VGA-16 + #DFDFDF (ButtonLight) + #FFFFE1 (tooltip
+// cream). A real Win95 frame samples 13-17 colours; the cap is 20.
+// Run from the console on this page: `await OSDEV.retroGuard()`; the tier-3/4
+// critic runs it after every change and treats a fail as a blocker.
+const RETRO_PALETTE = new Set([
+  '000000', '800000', '008000', '808000', '000080', '800080', '008080', 'c0c0c0',
+  '808080', 'ff0000', '00ff00', 'ffff00', '0000ff', 'ff00ff', '00ffff', 'ffffff',
+  'dfdfdf', 'ffffe1',
+]);
+async function retroGuard(tier = 1, { maxDistinct = 20 } = {}) {
+  os.setTier(tier, { boot: false });
+  // a few frames so the desktop, taskbar and any open window are all painted
+  for (let i = 0; i < 6; i++) { os.update(1 / 60); await new Promise((r) => requestAnimationFrame(r)); }
+  const c = os.canvas;
+  const img = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  const seen = new Map();
+  for (let i = 0; i < img.length; i += 4) {
+    const k = ((img[i] << 16) | (img[i + 1] << 8) | img[i + 2]).toString(16).padStart(6, '0');
+    seen.set(k, (seen.get(k) || 0) + 1);
+    if (img[i + 3] !== 255) seen.set('ALPHA<255', (seen.get('ALPHA<255') || 0) + 1);
+  }
+  const offPalette = [...seen.entries()].filter(([k]) => !RETRO_PALETTE.has(k)).sort((a, b) => b[1] - a[1]);
+  const distinct = seen.size;
+  const pass = distinct <= maxDistinct && offPalette.length === 0;
+  const report = { tier, size: `${c.width}x${c.height}`, distinct, maxDistinct,
+    offPalette: offPalette.slice(0, 12).map(([k, n]) => `#${k} x${n}`), pass };
+  console[pass ? 'info' : 'error']('[retro-guard]', pass ? 'PASS' : 'FAIL', report);
+  return report;
+}
+
 window.OSDEV = {
+  retroGuard,
   os,
   state,
   tier(n) {

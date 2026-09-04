@@ -77,6 +77,11 @@ and it stays exactly as it is. Nothing about the pixel-measured Windows 95 chrom
 traced Chicago and Geneva glyphs, the 1-bit cursors or the 16-colour palette is wasted —
 it is the identity of the starter machine and the thing the brief actually asked for.
 
+**The standing check exists: `OSDEV.retroGuard()` on `src/os/dev.html`.** It paints the
+tier-1 desktop, counts distinct colours, and fails if there are more than 20 or if any
+is outside VGA-16 + `#DFDFDF` + `#FFFFE1`. The tiers 3-4 critic runs it after every
+change to the shared drawing surface and treats a fail as a blocker.
+
 **And the rule that made tier 1 good still applies upward.** The reason the retro OS works
 is that it was measured against real screenshots rather than remembered. Tiers 3 and 4 get
 the same treatment against modern references: pull real Windows 11 and current macOS
