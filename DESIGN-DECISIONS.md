@@ -43,6 +43,53 @@ All four modules are required:
   furniture actually be used (wardrobe doors that cannot open, a bed blocking the
   circulation, a too-narrow kitchen run); do doors have room to swing.
 
+## Jurek's second playtest — 2026-09-04. All of it binding.
+
+Fourteen things, in his words (translated), with his priority: **multiplayer first**.
+One agent builds the avatars; everything else is done by hand, in order.
+
+1. **Multiplayer does not work.** The most important item. Two players in one office,
+   joined by code, must see each other, edit the same model, chat. Fix it and prove it
+   with two real browser tabs.
+2. **Choose your avatar.** Before the game starts the player picks and customises an
+   avatar; it must look like a person — clothing that moves as they walk (baggy
+   tracksuit trousers, not jeans, was his example), a nick above the head in a nice
+   typeface, and real walking, sitting and typing animations. Players see each other's.
+3. **Remove the dev things.** The numbered dots the critics put on the menu building go.
+   The FPS/debug panel goes — he plays on his faster machine (80-144 fps) and does not
+   want it on screen.
+4. **The editor opens INSIDE the in-game computer.** Not a separate window over the
+   game: clicking the monitor zooms the camera until the monitor fills the real screen,
+   and the editor runs on that screen — no top bar, or only a small one with a close
+   button. The screen resolution is the computer tier's, so upgrading the machine is
+   worth it because you see more. (This is the contract's original intent; it is being
+   restated because the built thing did not do it.)
+5. **A real Wall tool.** Room makes rooms; there is no way to draw a single wall at an
+   angle from one wall end to another. Wall: click two points, get a wall of the
+   standard thickness, same as a room's walls.
+6. **Doors placed in build mode count.** A door put in through the build tools must
+   satisfy the client's requirement for a door; today it does not register.
+7. **The Door tool (D) must place a DOOR, not cut a hole.** Frame, leaf, swing.
+8. **The "what is still missing" panel does not update live.** It lists things already
+   fixed. It must follow the model in real time.
+9. **The plot is not real yet.** He can still build outside the grey area; trees still
+   sometimes appear inside it; the trees are undetailed and so is the grass; the site
+   wants more atmosphere and effects generally. Building outside the grey area must be
+   physically impossible, not merely warned about.
+10. **Mail layout.** Too little room for the message, too much for the client list.
+11. **A dead cursor is left behind** from the in-game computer when the editor opens.
+12. **Two cursors after an upgrade.** The old, smaller cursor sits under the new one and
+    stays behind when the pointer leaves a window.
+13. **The coffee machine.** Today: click, mug appears in hand, nothing pours. It should
+    be: take a mug from the shelf to the right of the machine, set it under the spout,
+    coffee pours (particles), then carry it, put it down, throw it, spill it. The mug
+    handle is a blocky mess and needs modelling properly.
+14. **Throwing paper.** Today E throws the ball in a fixed direction so you cannot hit
+    the bin. It should be: E picks the paper up, you aim at the bin, left click throws.
+
+Two of his own directions to hold onto while doing these: make it genuinely nice, and
+keep the retro OS untouched.
+
 ## The four machines span thirty years — amended 2026-08-30
 
 All four tiers currently sit in the 1990s: TRESTLE 3.1, CORNICE 98, VELLUM 8 and
