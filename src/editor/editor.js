@@ -258,6 +258,7 @@ export class Editor {
     if (!res) return null;
     if (history && res.inverse) this._pushHistory([res.op], [res.inverse]);
     this._checkBuildable();
+    this.markValidationStale();
     return res.op;
   }
 
@@ -288,6 +289,7 @@ export class Editor {
     }
     if (atomic && history && inverses.length) this._pushHistory(out.slice(), inverses);
     this._checkBuildable();
+    this.markValidationStale();
     return out;
   }
 
@@ -535,6 +537,32 @@ export class Editor {
   }
 
   get budget() { return Number.isFinite(this.brief?.budget) ? this.brief.budget : null; }
+
+  /**
+   * Keep the "what is still missing" panel true.
+   *
+   * validate() used to run ONLY when its button was pressed, so the list stood
+   * still while the player worked and went on naming things he had already
+   * fixed — the exact report: "it doesn't update live, it lists things I have
+   * already sorted." A panel that lies about the model is worse than no panel:
+   * it teaches you to ignore it.
+   *
+   * Debounced rather than run per edit, because a full runAnalysis on every op
+   * would fire dozens of times during a drag. 0.5 s after the last change is
+   * below the threshold where a player notices a delay and far above the rate
+   * an edit stream produces.
+   */
+  _tickValidation(dt) {
+    if (!this._validateDirty) return;
+    this._validateAge = (this._validateAge || 0) + dt;
+    if (this._validateAge < 0.5) return;
+    this._validateDirty = false;
+    this._validateAge = 0;
+    this.validate();
+  }
+
+  /** Something changed the model: the panel is now out of date. */
+  markValidationStale() { this._validateDirty = true; this._validateAge = 0; }
 
   /** The validation panel's button. Deterministic, so it is safe to spam. */
   validate() {
@@ -1098,6 +1126,7 @@ export class Editor {
 
   update(dt) {
     this._initialFrame();
+    this._tickValidation(dt);
     this.cameras.update(dt, this.ctx?.input);
     if (this._pointer.over && !this.cameras.navigating) {
       this._updateSnap();

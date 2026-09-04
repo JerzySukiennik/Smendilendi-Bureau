@@ -23,7 +23,10 @@ import { MeshBuilder, builderMaterial, propMug, propCrumpledPaper, OFFICE } from
 
 const EASE = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-export const REACH = 2.6;          // m — you must walk up to things
+export /** Target rim thickness in CSS pixels, so it reads at any distance. */
+const OUTLINE_PX = 3.5;
+
+const REACH = 2.6;          // m — you must walk up to things
 
 export class Interaction {
   constructor(ctx, opts = {}) {
@@ -178,12 +181,23 @@ export class Interaction {
     if (this.outlineEdges.geometry !== edges) this.outlineEdges.geometry = edges;
     if (this.outlineShell.geometry !== shape) this.outlineShell.geometry = shape;
 
-    // The shell is the same mesh grown a little, so the white reads as a rim
-    // around the object rather than a box around its extent. The amount scales
-    // with the object so a mug and a plan chest both get a visible edge.
+    // THICKNESS IS A SCREEN MEASUREMENT, NOT A WORLD ONE. The first version grew
+    // the shell by a fraction of the object's own size, which is 1.2 % on
+    // anything large — a critic measured the result at ONE PIXEL on a 1600 px
+    // canvas, i.e. exactly the hairline this was meant to replace. What the
+    // player perceives is pixels, so the rim is sized in pixels: convert a
+    // target width into metres at THIS object's distance from the camera, and
+    // grow the shell by that. A mug at arm's length and a plan chest across the
+    // room then carry the same visible rim.
     if (!shape.boundingSphere) shape.computeBoundingSphere();
     const r = shape.boundingSphere?.radius || 0.2;
-    const grow = 1 + Math.min(0.06, Math.max(0.012, 0.02 / Math.max(0.08, r)));
+    const cam = this.camera;
+    const dist = cam ? cam.position.distanceTo(obj.getWorldPosition(this._v)) : 3;
+    const vh = this.ctx?.engine?.height || 900;
+    const mPerPx = (2 * Math.tan((cam?.fov ?? 55) * Math.PI / 360) * dist) / vh;
+    const wanted = OUTLINE_PX * mPerPx;                       // metres of rim
+    // Cap the growth so a small object is not swallowed by its own outline.
+    const grow = 1 + Math.min(0.09, wanted / Math.max(0.05, r));
     this.outlineShell.scale.setScalar(grow);
 
     // Match the hovered mesh exactly: same world position, rotation and scale.
