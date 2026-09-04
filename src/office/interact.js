@@ -288,11 +288,16 @@ export class Interaction {
       // hand the mouse to the in-OS cursor
       const hit = this._screenPoint(input, f.workstation);
       if (hit) {
+        // ONE CURSOR, and it is the machine's own. The OS paints a per-tier
+        // pointer inside its canvas (chunky on the Pentagram, thin on the
+        // Melon), and the office used to lay a second DOM cursor on top of it.
+        // The two tracked slightly differently — the DOM one in canvas pixels,
+        // the painted one in OS pixels — so after an upgrade you saw the older,
+        // smaller pointer sitting under the new one, and leaving a window left
+        // one behind. The painted one is the authentic one; the overlay goes.
         f.workstation.os?.pointer?.(hit.u, hit.v, input.mouseDown(0) ? 1 : 0);
-        this.hud?.setCursor(hit.sx, hit.sy);
-      } else {
-        this.hud?.setCursor(null);
       }
+      this.hud?.setCursor(null);
       if (input?.pressed('cancel')) this.releaseScreen();
     }
   }
@@ -332,8 +337,43 @@ export class Interaction {
     return true;
   }
 
+  /**
+   * Crumple a sheet and hold it. You then AIM and throw.
+   *
+   * E used to throw the instant you pressed it, from wherever the camera
+   * happened to point — "you have to hover the paper and press E, so you cannot
+   * even hit the bin". Aiming is the whole game of throwing something at a bin,
+   * so the two halves are now separate: E fills your hand, the left button
+   * lets go.
+   */
+  takePaper() {
+    if (this.carry) return false;
+    const b = new MeshBuilder();
+    b._ao = false;
+    propCrumpledPaper(b, { seed: (Math.random() * 1e6) | 0 });
+    const g = new Group();
+    for (const { mat, geometry } of b.build()) g.add(new Mesh(geometry, builderMaterial(mat)));
+    g.scale.setScalar(0.55);
+    this.camera.add(g);
+    this.carry = { mesh: g, kind: 'paper', bob: 0, temp: 21, sips: 0 };
+    this.audio?.play('sfx.paper-crumple');
+    return true;
+  }
+
   _updateCarry(dt, input) {
     const c = this.carry;
+    if (c.kind === 'paper') {
+      c.bob += dt;
+      const spd = Math.hypot(this.player.vel.x, this.player.vel.z);
+      c.mesh.position.set(
+        0.24 + Math.sin(c.bob * 6) * 0.004 * spd,
+        -0.22 + Math.sin(c.bob * 12) * 0.005 * spd,
+        -0.42,
+      );
+      if (input?.mousePressed?.(0)) this.releasePaper();
+      else if (input?.pressed('office.drop')) { this.camera.remove(c.mesh); this.carry = null; }
+      return;
+    }
     // Newton's law of cooling towards a 21 C studio, tau ~ 260 s.
     c.temp = 21 + (c.temp - 21) * Math.exp(-dt / 260);
     c.bob += dt;
@@ -399,6 +439,16 @@ export class Interaction {
   }
 
   // -- the bin ---------------------------------------------------------------
+
+  /** Let go of the held ball, along the line you are looking. */
+  releasePaper() {
+    const c = this.carry;
+    if (!c || c.kind !== 'paper') return false;
+    this.camera.remove(c.mesh);
+    this.carry = null;
+    this.throwPaper(this.scene, this.binPos ?? this._binPos);
+    return true;
+  }
 
   /** Throw a crumpled sheet. Plain ballistics, no physics engine. */
   throwPaper(scene, bin) {

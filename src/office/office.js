@@ -1286,8 +1286,8 @@ export class Office {
       I.register({
         id: `scrap-${s.index}`, mesh: pp, label: 'Scrap prints', verb: 'Crumple one',
         onUse: () => {
-          this.interact.throwPaper(this.scene, this.binPos);
-          this.toast('Two points if it goes in.');
+          if (this.interact.takePaper()) this.toast('Aim at the bin. Left click to throw, G to drop it.');
+          else this.toast('Both hands full.');
         },
       });
     }
@@ -1797,6 +1797,8 @@ export class Office {
       },
     };
     this.interact.hud = this.hud;
+    this.interact.scene = this.interact.scene || this.scene;
+    this.interact._binPos = this.binPos;
     this.refreshHud();
     return el;
   }
