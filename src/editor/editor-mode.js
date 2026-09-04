@@ -344,6 +344,11 @@ export class EditorMode extends Mode {
     const ed = this.editor;
     if (ed) {
       ed.brief = briefFrom(commission);
+      // The editor refuses geometry outside the buildable line (editor._opAllowed)
+      // and needs the polygon itself to do it — `siteBounds` is only the boundary's
+      // extent, which is neither the setback line nor the right shape now that
+      // plots come in six outline families.
+      ed.plot = commission.plot || null;
       ed.siteBounds = boundsOfPolygon(commission.plot?.boundary);
       ed.siteFaces = this.siteFaces || [];
       ed.plan.setSite({ trees: commission.plot?.trees || [] });

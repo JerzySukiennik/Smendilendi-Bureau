@@ -183,7 +183,7 @@ export class Editor {
    * while it is still cheap to move.
    */
   outsideBuildable() {
-    const poly = this.plot?.buildable;
+    const poly = this._buildablePoly();
     if (!Array.isArray(poly) || poly.length < 3) return null;
     const nodes = Object.values(this.model.nodes || {});
     if (!nodes.length) return null;
@@ -207,7 +207,53 @@ export class Editor {
     }
   }
 
+  /**
+   * Refuse geometry that would stand on land the client does not own.
+   *
+   * Jurek, item 9: "the plot is not realistic — I can still build outside that
+   * marked-out grey area." Warning after the fact was not enough: he only found
+   * out when the client complained, and by then the plan was drawn around the
+   * mistake. A wall or a room whose endpoints leave the buildable polygon is
+   * now REFUSED at the one place every tool goes through, with the reason on
+   * screen. Moving a node out is refused the same way.
+   *
+   * Only creation and movement are checked. Deleting, painting, furnishing and
+   * anything already in the model are left alone — a plot that shrinks under an
+   * existing building must never make the model unusable.
+   */
+  /** The buildable polygon, from wherever it is available this frame. */
+  _buildablePoly() {
+    // Not `this.plot` alone: setCommission() can return early (same commission,
+    // or not yet initialised), and a guard that silently does nothing is worse
+    // than no guard. The commission in the store is the same object the office
+    // and the analysis read, so this can never disagree with them.
+    return this.plot?.buildable
+      || this.ctx?.state?.get('commission')?.plot?.buildable
+      || this.brief?.plot?.buildable
+      || null;
+  }
+
+  _opAllowed(op) {
+    const poly = this._buildablePoly();
+    if (!Array.isArray(poly) || poly.length < 3) return true;
+    const pts = [];
+    if (op.t === 'wall.add') pts.push([op.ax, op.az], [op.bx, op.bz]);
+    else if (op.t === 'node.move' || op.t === 'wall.move') {
+      if (Number.isFinite(op.x) && Number.isFinite(op.z)) pts.push([op.x, op.z]);
+      if (Number.isFinite(op.ax)) pts.push([op.ax, op.az]);
+      if (Number.isFinite(op.bx)) pts.push([op.bx, op.bz]);
+    } else return true;
+    for (const [x, z] of pts) {
+      if (!pointInPoly(poly, x, z)) {
+        this.hud?.flash('Not on the client\u2019s land — keep inside the grey area.');
+        return false;
+      }
+    }
+    return true;
+  }
+
   apply(op, { history = true } = {}) {
+    if (!this._opAllowed(op)) return null;
     const res = this._applyOne(op);
     if (!res) return null;
     if (history && res.inverse) this._pushHistory([res.op], [res.inverse]);
@@ -230,6 +276,8 @@ export class Editor {
   applyMany(ops, { history = true, atomic = true } = {}) {
     const out = [];
     const inverses = [];
+    // All or nothing: half a room outside the line is worse than no room.
+    if (!ops.every((op) => this._opAllowed(op))) return [];
     for (const op of ops) {
       const res = this._applyOne(op);
       if (!res) continue;
