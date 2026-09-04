@@ -87,9 +87,19 @@ export class EditorHUD {
       for (const id of grp.ids) {
         const tool = this.ed.tools.get(id);
         if (!tool) continue;
+        // NAME THE TOOLS. Jurek: "it is terrible that you cannot get your
+        // bearings in it at all." Twenty icon-only buttons whose meaning lives
+        // in a tooltip is most of that: you cannot scan for the tool you want,
+        // you have to hover each one and wait. Every button now carries its
+        // name and its key, so the palette reads as a list of things you can
+        // do rather than a wall of glyphs. The icon stays — it is what makes
+        // the row findable once you know it.
         const b = document.createElement('button');
-        b.innerHTML = ICONS[id] || ICONS.default;
-        b.title = `${tool.name}${TOOL_KEYS[id] ? ` (${TOOL_KEYS[id]})` : ''}`;
+        const key = TOOL_KEYS[id] || '';
+        b.innerHTML = `<span class="ic">${ICONS[id] || ICONS.default}</span>`
+          + `<span class="lbl">${escapeHtml(tool.name)}</span>`
+          + (key ? `<kbd>${escapeHtml(key)}</kbd>` : '');
+        b.title = `${tool.name}${key ? ` (${key})` : ''}`;
         b.addEventListener('click', () => this.ed.setTool(id));
         box.appendChild(b);
         this.toolButtons.set(id, b);
