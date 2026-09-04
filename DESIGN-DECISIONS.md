@@ -227,6 +227,11 @@ Concretely, and binding on every agent:
   * The revision e-mail leads with what to *do*, not what was measured. At most one
     number per e-mail, and only when the number is the point (a budget overrun).
   * Severity drops: fewer blockers, more "if you can". One revision round still.
+  * **Acceptance = no blockers AND score >= 50.** Leniency needs a floor: with
+    "blockers alone" a 0/100 house with thirteen majors was being signed off. Under
+    the floor the drawings come back once, with the three biggest points in plain
+    words; over it they are signed, majors and all, and the fee settlement docks 3 %
+    per major rather than sending them back.
   * Plain words over jargon everywhere: "way through" not "circulation", "daylight"
     not "window-to-floor ratio".
 
