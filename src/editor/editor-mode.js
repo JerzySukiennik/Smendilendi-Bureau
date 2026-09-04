@@ -132,7 +132,12 @@ export class EditorMode extends Mode {
     // buildable area (inside the setbacks) — the line the building must not cross
     if (plot.buildable?.length >= 3) {
       const b = new Mesh(polygonGeometry(plot.buildable), new MeshBasicMaterial({
-        color: 0xf0e2c8, transparent: true, opacity: 0.35, side: DoubleSide, depthWrite: false,
+        // Jurek asked for "a square, a bit grey, where you build". The previous
+        // 0xf0e2c8 at 0.35 read as OLIVE once the grass showed through it — a
+        // critic measured it — so this is a neutral grey at an opacity that stays
+        // grey over green. Neutral on purpose: it must read as "ground you may
+        // use", not as a material or a floor finish.
+        color: 0xb8b4ae, transparent: true, opacity: 0.55, side: DoubleSide, depthWrite: false,
       }));
       b.rotation.x = -Math.PI / 2;
       b.position.y = 0.004;

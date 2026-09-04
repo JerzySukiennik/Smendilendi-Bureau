@@ -504,6 +504,26 @@ export class EditorHUD {
   }
 
   /**
+   * A standing warning, as opposed to a flash. flash() fades after 1.6 s, which
+   * is right for "wall shown" and wrong for "a corner of your house is on land the
+   * client does not own": that has to stay on screen until it stops being true.
+   * Pass null to clear it. The editor drives this from _checkBuildable() after
+   * every op, so it can only ever say something that is still the case.
+   */
+  warn(msg) {
+    if (!this.warnEl) {
+      const el = document.createElement('div');
+      el.className = 'ed-warn';
+      el.setAttribute('role', 'status');
+      this.root.appendChild(el);
+      this.warnEl = el;
+    }
+    if (!msg) { this.warnEl.classList.remove('on'); this.warnEl.textContent = ''; return; }
+    this.warnEl.textContent = msg;
+    this.warnEl.classList.add('on');
+  }
+
+  /**
    * THE COACH LINE — what to do next, in one sentence, and then it gets out.
    *
    * A first-time player must be able to draw a wall without being told how.

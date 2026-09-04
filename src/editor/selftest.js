@@ -277,7 +277,10 @@ export function makeSelfTest(ED) {
     start('the whole house');
 
     // 1. the shell: 11.0 x 8.0 m, exterior 240 mm
-    tool('rect', 'KeyR', 'r');
+    // KeyR is ROTATE now (DESIGN-DECISIONS.md). Rectangle survives in the
+    // palette without a letter, so the self-test selects it by id rather than by
+    // a keystroke that would silently rotate the selection instead.
+    tool('rect');
     clickWorld(-1, 0, -6, 'south-west corner of the shell');
     moveWorld(6, 0, -2);
     typeValue('11000,8000');

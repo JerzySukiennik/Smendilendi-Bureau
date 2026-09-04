@@ -167,10 +167,51 @@ export class Editor {
    * The ONLY way the building changes. Returns the decorated op (with its final
    * id) or null when the op did not apply.
    */
+  /**
+   * How much of what has been drawn stands outside the ground the client owns.
+   *
+   * The buildable overlay was DECORATION: the editor drew the grey footprint and
+   * then never looked at it again. A critic drew a room and two walls straight
+   * over the setback line and got 8 of 10 nodes outside it with no refusal, no
+   * colour change and nothing in the HUD — the player only found out three days
+   * later, in the client's letter, which is exactly what DESIGN-DECISIONS.md
+   * ("The plot in the editor") says must stop.
+   *
+   * Flagging rather than refusing is deliberate. A hard refusal mid-drag can
+   * strand a player who is mid-thought, and the boundary is a planning fact, not
+   * a physical wall; the game's job is to tell him immediately, in the editor,
+   * while it is still cheap to move.
+   */
+  outsideBuildable() {
+    const poly = this.plot?.buildable;
+    if (!Array.isArray(poly) || poly.length < 3) return null;
+    const nodes = Object.values(this.model.nodes || {});
+    if (!nodes.length) return null;
+    let out = 0;
+    for (const n of nodes) if (!pointInPoly(poly, n.x, n.z)) out++;
+    return { out, total: nodes.length };
+  }
+
+  /** Tell the player the moment a wall crosses the line, not three days later. */
+  _checkBuildable() {
+    const r = this.outsideBuildable();
+    if (!r) return;
+    if (r.out === this._lastOutside) return;
+    this._lastOutside = r.out;
+    if (r.out > 0) {
+      this.hud?.warn?.(r.out === 1
+        ? 'One corner is off the buildable area — the client does not own that ground.'
+        : `${r.out} corners are off the buildable area — the client does not own that ground.`);
+    } else {
+      this.hud?.warn?.(null);
+    }
+  }
+
   apply(op, { history = true } = {}) {
     const res = this._applyOne(op);
     if (!res) return null;
     if (history && res.inverse) this._pushHistory([res.op], [res.inverse]);
+    this._checkBuildable();
     return res.op;
   }
 
@@ -198,6 +239,7 @@ export class Editor {
       else if (history) this._pushHistory([res.op], [res.inverse]);
     }
     if (atomic && history && inverses.length) this._pushHistory(out.slice(), inverses);
+    this._checkBuildable();
     return out;
   }
 
@@ -1206,6 +1248,17 @@ export class Editor {
  * F, T, B, E, O, H, Space). The ones it does not have — Wall, Door, wiNdow,
  * slaB->G, Catalogue, teXt, section plane K — take the free letters.
  */
+/** Point in polygon, ray cast. Local so the editor pulls in no new module. */
+function pointInPoly(poly, x, z) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i];
+    const [xj, zj] = poly[j];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 export const SHORTCUTS = {
   Space: 'select', KeyV: 'select',
   KeyP: 'room',

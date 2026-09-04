@@ -919,7 +919,23 @@
     "finishBar": "15/15"
    },
    "at": "2026-08-30T18:12:59.557Z"
+  },
+  {
+   "piece": "commission",
+   "role": "builder",
+   "round": 3,
+   "status": "pass",
+   "headline": "Briefs ask 4-5 rooms (was 9-15); protected trees 0/24 in the buildable area (was 19/24); quadrilateral plots 13/24 (was 20/24)",
+   "at": "2026-09-03T21:21:36.656Z"
+  },
+  {
+   "piece": "game-loop",
+   "role": "builder",
+   "round": 1,
+   "status": "pass",
+   "headline": "Loop verified in the running game: office -> editor (room tool armed) -> 13 walls, 4 rooms -> submit -> client letter -> revising, no stranded overlay. Letter cut from 10 items to 3.",
+   "at": "2026-09-03T21:41:08.578Z"
   }
  ],
- "updated": "2026-08-30T18:12:59.557Z"
+ "updated": "2026-09-03T21:41:08.578Z"
 }
