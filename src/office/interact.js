@@ -169,14 +169,20 @@ export class Interaction {
    * Fly the camera to a workstation's screen. Frees the mouse; the in-OS cursor
    * takes over. Escape (or clicking outside the screen) pulls back.
    */
-  focusScreen(workstation) {
-    if (this.focus) return;
+  focusScreen(workstation, opts = {}) {
+    if (this.focus) { if (!(opts.fill && !this.focus.fill && this.focus.dir > 0)) return; }
     const screen = workstation.screen;
     screen.updateWorldMatrix(true, false);
     const normal = new Vector3(0, 0, 1).applyQuaternion(screen.getWorldQuaternion(new Quaternion()));
     const centre = screen.getWorldPosition(new Vector3());
-    // 0.656 m puts a 0.325 m panel across 72 % of a 38 deg frame
-    const to = centre.clone().addScaledVector(normal, 0.656);
+    // 0.656 m puts a 0.325 m panel across 72 % of a 38 deg frame — the OS
+    // view, where you still see the desk around the monitor. `fill` is the
+    // editor: the panel's HEIGHT fills the frame exactly, so the design screen
+    // is the whole real screen and nothing of the drawing is cropped
+    // (d = (h/2) / tan(fov/2) = 0.1625 / tan(19 deg) = 0.472 m).
+    const fill = !!opts.fill;
+    const dist = fill ? (0.325 / 2) / Math.tan((38 / 2) * Math.PI / 180) : 0.656;
+    const to = centre.clone().addScaledVector(normal, dist);
 
     const camFrom = this.camera.position.clone();
     const quatFrom = this.camera.quaternion.clone();
@@ -185,7 +191,7 @@ export class Interaction {
     look.lookAt(centre);
 
     this.focus = {
-      workstation, t: 0, dir: 1, duration: 0.85,
+      workstation, t: 0, dir: 1, duration: fill && this.focus ? 0.55 : 0.85, fill,
       from: { pos: camFrom, quat: quatFrom, fov: this.camera.fov },
       to: { pos: to, quat: look.quaternion.clone(), fov: 38 },
     };
@@ -231,6 +237,10 @@ export class Interaction {
         return;
       }
       f.workstation.os?.focus?.(true);
+      // While the EDITOR is on this screen the OS gets no pointer — the
+      // editor's own listeners on the canvas own the mouse, re-based onto the
+      // screen rectangle (see office.screenRect / camera.setViewportRect).
+      if (this.editorOnScreen) { this.hud?.setCursor(null); if (input?.pressed('cancel')) this.releaseScreen(); return; }
       // hand the mouse to the in-OS cursor
       const hit = this._screenPoint(input, f.workstation);
       if (hit) {

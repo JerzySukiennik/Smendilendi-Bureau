@@ -82,6 +82,7 @@ export class OfficeMode extends Mode {
 
   update(dt) {
     const { input } = this.ctx;
+    this.office.tickScreenEditor(dt);
     if (input?.pressed('office.manage') && !this.office.interact.focus) {
       if (this.office.panelOpen) this.office.closePanel(); else this.office.showManagement();
     }
@@ -90,6 +91,10 @@ export class OfficeMode extends Mode {
   }
 
   render(renderer) {
+    // The editor draws into the monitor's texture BEFORE the room is drawn,
+    // so the quad shows this frame's drawing, not last frame's.
+    const se = this.office.screenEditor;
+    if (se) { se.mode.render(renderer); renderer.setRenderTarget(null); }
     renderer.render(this.scene, this.camera);
     if (this._pendingLuma) {
       const fn = this._pendingLuma;

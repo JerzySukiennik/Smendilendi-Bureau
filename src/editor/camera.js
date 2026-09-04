@@ -365,8 +365,23 @@ export class EditorCameras {
 
   // -- picking helpers -------------------------------------------------------
 
+  /**
+   * The rectangle of the canvas, in CSS pixels, that the editor is actually
+   * being shown in. Null means the whole canvas. When the editor renders into
+   * the monitor's texture and the camera has flown up to that monitor, the
+   * pointer events still arrive in canvas pixels while `this.width/height` is
+   * the tier's screen resolution — so every pixel has to be re-based onto the
+   * on-screen rectangle first. Set by the office each frame from the projected
+   * corners of the screen quad; every caller of ndcFromPixel gets it for free.
+   */
+  setViewportRect(rect) { this.viewportRect = rect || null; }
+
   /** NDC (-1..1) from a canvas-relative pixel position. */
   ndcFromPixel(px, py, out = new Vector2()) {
+    const r = this.viewportRect;
+    if (r && r.w > 0 && r.h > 0) {
+      return out.set(((px - r.x) / r.w) * 2 - 1, -((py - r.y) / r.h) * 2 + 1);
+    }
     return out.set((px / this.width) * 2 - 1, -(py / this.height) * 2 + 1);
   }
 

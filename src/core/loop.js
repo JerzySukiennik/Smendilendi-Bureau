@@ -216,8 +216,20 @@ export class GameLoop {
     if (!this.commission) this.newCommission();
     const ed = this.engine.modes.get('editor');
     if (!ed) { this.toast('The editor is not installed on this machine.'); return null; }
-    // Everything the editor needs to talk back through.
-    const mode = this.engine.push('editor', { commission: this.commission });
+    // ON THE MONITOR when there is one to be on. The office is the active
+    // mode and a workstation has the player's focus — the design app asked for
+    // "fullscreen" from inside the OS — so the editor runs on that screen at
+    // the tier's resolution and the camera fills the frame with it. The old
+    // path (a mode pushed over the game) remains for the case where there is
+    // no focused monitor, e.g. a harness page.
+    const office = this.engine.modes.get('office')?.office;
+    const ws = office?.interact?.focus?.workstation;
+    let mode;
+    if (office && ws && this.engine.activeMode?.id === 'office' && ed.enterOnScreen) {
+      mode = office.openEditorOnScreen(ws, ed, { commission: this.commission });
+      this._editorOnScreen = !!mode;
+    }
+    if (!mode) { mode = this.engine.push('editor', { commission: this.commission }); this._editorOnScreen = false; }
     const editor = mode?.editor;
     if (editor) {
       editor.onSubmit = () => this.submit();
@@ -231,6 +243,16 @@ export class GameLoop {
 
   /** Back to the desk without submitting. */
   leaveEditor() {
+    const office = this.engine.modes.get('office')?.office;
+    if (this._editorOnScreen && office?.screenEditor) {
+      this._editorOnScreen = false;
+      this.state.set('model', this.ctx.net?.model ?? this.state.get('model'));
+      office.closeEditorOnScreen();
+      // the camera may still be at the fill distance; hand focus back to the OS
+      // view or release it entirely if the player pressed Escape
+      if (office.interact.focus && office.interact.focus.dir > 0) office.interact.releaseScreen();
+      return;
+    }
     if (this.engine.activeMode?.id !== 'editor') return;
     this.state.set('model', this.ctx.net?.model ?? this.state.get('model'));
     this.engine.pop({ from: 'editor' });
@@ -305,7 +327,8 @@ export class GameLoop {
       : 'The drawings are with the client.');
 
     // Back to the desk. The letter is read on the machine it arrived on.
-    if (this.engine.activeMode?.id === 'editor') this.engine.pop({ from: 'editor' });
+    if (this._editorOnScreen) { const office = this.engine.modes.get('office')?.office; this._editorOnScreen = false; office?.closeEditorOnScreen(); office?.interact?.releaseScreen?.(); }
+    else if (this.engine.activeMode?.id === 'editor') this.engine.pop({ from: 'editor' });
 
     if (!finalRound) {
       const mail = revisionMail(report, brief);

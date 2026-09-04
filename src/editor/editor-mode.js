@@ -382,10 +382,43 @@ export class EditorMode extends Mode {
   }
 
   /** The office calls this with the monitor's texture target; null = full screen. */
-  setRenderTarget(rt) {
+  setRenderTarget(rt, viewportRect = null) {
     this.renderTarget = rt;
     if (rt) this.editor?.resize(rt.width, rt.height);
     else this.editor?.resize(this.ctx.engine.width, this.ctx.engine.height);
+    this.editor?.cameras?.setViewportRect?.(rt ? viewportRect : null);
+  }
+
+  /**
+   * Run INSIDE the in-game computer instead of as a mode over the game.
+   * DESIGN-DECISIONS.md, second playtest, item 4: clicking the monitor zooms
+   * the camera until the monitor fills the real screen and the editor runs on
+   * that screen at the computer tier's resolution — no separate window. The
+   * office owns the render target and the framing; this mode just agrees to
+   * be entered without being on the engine's stack and to draw into what it
+   * is given. The HUD is pinned to the projected screen rectangle by the
+   * office every frame, so the palette and the top bar sit ON the monitor.
+   */
+  enterOnScreen(params, rt, viewportRect) {
+    this.onScreen = true;
+    this.enter(params);
+    this.setRenderTarget(rt, viewportRect);
+  }
+
+  exitOnScreen() {
+    this.onScreen = false;
+    this.setRenderTarget(null);
+    if (this.hud) { const st = this.hud.root.style; st.left = st.top = st.width = st.height = ''; }
+    this.exit();
+  }
+
+  /** Called by the office each frame with the screen quad's on-canvas rectangle. */
+  setScreenRect(rect) {
+    this.editor?.cameras?.setViewportRect?.(rect);
+    if (this.hud && rect) {
+      const st = this.hud.root.style;
+      st.left = `${rect.x}px`; st.top = `${rect.y}px`; st.width = `${rect.w}px`; st.height = `${rect.h}px`;
+    }
   }
 
   update(dt) {

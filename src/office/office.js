@@ -20,7 +20,7 @@
 import {
   Scene, PerspectiveCamera, Color, Fog, Group, Mesh, InstancedMesh, Object3D,
   PointLight, Vector3, MathUtils, BoxGeometry, MeshBasicMaterial, SphereGeometry,
-  InstancedBufferAttribute, Frustum, Matrix4, Sphere, BackSide, BufferAttribute,
+  InstancedBufferAttribute, Frustum, Matrix4, Sphere, BackSide, BufferAttribute, WebGLRenderTarget,
   PlaneGeometry, CanvasTexture, SRGBColorSpace, NearestFilter,
   LinearMipmapLinearFilter,
 } from 'three';
@@ -1250,7 +1250,76 @@ export class Office {
     this.toast(`Radio ${this.radioStation}.`);
   }
 
+  /**
+   * The editor ON THE MONITOR. Jurek, second playtest, item 4: "the editor
+   * should not open as a separate window; the camera zooms in on the computer
+   * so the monitor fills the whole real screen, and you edit there — that is
+   * what makes the screen resolution worth upgrading." So: a render target at
+   * the tier's own resolution replaces the OS texture on the screen quad, the
+   * camera flies to the fill distance, and every frame the screen quad's
+   * corners are projected to give the editor and its HUD the rectangle the
+   * pointer has to be re-based onto. Escape or "Back to desk" undoes all of it.
+   */
+  openEditorOnScreen(ws, mode, params = {}) {
+    if (!ws?.screen || !mode || this.screenEditor) return null;
+    // A mode that has never been on the engine's stack has never been init()ed
+    // — no Editor, no HUD, no cameras — so entering it on the screen drew
+    // nothing (measured: render-target luma 0 against a control of 255).
+    if (!mode.initialised && typeof mode.init === 'function') mode.init(this.ctx);
+    const img = ws.os?.texture?.image;
+    const w = Math.max(320, img?.width || 640), h = Math.max(240, img?.height || 480);
+    const rt = new WebGLRenderTarget(w, h, { depthBuffer: true, stencilBuffer: false });
+    rt.texture.colorSpace = SRGBColorSpace;
+    const mat = ws.screen.material;
+    this.screenEditor = { ws, rt, mode, prevMap: mat.map, prevColor: mat.color.getHex() };
+    mat.map = rt.texture; mat.color.setHex(0xffffff); mat.needsUpdate = true;
+    mode.enterOnScreen(params, rt, this.screenRect(ws));
+    this.interact.editorOnScreen = true;
+    this.interact.focusScreen(ws, { fill: true });
+    return mode;
+  }
+
+  closeEditorOnScreen() {
+    const se = this.screenEditor; if (!se) return;
+    this.screenEditor = null;
+    this.interact.editorOnScreen = false;
+    se.mode.exitOnScreen();
+    const mat = se.ws.screen.material;
+    mat.map = se.prevMap; mat.color.setHex(se.prevColor); mat.needsUpdate = true;
+    se.rt.dispose();
+  }
+
+  /** The screen quad's bounding rectangle on the canvas, in CSS pixels. */
+  screenRect(ws) {
+    const cam = this.camera; if (!ws?.screen || !cam) return null;
+    // The engine tracks the canvas's CSS size through resize(); clientWidth is
+    // 0 while the pane is hidden, which turned the rectangle into 2x1 px.
+    const eng = this.ctx?.engine; const cv = eng?.canvas;
+    const W = eng?.width || cv?.clientWidth || 1, H = eng?.height || cv?.clientHeight || 1;
+    ws.screen.updateWorldMatrix(true, false);
+    const g = ws.screen.geometry; g.computeBoundingBox?.();
+    const bb = g.boundingBox; if (!bb) return null;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const cx of [bb.min.x, bb.max.x]) for (const cy of [bb.min.y, bb.max.y]) {
+      const v = new Vector3(cx, cy, 0).applyMatrix4(ws.screen.matrixWorld).project(cam);
+      const px = (v.x + 1) / 2 * W, py = (1 - v.y) / 2 * H;
+      x0 = Math.min(x0, px); y0 = Math.min(y0, py); x1 = Math.max(x1, px); y1 = Math.max(y1, py);
+    }
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+
+  /** Per frame while the editor is on the screen: drive it and pin its rectangle. */
+  tickScreenEditor(dt) {
+    const se = this.screenEditor; if (!se) return;
+    se.mode.update(dt);
+    const r = this.screenRect(se.ws);
+    if (r) se.mode.setScreenRect(r);
+  }
+
   _onFocusChange(ws, on) {
+    // Escape while the editor is on the monitor: the flight back is the
+    // editor closing. The loop owns the model hand-off, so it does the closing.
+    if (!on && this.screenEditor) this.ctx?.loop?.leaveEditor?.();
     this.hudEl?.classList.toggle('focused', on);
     this.vignette?.classList.toggle('on', on);
     if (!on) this.cursorEl?.classList.remove('on');
