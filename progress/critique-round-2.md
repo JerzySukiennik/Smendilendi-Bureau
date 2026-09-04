@@ -111,3 +111,149 @@ family from ever acquiring a non-integer coordinate, an `rgba()`, a `shadowBlur`
 `borderRadius` or a 21st colour, however the modern themes are implemented on the
 shared drawing surface. Today the only thing protecting the best-scoring piece in the
 build is that nobody has touched `surface.js` yet.
+
+---
+
+# BLOCKER FOUND BEFORE ANY BAR — the game does not start
+
+This is not on any of the three checklists, and it outranks all of them.
+
+**Input:** open `http://localhost:5179/` at HEAD (`4fa00c9`) and wait.
+**What happens:** `MenuMode.update()` throws on the **very first frame**, every time:
+
+```
+TypeError: Cannot set properties of undefined (setting 'visible')
+    at MenuMode._pick (src/menu/menu.js:1244:28)
+    at MenuMode.update (src/menu/menu.js:1078:10)
+    at Engine._tick (src/core/engine.js:373:22)
+```
+
+`Engine._tick` catches it, logs `[engine] frame failed, stopping the loop to avoid a
+log flood`, calls `this.stop()` and rethrows. **The render loop is dead from frame 1.**
+Nothing draws, nothing is clickable, there is no main menu.
+
+**Cause, traced:** playtest item 3 removed the survey tags — `menu.js:132` now reads
+`const SHOW_SURVEY_TAGS = false;` and `menu.js:219` guards `_buildTags(scene)` behind
+it. `_buildTags` is the only place that assigns `this.tagRing` (`menu.js:969`). But
+`_pick()` dereferences it **unguarded** at line 1244, in the `else` branch of
+`if (ringOn >= 0)`, and with no tags `ringOn` is always `-1`, so line 1244 runs on
+every frame. Lines 1227/1231/1289 are the same hazard behind `if (tag !== …)` guards;
+1325 is correctly guarded with `if (this.tagRing)`.
+
+Confirmed by construction, not by inference: on a clean load I read
+`m.blocked === false`, `'tagRing' in m === false`, and a single manual `m.update(1/60)`
+threw the stack above. I then set
+
+```js
+m.tagRing = { visible:false, material:{opacity:0},
+              position:{addScaledVector(){return this;}}, quaternion:{copy(){}} };
+```
+
+and the menu rendered immediately — 73 draw calls, 158 610 triangles, zero further
+errors. **One undefined property is the entire difference between a dead build and a
+working one.** Every measurement below was taken with that one-line stub in place.
+
+**What should happen instead:** guard the four unguarded dereferences the way line
+1325 already does (`if (this.tagRing) …`), or, better, have `_pick()` return early
+when `this.tagMesh` is absent — with `SHOW_SURVEY_TAGS = false` the whole tag half of
+`_pick` is dead code and raycasting for it every frame is waste as well as a crash.
+
+**Process finding, which matters more than the bug.** The commit that turned the tags
+off is `8787cf0`, and the commit after it (`4fa00c9`) records an "end-to-end proof"
+whose first row reads `menu -> office | ok`. That proof was driven by calling into the
+game's internals, not by loading the page and looking at it. A proof that never lets
+the engine run a frame of the menu cannot see a crash in the menu's first frame.
+**Any future end-to-end claim has to start from a cold page load with the loop
+running.**
+
+---
+
+# BAR 1 — Architect Life FINISH checklist
+
+Scored frames, both 1600x900, written to disk from the real framebuffer:
+`progress/shots/c2-office-hero.png` (the spawn view, player 12.30/1.62/8.35, yaw 0.98)
+and `progress/shots/c2-menu.png`. A second office frame,
+`progress/shots/c2-office-west.png` (player 12.00/4.80, yaw pi/2), was taken
+specifically to re-test round 1's named exception.
+
+| # | Item | My measurement | Verdict |
+|---|---|---|---|
+| 1 | >=16 distinct prop types in frame | frustum-tested every instance: **17 instanced prop families** with >=1 instance in frame (sheet 23, monitor 6, keyboard 6, partition 6, blueprint 6, pendant 5, desk 3, mouse 3, deskLamp 3, penCup 3, mug 3, paperStack 3, deskSmall 3, taskChair 3, plantSmall 3, pedestal 2, stackChair 2) plus non-instanced screen, nameplate, blinds, personalisation, floor lamp, boxes, corkboard, kitchen run, brick wall | PASS |
+| 2 | >=8 of them lived-in clutter | sheets (23 in frame), mug, penCup, paperStack, pinned blueprints, plantSmall, personalisation objects, cardboard boxes, corkboard = **9** | PASS |
+| 3 | >=3 light sources, distinct colour temperature | **19 lights**, five families by hex: sun `#ffdcb0` directional from (-32.6, 17.2, -9.8), intensity 6.4, **the only shadow caster**; hemisphere `#93b8e2` sky over `#6a6055` ground; pendants `#ffab5e` x5; desk/task lamps `#ffc98a` / `#ffc07a` / `#ffd0a0` / `#ffc78e`; monitor glow `#9fc4e8` x3 | PASS |
+| 4 | Contact shadow under every floor-standing object | **61 contact-shadow decals inside the frustum** against ~20 genuinely floor-standing objects in it (3 task chairs, 2 stacking chairs, 2 pedestals, 3 desks, 3 small desks, 6 partitions, floor lamp, boxes) | PASS |
+| 5 | AO band >=12/255 over 20 px at every wall/floor and wall/ceiling junction | **wall/floor**, column x=40 of the west frame: plaster holds 135-141 down the wall, then **141 -> 87 (delta 54)** into the junction. **wall/ceiling**, same column: **130 -> 79 (delta 51)** over 8 px. Round 1's named exception — "the west end wall measures 178 -> 179 over 45 px, dead flat" — **is fixed** | PASS, exception cleared |
+| 6 | Visible bounce light | hemisphere ground term is warm `#6a6055` and the desk undersides and chair seats pick it up; pointable but softer than the reference | PASS (weak) |
+| 7 | Hard directional patch through an opening | yes — sharp-edged window rectangles with readable mullion divisions across the floor in both frames; still the best finish moment in the build | PASS |
+| 8 | p5 <= 70 and p95 >= 140 | office hero **p5 28, p95 208** (p1 5, p50 143, mean 133); west frame **p5 28, p95 212**; menu **p5 29, p95 212** | PASS all three |
+| 9 | >=8 visually distinct materials | material slots resolved in frame: polishedConcrete, plaster, brick, wood-light, wood-dark, metal, glass, ink, flat, paper, tile = **11** | PASS |
+| 10 | One accent hue, everything else neutral | hue histogram over pixels with sat > 0.25: **one warm family, bins 20-30 deg, 21.5 % of the frame; nothing else above 1 %.** For calibration the reference frames run 2 families (shot-09 warm 10-30 + cool 190-220; shot-04 warm 10-40 + cyan 180-200), so we are inside the bar and in fact tighter than it | PASS |
+| 11 | >=3 depth layers | foreground partition + meeting table / midground cubicle cluster / background glazing, brick wall, kitchen run | PASS |
+| 12 | Deliberate framing device | partition entering from the left edge; ceiling beams converging; floor tile joints running to the window wall | PASS |
+| 13 | No bare floor patch > 25 % of frame | raycast a 40x23 grid through the camera against all 90 visible meshes, flood-filled the cells hitting y < 0.06: floor is **15.9 %** of the frame and the **largest contiguous bare patch is 13.0 %** | PASS |
+| 14 | HUD corner-anchored, icon + label + value, centre 50 % clear | four chip groups: nick top-left, time / office code top-right, bank / computers / studio / staff bottom-right. Each is icon + label + right-aligned value. Centre clear. FPS/debug overlay is off by default (`main.js`, `this.debug.toggle(false)`), which is playtest item 3 satisfied | PASS |
+| 15 | Cast shadow direction consistent | exactly one shadow-casting light in the scene, so every cast shadow is parallel by construction | PASS |
+
+**BAR 1 SCORE: 15/15.** Round 1's two named weaknesses both held their fixes: the
+west wall now has a real AO ramp, and there is now geometry beyond the glass.
+
+### One measurement I ran and then discarded, because it was wrong
+
+I built a "largest dead-flat region" detector (8x8 blocks, luma std < 1, merged when
+neighbouring block means agree within 1.5) to re-test round 1's "flat slab" finding.
+It reported our largest flat region at **9.93 % of the west frame** — the near
+partition. That number is misleading and I am recording it so nobody quotes it: the
+merge rule chains a slow gradient into one component. Profiled directly, the partition
+runs **luma 47 at the top to 27 at the bottom over 340 px (delta 20/255)** vertically,
+and is uniform horizontally (std 0.00 over 410 px) — which is what a felt panel should
+do. The same detector scores the reference `shot-05` at **10.24 %** and `shot-09` at
+**7.73 %**, i.e. worse than us. **Round 1's partition finding is fixed.**
+
+## Blind A/B, bar 1
+
+Equal-scale 420x300 crops, ours beside the reference, unlabelled.
+
+**Pair 1 — our desk bay + brick wall vs `shot-09` scaled to match.** Told them apart
+in under a second; ours is the left one. Two tells, and neither is about polygons:
+1. **The pinned drawings on the brick wall are six identical blank off-white
+   rectangles at identical pitch.** Same size, same value, same spacing, no content,
+   and the corkboard beside them is an empty tan rectangle. Nothing in any of the nine
+   reference frames is a repeated blank rectangle at even spacing; that pattern reads
+   as an unfilled array, not as pinned work. Ironically the props are *dense* enough —
+   it is the repetition that gives it away, not the count.
+2. **Every brick in the brick wall is the same value.** The reference never repeats a
+   surface unit without varying it.
+
+**Pair 2 — our west glazing vs `shot-05` scaled to match.** Told them apart instantly
+again; ours is the left one, and this is the important one:
+
+**What is beyond our glass is a painted backdrop.** The neighbouring buildings are
+plain pale grey-blue slabs with **no window openings, no roof detail, no value
+variation between blocks**, and the one "tree" is a single dark-green trapezoid whose
+silhouette is a straight sloping line that cuts across a window mullion. Measured: the
+entire exterior world — everything visible through every window, spanning a 260 x 260 m
+bounding box — is **one mesh of 1 872 triangles** plus a 728-triangle sky dome. That is
+roughly thirty boxes standing in for a city, seen through a full-height window at eye
+level, and the eye reads it as flat card.
+
+Round 1's fix ("put something outside the windows") landed literally: something is
+there. It is not yet a background layer, it is a cut-out.
+
+## The single biggest remaining gap — bar 1
+
+**Input:** stand anywhere along the west or south glazing (e.g. player x 12.0, z 4.8,
+yaw pi/2) and look out.
+**What happens:** flat untextured slabs, no fenestration, no value separation between
+near and far blocks, a flat green wedge for a tree, and a single ground band. 1 872
+triangles for the whole exterior.
+**What should happen instead:** the background needs the two things the reference gets
+for free from aerial perspective, and both are cheap in flat-shaded low poly:
+(a) **give the blocks windows** — an emissive/dark instanced grid on each facade is one
+extra draw call and immediately reads as a building rather than a slab; (b) **separate
+the depth bands by value and hue** — near blocks at full saturation, mid blocks lifted
+~15 % toward the sky colour, far blocks ~35 %, which is what makes `shot-08`'s hills
+sit behind its village. And replace the trapezoid conifer with the same low-poly
+conifer already used in the menu scene, which is a real cone stack and already in the
+build. Verify by measuring: at least three distinct luma bands across the exterior
+region seen through one window, each separated by >= 15/255, and no facade larger than
+2 % of the frame that is a single flat value.
