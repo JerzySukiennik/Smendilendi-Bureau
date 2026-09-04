@@ -51,7 +51,9 @@ class App {
 
   async boot() {
     // Debug overlay is on from day one, per ARCHITECTURE.md.
-    this.debug.toggle(true);
+    // Off by default. Jurek: "remove the panel that shows FPS — I play on my
+    // faster machine anyway." Backquote still toggles it for whoever needs it.
+    this.debug.toggle(false);
     this.input.on('action', ({ action }) => {
       if (action === 'debug.toggle') this.debug.toggle();
     });

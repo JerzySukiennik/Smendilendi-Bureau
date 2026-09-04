@@ -122,6 +122,7 @@ export class Lobby {
 
     // --- top right: the surveyor's report ---------------------------------
     const tools = el('div', 'mn-tools');
+    if (this.crimes.length) {
     this.reportBtn = el('button', 'mn-btn mn-btn-ghost');
     this.reportBtn.innerHTML = `<span class="mn-dot"></span>Surveyor's report <b>${this.crimes.length}</b>`;
     this.reportBtn.addEventListener('click', () => this.openReport());
@@ -129,6 +130,7 @@ export class Lobby {
     this.reportBtn.addEventListener('mouseenter', () => this.opts.onTagsHot?.(true));
     this.reportBtn.addEventListener('mouseleave', () => this.opts.onTagsHot?.(false));
     tools.appendChild(this.reportBtn);
+    }
     root.appendChild(tools);
 
     // --- bottom right: the hint -------------------------------------------

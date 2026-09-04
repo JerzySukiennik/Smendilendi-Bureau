@@ -128,6 +128,9 @@ const FLY = 0.85;
 
 const ZERO = new Vector3();
 
+/** Pin numbered survey tags to the facade. Off: they read as dev clutter. */
+const SHOW_SURVEY_TAGS = false;
+
 export class MenuMode extends Mode {
   constructor() {
     super('menu');
@@ -208,7 +211,12 @@ export class MenuMode extends Mode {
     this._buildMotion(scene);
     this._buildLights(scene);
     this._buildNorthPoint(scene);
-    this._buildTags(scene);
+    // The numbered survey tags are DEV DRESSING now. Jurek, on seeing them:
+    // "the critics added weird dots on the menu — remove them." The bad
+    // building stays bad, and the crimes stay in bad-building.js for the
+    // walkthrough's client verdict and for anyone who wants the joke explained;
+    // they just do not get pinned to the facade with numbers any more.
+    if (SHOW_SURVEY_TAGS) this._buildTags(scene);
 
     // Lettering needs the typeface; everything above is already on screen while
     // it loads, so a slow font never shows the player a blank frame.
@@ -218,7 +226,7 @@ export class MenuMode extends Mode {
 
     this.lobby = new Lobby(ctx, {
       onAction: (id, data) => this._act(id, data),
-      crimes: building.crimes,
+      crimes: SHOW_SURVEY_TAGS ? building.crimes : [],   // no tags -> no report chip, no hint
       onCrimeFocus: (i) => this.focusCrime(i),
       // closing the report leaves the camera where the player last pointed, so
       // the diagnosis has to come back with it

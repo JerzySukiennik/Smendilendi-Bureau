@@ -2,68 +2,107 @@
   "rules": {
     ".read": false,
     ".write": false,
-
     "smendilendi": {
       "$officeCode": {
         ".read": "$officeCode.length >= 8",
         ".write": "$officeCode.length >= 8",
-
         "meta": {
           ".validate": "newData.hasChildren(['createdAt', 'host'])",
-          "createdAt": { ".validate": "newData.isNumber()" },
-          "host":      { ".validate": "newData.isString() && newData.val().length <= 64" },
-          "phase":     { ".validate": "newData.isString() && newData.val().length <= 32" },
-          "$other": { ".validate": false }
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "host": {
+            ".validate": "newData.isString() && newData.val().length <= 64"
+          },
+          "phase": {
+            ".validate": "newData.isString() && newData.val().length <= 32"
+          },
+          "$other": {
+            ".validate": false
+          }
         },
-
         "players": {
           "$pid": {
             ".validate": "newData.hasChildren(['nick'])",
-            "nick":     { ".validate": "newData.isString() && newData.val().length <= 24" },
-            "color":    { ".validate": "newData.isString() && newData.val().length <= 16" },
-            "lastSeen": { ".validate": "newData.isNumber()" },
-            "cursor":   { ".validate": "newData.hasChildren()" },
-            "sel":      { ".validate": "newData.hasChildren() || newData.val() == null" },
-            "$other": { ".validate": false }
+            "nick": {
+              ".validate": "newData.isString() && newData.val().length <= 24"
+            },
+            "color": {
+              ".validate": "newData.isString() && newData.val().length <= 16"
+            },
+            "lastSeen": {
+              ".validate": "newData.isNumber()"
+            },
+            "cursor": {
+              ".validate": "newData.hasChildren()"
+            },
+            "sel": {
+              ".validate": "newData.hasChildren() || newData.val() == null"
+            },
+            "$other": {
+              ".validate": false
+            },
+            "bot": {
+              ".validate": "newData.isBoolean()"
+            }
           }
         },
-
         "ops": {
           "$seq": {
             ".validate": "newData.hasChildren(['t', 'by'])",
-            "t":  { ".validate": "newData.isString() && newData.val().length <= 32" },
-            "by": { ".validate": "newData.isString() && newData.val().length <= 64" }
+            "t": {
+              ".validate": "newData.isString() && newData.val().length <= 32"
+            },
+            "by": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            }
           }
         },
-
         "snapshot": {
           ".validate": "newData.hasChildren(['model', 'seq'])",
-          "seq": { ".validate": "newData.isNumber()" }
+          "seq": {
+            ".validate": "newData.isNumber()"
+          }
         },
-
         "locks": {
           "$objId": {
             ".validate": "newData.hasChildren(['pid', 'at']) || !newData.exists()",
-            "pid": { ".validate": "newData.isString() && newData.val().length <= 64" },
-            "at":  { ".validate": "newData.isNumber()" },
-            "$other": { ".validate": false }
+            "pid": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
           }
         },
-
         "chat": {
           "$id": {
             ".validate": "newData.hasChildren(['pid', 'text', 'at'])",
-            "pid":  { ".validate": "newData.isString() && newData.val().length <= 64" },
-            "text": { ".validate": "newData.isString() && newData.val().length <= 500" },
-            "at":   { ".validate": "newData.isNumber()" },
-            "$other": { ".validate": false }
+            "pid": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "text": {
+              ".validate": "newData.isString() && newData.val().length <= 500"
+            },
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
           }
         },
-
-        "$other": { ".validate": false }
+        "$other": {
+          ".validate": false
+        }
       }
     },
-
-    "$other": { ".read": false, ".write": false }
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
   }
 }
