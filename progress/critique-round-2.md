@@ -257,3 +257,202 @@ conifer already used in the menu scene, which is a real cone stack and already i
 build. Verify by measuring: at least three distinct luma bands across the exterior
 region seen through one window, each separated by >= 15/255, and no facade larger than
 2 % of the frame that is a single flat value.
+
+---
+
+# BAR 2 — SketchUp: click counts and the four gates (the editor)
+
+## How I reached the editor, and one method note
+
+The player route: spawn in the office, stand at workstation 1 (player 5.40 / 4.20,
+yaw 0, pitch -0.18), the monitor highlights and the prompt offers `F Use —
+Workstation 1`, the machine wakes into TRESTLE 3.1, and the Design app opens the
+editor **on the monitor**. `office.screenEditor` is set, the editor renders into an
+806 x 480 `WebGLRenderTarget` that replaces the screen texture, and the camera flies
+in until the monitor fills **94.3 %** of the frame width (1509 of 1600 px). Playtest
+item 4 is done, and done properly.
+
+Method note for whoever repeats this: the hidden Browser pane throttles `rAF` to a
+stop, so I ran the engine from a `setInterval` pump and forced the canvas to
+1600 x 900 (the pane reports `innerWidth 0`, which makes the renderer 1 x 1 and every
+screenshot a 1 x 1 PNG). Keys must be dispatched as real `KeyboardEvent`s; the pane's
+own type action does not reach the page. And **`tools/shot.js` returned stale frames
+of the monitor** while the editor ran on it — I verified this with a control (hiding
+`site`, an object certainly on screen, changed **0** pixels in the shot), so every
+editor image below is a `readRenderTargetPixels` read of the actual render target.
+
+## The five benchmark operations, counted SketchUp's way
+
+"Decisions" = tool switches + clicks + typed entries, one unit each.
+
+| # | Operation | What I actually did | Switches | Clicks | Typed | **Decisions** | Bar | Result |
+|---|---|---|---|---|---|---|---|---|
+| a | 4 m wall, exact length, as a 3D volume | `W` -> click start -> type `4000` Enter | 1 | 1 | 1 | **3** | <= 6 | **beats it by half** |
+| a' | Same, bare line | the wall IS the primitive; no separate line step | — | — | — | **3** | <= 3 | meets |
+| b | Cut a door opening in an existing wall | `D` -> click the wall | 1 | 1 | 0 | **2** | <= 6 | **beats it 3x** |
+| c | Change a face's material | `B` (also switches the panel to Materials) -> click swatch -> click face | 1 | 2 | 0 | **3** | <= 3 | meets |
+| d | Move an object exactly 500 mm along an axis | click object -> `M` -> click grab point -> Right arrow -> type `500` Enter | 1 | 2 | 1 arrow + 1 entry | **5** | <= 5 | meets |
+| e | Measure a distance | `T` -> click A -> click B | 1 | 2 | 0 | **3** | <= 3 | meets |
+
+Every result verified against the model, not against the UI:
+
+* (a) `walls` gained one entry, length **exactly 4.000 m**, thickness 0.24, type
+  exterior, full storey height. Round 1's unreproducible "typed 4000 gave 0.400 m"
+  anomaly did not recur in six attempts.
+* (b) `openings` gained `{kind:'door', catalogId:'door-internal-900', width 0.9,
+  height 2.05, sill 0, swing:'in-left', offset 2.00}` from one click.
+* (c) wall `w_7fkdct3` `matInner` went `render` -> `brick`; the bottom-right readout
+  changed to `Finish · Exposed brick · 260/m²`.
+* (d) the chair went `x -4.000 -> -3.500`, `z` unchanged: **exactly 500 mm on X**,
+  `lockAxis === 'x'`.
+* (e) readout `32.117 m · Δx -17.700 m · Δy 26.800 m · Δz 0 mm` — richer than
+  SketchUp's single figure.
+
+**All five at or under the bar; two of them well under.**
+
+## The four qualitative gates
+
+| Gate | Evidence | Verdict |
+|---|---|---|
+| Exact typed value mid-operation, no click into a field, **and revisable after the operation completes** | Typing is a keyboard sink on `window`; the box is never focused and never clicked into. Mid-drag it renders `Distance 500▌ = 0.500 m` with a caret and live unit resolution. **The revision half also works and I tested it in both states:** with a wall run still open, `6000` Enter correctly *chains* a second 6 m segment; after `Esc` ends the run, `3000` Enter **re-set the last wall from 6.000 m to 3.000 m** and flashed "Wall re-set to 3000 mm". That is exactly SketchUp's semantics | **PASS** |
+| Every inference names itself at the cursor with an official name | **FAIL in the shipping configuration.** See below — the only name the editor can produce on the monitor is the `On Face` fallback | **FAIL** |
+| Axis colours red/green/blue for X/Y/Z, magenta reserved for parallel/perpendicular | `constants.js`: `axisX 0xd23b2e`, `axisY 0x3f9c35`, `axisZ 0x2f6fd0`, `magenta 0xc23fb0` used only by `PERPENDICULAR` and `PARALLEL`; the axes rank **above** par/perp so an orthogonal plan says "On Red Axis" rather than going magenta. Red, green and blue axis lines are visible in the render | **PASS** |
+| Navigation never interrupts a tool | started a wall run (`tool.from = {0, 0}`), dispatched a wheel event; camera position changed and **`tool.from` was byte-identical afterwards**, tool still `wall` | **PASS** |
+
+**BAR 2 SCORE: 8 of 9** — five benchmarks all at or under the bar, three gates of four.
+Round 1 scored this 6/6; the difference is that round 1 measured the inference gate in
+the standalone harness, and the editor now ships inside the monitor.
+
+## The gate that fails, with the root cause and a proof
+
+**Input:** open the editor from the office monitor, draw one room with the Room tool,
+press `W`, and move the cursor exactly onto any corner of the room you just drew.
+
+**What happens:** the snap reads **`On Face`**. It reads `On Face` on every one of the
+four corners, on every midpoint, on every edge, and — with a wall run in progress —
+across a full sweep of the viewport in both axes. In a clean session I hovered all
+four nodes of a freshly drawn room and collected the set of inference names produced:
+`["On Face"]`. **Endpoint, Midpoint, Intersection, Center, On Edge, From Point, On Red
+/ Green / Blue Axis, Parallel and Perpendicular never fire at all.**
+
+**Root cause, measured.** `src/editor/snapping.js:145-146` accepts a candidate in
+screen space:
+
+```js
+cameras.toScreen(c.point, _s);
+const d = _s.distanceTo(pixel);
+if (d > (c.tol ?? SNAP_PX)) continue;      // SNAP_PX = 14
+```
+
+`pixel` is `e.clientX - canvasRect.left` — **canvas CSS pixels, 1600 x 900**.
+`toScreen` (`src/editor/camera.js:431-434`) multiplies by `this.width` /
+`this.height` — **the render target, 806 x 480**. `ndcFromPixel` correctly re-bases the
+cursor onto `viewportRect` (x 45.4, w 1509.2, h 900); `toScreen` never learned about
+that rectangle. The two are compared directly, in different coordinate systems, against
+a 14-pixel tolerance.
+
+Measured on a cursor sitting exactly on a wall node:
+
+| quantity | value |
+|---|---|
+| cursor pixel | (759.6, 470.0) |
+| `toScreen()` of the same node | (381.5, 250.7) |
+| distance | **437.2 px** |
+| `SNAP_PX` | **14** |
+
+Over the four corners of a clean room the gaps were **484.9, 429.5, 429.5, 484.4 px**.
+Nothing can ever be within 14.
+
+**Proof by repair, in the live session.** I replaced `toScreen` with the same three
+lines re-based onto `viewportRect`:
+
+```js
+const v = p.clone().project(this.camera); const r = this.viewportRect;
+if (r && r.w > 0) return out.set(r.x + (v.x*0.5+0.5)*r.w, r.y + (-v.y*0.5+0.5)*r.h);
+return out.set((v.x*0.5+0.5)*this.width, (-v.y*0.5+0.5)*this.height);
+```
+
+The very next hover over a wall node returned **`Endpoint`**, at the exact position and
+at +/-4 px either side. Nothing else was changed. I then restored the shipping code and
+the failure returned.
+
+**Why this is the biggest thing in the editor.** Point inference is not a nicety; it is
+the mechanism the whole editor is built on and the thing the SketchUp bar exists to
+protect. Without it you cannot start a wall at another wall's end — which is
+**verbatim playtest item 5**: "there is no way to draw a single wall at an angle from
+one wall end to another." The Wall tool was built; the snap that makes it useful is
+being silently discarded by a coordinate-space mismatch, and only in the configuration
+the player actually plays in. The standalone harness (`src/editor/dev.html`, where
+`viewportRect` is null and `width/height` are the canvas) is exactly the configuration
+where this bug cannot appear, which is why round 1 scored the gate a pass.
+
+## "It is terrible that you cannot get your bearings in it at all" — is it still true?
+
+**No, not for finding things.** Judged from full-resolution captures
+(`progress/shots/c2-editor-onscreen.png`, `c2-editor-paint.png`), on entry the editor
+tells you, without being asked:
+
+* which tool is armed — `Room` is highlighted orange in the palette *and* named in the
+  status bar at the bottom left;
+* what that tool wants next — "Press on the ground and drag: a room appears — floor,
+  walls and ceiling. Drag a second one against it and they share the wall. Or type
+  `6000,4000`";
+* what the primary verb is — a centred coach line saying the same thing in one
+  sentence, which retires itself;
+* what every tool is — the palette is **labelled**, grouped under BUILD / PRINCIPAL /
+  DRAW / PLACE / MEASURE / CAMERA, with the shortcut key right-aligned on each row;
+* where the money is — `Cost against budget 0 / 5 470 000` bottom right, live;
+* where the way out is — `Back to desk` and `Submit to client` in the top bar, the
+  latter the only orange control on screen;
+* what the panels are — four named tabs, Catalogue / Materials / Rooms / Check, and
+  pressing `B` switches the panel to Materials on its own.
+
+That is a different program from the one Jurek gave up on. **Three things are still
+wrong at monitor size**, and all three are measurable:
+
+1. **The 3D is soft and the UI is sharp.** The viewport is an 806 x 480 render target
+   displayed at 1509 x 900 — a **1.87x upscale** — while the whole HUD is DOM drawn at
+   the real 1600 x 900. Crisp 12 px labels sitting on a visibly blurred 3D view reads
+   as a rendering fault rather than as a period computer.
+2. **Live dimensions are the smallest text on the screen.** The measurement box is the
+   bottom-right corner of a HUD scaled for a 1600 px screen, while the thing it
+   measures is in the middle of a soft 806 px viewport.
+3. **The buildable-area refusal is silent.** Dragging a room outside the plot correctly
+   turns the ghost **red** and correctly **refuses** it (walls 8 -> 8, verified), which
+   is round 1's finding fixed and playtest item 9 satisfied — but the coach line still
+   showed the previous, unrelated tip and no wording ever said "outside the buildable
+   area". The player drags, releases, nothing appears, and is never told why.
+
+## Two items from Jurek's own list that the editor decides
+
+* **Item 6 — "doors placed in build mode count."** **FIXED, verified.** With no
+  openings the Check listed `ACCESS_NO_ENTRANCE` and `ACCESS_ROOM_NO_DOOR`. After one
+  `D` + click and a re-run, both are gone.
+* **Item 8 — "the what-is-still-missing panel does not update live."** **NOT FIXED.**
+  The Check tab now opens on `NOT RUN YET` behind a `Run the checks` button. I ran it
+  (`SCORE 0 · 7 ISSUES`), placed a door, and read the panel again: **byte-identical**,
+  still saying "There is no way into the building" and "The unnamed room has no door"
+  about a door that now exists. Only pressing the button again updates it
+  (`SCORE 0 · 8 ISSUES`, both door complaints gone). Jurek asked for the opposite:
+  "It must follow the model in real time." A manual button is a defensible way to keep
+  a heavy analysis off the frame budget, but then the panel must at minimum mark itself
+  **stale** the moment `model.version` changes, rather than presenting an out-of-date
+  list as current fact — which is precisely the complaint.
+* Smaller, same panel: it shows `measured 0 doors · required 1 doors` and
+  `access · ACCESS_NO_ENTRANCE`. The stable code is developer jargon on a player-facing
+  surface, and DESIGN-DECISIONS (2026-08-30) puts numbers in one optional place and
+  plain words everywhere else.
+
+## The single biggest remaining gap — bar 2
+
+**Input:** open the editor from the monitor, draw a room, press `W`, hover a corner.
+**What happens:** the label says `On Face`; the wall starts on the grid, not on the
+corner. Internally `toScreen()` puts that corner **437 px** from a cursor that is
+sitting on it, against a 14 px tolerance, because `toScreen` measures in the 806 x 480
+render target while the cursor is measured in the 1600 x 900 canvas.
+**What should happen instead:** `Endpoint` in green with a square marker, and the wall
+starting exactly on the node. Fix `src/editor/camera.js:431` to map through
+`this.viewportRect` when one is set — the same rectangle `ndcFromPixel` twelve lines
+above it already uses. Then add the standing check that would have caught it: with the
+editor on a monitor, project a known model node, place the cursor there, and assert the
+snap name is `Endpoint`. Every inference in the program is gated on this one function.
