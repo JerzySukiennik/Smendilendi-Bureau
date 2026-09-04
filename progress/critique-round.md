@@ -343,3 +343,34 @@ shows up as a single failing number.
 | Retro OS, tiers 3-4 | not scored — being rebuilt as Windows 11 / macOS 26 analogues |
 
 Critique complete.
+
+
+## End-to-end proof — 2026-09-04
+
+Driven in the browser, one continuous run, no console shortcuts past the entry point:
+
+| stage | result |
+|---|---|
+| menu -> office | ok |
+| commission | library, 4 required rooms, budget 9 475 000 |
+| brief delivered | "The Reading Room — branch library on Wodna — brief" in Mail |
+| editor | opened INSIDE the monitor (office stayed the active mode) |
+| drawing | 4 walls + floor + roof through the editor's own op path |
+| submit | report: score 0, accepted false, 6 blockers |
+| phase | revising |
+| client letter | revision mail posted |
+| resubmit | round 2, accepted, phase walkthrough |
+| walkthrough | mode pushed, 20 NPCs, 1400 presim steps |
+
+Two things that looked like defects and were not:
+
+* "The client letter is the brief." No — `state.mail.messages` is NEWEST FIRST
+  (acceptance, revision, brief). Reading `messages[length-1]` reads the oldest.
+* "The walkthrough runs 0 journeys." Correct behaviour: the test building was a
+  sealed box with zero openings, so there is nowhere for anyone to walk. The
+  crowd exists (20 agents) and the simulation ran; it had nothing to do.
+
+Still open from the second playtest: items 6 (do build-mode doors satisfy the
+programme), 9 (build outside the grey area is warned, not prevented; trees and
+grass undetailed), 10 (mail layout), 11-12 (cursors), 13 (coffee machine),
+14 (throwing paper), and the rest of item 17 beyond the palette.

@@ -984,7 +984,47 @@
    "status": "pass",
    "headline": "Multiplayer transport proven over the live database with two identities: join by code, [Ada, Bo] on both sides, an op and a chat line from the host received by the guest. Root cause of every failed join: the rules did not allow the bot flag.",
    "at": "2026-09-04T19:17:59.257Z"
+  },
+  {
+   "piece": "net",
+   "role": "builder",
+   "round": 4,
+   "status": "pass",
+   "headline": "Multiplayer in the office: Ada hosts, Bo joins by code, both see each other seated with a nick-labelled avatar. Roster bridged into state.players; loop wired at session attach; avatars = everyone but me.",
+   "at": "2026-09-04T19:24:48.405Z"
+  },
+  {
+   "piece": "editor",
+   "role": "builder",
+   "round": 5,
+   "status": "pass",
+   "headline": "The editor runs inside the in-game monitor: render target at the tier resolution, camera flies to fill the frame, pointer re-based onto the projected screen rect, HUD pinned to it. Measured target luma 167.6 vs control 255.",
+   "at": "2026-09-04T22:04:01.328Z"
+  },
+  {
+   "piece": "office",
+   "role": "builder",
+   "round": 6,
+   "status": "pass",
+   "headline": "Hover outline is the object silhouette, not a box (edge verts 8/24 -> 576-8448 across five props) and thicker; interaction prompt moved under the crosshair.",
+   "at": "2026-09-04T22:13:01.491Z"
+  },
+  {
+   "piece": "editor",
+   "role": "builder",
+   "round": 6,
+   "status": "pass",
+   "headline": "Editor palette is a labelled list: 21 tools named with key badges and groups, armed tool filled — icon-only buttons were the main reason the editor was unreadable.",
+   "at": "2026-09-04T22:20:10.869Z"
+  },
+  {
+   "piece": "game-loop",
+   "role": "builder",
+   "round": 2,
+   "status": "pass",
+   "headline": "Full arc proven end to end in the browser: menu -> office -> commission + brief in Mail -> editor inside the monitor -> draw -> submit (report) -> revision phase + client letter -> resubmit -> walkthrough with 20 NPCs and 1400 presim steps. Mail newest-first: acceptance, revision, brief.",
+   "at": "2026-09-04T22:28:19.036Z"
   }
  ],
- "updated": "2026-09-04T19:17:59.257Z"
+ "updated": "2026-09-04T22:28:19.036Z"
 }
