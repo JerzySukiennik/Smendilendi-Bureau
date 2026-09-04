@@ -379,6 +379,15 @@ function shapePolygon(kind, W, D) {
       // a neighbour's garden bitten out of one corner
       return [[0, 0], [W, 0], [W, D * 0.62], [W * 0.72, D * 0.62],
               [W * 0.72, D], [0, D]];
+    case 'corner': {
+      // Streets on the north (z = 0) and east (x = W) sides meet at (W, 0). A
+      // corner plot in a real plan has that junction SPLAYED for sight lines —
+      // it is the single most recognisable thing about one. This used to be
+      // forced to a plain rectangle, which is why "corner" plots looked like
+      // every other plot with the street moved.
+      const c = Math.min(W, D) * 0.22;
+      return [[0, 0], [W - c, 0], [W, c], [W, D], [0, D]];
+    }
     default:
       return [[0, 0], [W, 0], [W, D], [0, D]];
   }
@@ -460,10 +469,25 @@ function buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt }) {
   // Even an easy commission deserves a site with a bit of character; a plain
   // rectangle every other time is what made them blur together. Difficulty now
   // shifts HOW awkward the outline is, not whether there is one at all.
-  const awkwardBias = 0.55 + 0.35 * difficulty;
-  const kind = rng() < awkwardBias
-    ? SHAPES[1 + Math.floor(rng() * (SHAPES.length - 1))]
-    : 'rect';
+  // Picking uniformly over SHAPES made rectangles half of everything: 'rect',
+  // 'deep-narrow' and 'wide-shallow' are one rectangle with three aspect
+  // ratios, and 'corner' was forced to a rectangle too. Measured: 20 of 24
+  // plots with four right angles. So the pick is by FAMILY, evenly — one
+  // family in six is the rectangle family — and difficulty tilts which
+  // member you get, not whether the outline has any character at all.
+  const FAMILIES = [
+    ['rect', 'deep-narrow', 'wide-shallow'],   // the rectangle family
+    ['corner'],
+    ['L', 'stepped'],
+    ['trapezoid', 'wedge'],
+    ['flag'],
+    ['chamfer'],
+  ];
+  const fam = FAMILIES[Math.floor(rng() * FAMILIES.length) % FAMILIES.length];
+  // within a family, harder briefs lean to the more awkward member
+  const mi = fam.length === 1 ? 0
+    : Math.min(fam.length - 1, Math.floor(rng() * fam.length * (0.75 + 0.5 * difficulty)));
+  const kind = fam[mi];
 
   // each retry buys the building more room
   const roomier = 1 + 0.18 * attempt;
@@ -490,7 +514,7 @@ function buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt }) {
   const cornerPlot = kind === 'corner';
 
   for (let i = 0; i < 14; i++) {
-    poly = shapePolygon(cornerPlot ? 'rect' : kind, W, D);
+    poly = shapePolygon(kind, W, D);
     const streets = cornerPlot ? ['north', 'east'] : ['north'];
     const rears = streets.map(s => OPPOSITE[s]);
     const test = insetPolygon(poly, (a, b) => {
@@ -510,7 +534,7 @@ function buildPlot(rng, { difficulty, targetFootprint, minPlotArea, attempt }) {
   }
 
   W = R(W); D = R(D);
-  poly = shapePolygon(cornerPlot ? 'rect' : kind, W, D);
+  poly = shapePolygon(kind, W, D);
 
   // centre on the origin, then rotate by a whole number of quarter turns
   const b0 = polygonBounds(poly);
