@@ -1063,8 +1063,21 @@ export class Office {
     }
 
     for (const s of DESK_SLOTS) {
-      const l = new PointLight(0xffc98a, 5.0, 2.6, 2.2);
-      l.position.set(s.x - 0.40, 1.22, s.z - 0.12);
+      // THE LIGHT SITS IN THE BULB, and the bulb's position is measured off the
+      // prop rather than guessed. Jurek, item 14: "the desk lamps have
+      // something wrong in the model - the light does not come out of the
+      // bottom of the lamp, it is completely above it."
+      //
+      // He was reading the room correctly. The lamp prop is placed at
+      // (x - 0.66, 0.74, z - 0.24) turned 0.55 rad; its bulb geometry (the
+      // 'glass' bin) spans y 0.386..0.462 local, so the bulb centre is
+      // (0, 0.42, 0.033) local, which is (x - 0.643, 1.16, z - 0.212) in the
+      // room. The light was at (x - 0.40, 1.22, z - 0.12): 240 mm away in x and
+      // 60 mm ABOVE the shade, so it lit the desk from over the top of a lamp
+      // it was not inside. Radius comes down with it — a bulb under a 90 mm
+      // shade throws a pool, not a 2.6 m glow.
+      const l = new PointLight(0xffc98a, 4.2, 1.9, 2.4);
+      l.position.set(s.x - 0.643, 1.16, s.z - 0.212);
       l.visible = s.index < studio.deskLamps;
       this.scene.add(l);
       this.lights.lamps.push(l);

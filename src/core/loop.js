@@ -108,10 +108,32 @@ export class GameLoop {
     // two identities (?pid=ada / ?pid=bo): both sessions held [Ada, Bo], both
     // offices seated nobody. This is the missing bridge: every 'players' event
     // becomes state.players, keyed by id, local player first.
+    // AN UNCHANGED ROSTER IS NOT AN EVENT.
+    //
+    // Jurek, item 13: "if I switch to another window for a moment, a lot of
+    // things flicker afterwards — the player list, things on the desk." A
+    // backgrounded tab throttles its timers, and on return the heartbeats it
+    // could not send all arrive at once: a burst of 'players' events, each
+    // re-seating the desks, re-running the avatar sync and rebuilding the
+    // roster's DOM in the same frame. Nothing about the office had changed.
+    //
+    // The signature includes the cursor, because that IS how a remote player's
+    // position reaches the office — a player who is walking still produces
+    // events, at the 8 Hz he publishes them, and a player standing still
+    // produces none.
     const roster = (list) => {
       const arr = Array.isArray(list) ? list : Object.values(list || {});
       const byId = {};
-      for (const p of arr) if (p && p.id) byId[p.id] = { ...p, local: p.id === net.playerId };
+      const sig = [];
+      for (const p of arr) {
+        if (!p || !p.id) continue;
+        byId[p.id] = { ...p, local: p.id === net.playerId };
+        const c = p.cursor;
+        sig.push(`${p.id}|${p.nick}|${p.color}|${c ? `${c.mode},${c.x},${c.z},${c.ry ?? ''}` : ''}`);
+      }
+      const key = sig.sort().join(';');
+      if (key === this._rosterKey) return;
+      this._rosterKey = key;
       this.state.set('players', byId);
     };
     net.on('players', roster);
