@@ -17,9 +17,13 @@ import {
   checker, VGA, progress,
 } from '../widgets.js';
 import { BODY, BODY_BOLD, UI } from '../font.js';
-import { toolbar, toolbarHit, ScrollPane, TOOLBAR_H, money } from './common.js';
+import { toolbar, toolbarHit, ScrollPane, TOOLBAR_H, UI_SCALE, money } from './common.js';
 
-const ROW = 15;
+// The grid's own row pitch, in the machine's UI scale. A fixed 15 px was
+// right on the one machine it was written for and buried the text on every
+// other one once the type scaled (item 12).
+const ROW_BASE = 15;
+const ROW = () => ROW_BASE * UI_SCALE;
 
 export class CostApp {
   constructor(ctx, os, win) {
@@ -27,7 +31,7 @@ export class CostApp {
     this.os = os;
     this.win = win;
     this.title = 'Cost Sheet';
-    this.pane = new ScrollPane(ROW);
+    this.pane = new ScrollPane(ROW());
     this.sel = -1;
     this.groupByTrade = true;
     this.tools = [
@@ -112,9 +116,9 @@ export class CostApp {
     // way a Win95 status bar drops panes: it is 46 px of fixed furniture, and
     // overlapping it onto a collapsed grid is what made the window unreadable
     // at 220x140 in round 2. Below ~40 px of grid the band is dropped whole.
-    const statusH = 20;
+    const statusH = 20 * UI_SCALE;
     const gridTop = r.y + TOOLBAR_H + 2;
-    let barH = 46;
+    let barH = 46 * UI_SCALE;
     let gridH = r.h - TOOLBAR_H - 2 - barH - statusH - 4;
     if (gridH < 40) { barH = 0; gridH = Math.max(0, r.h - TOOLBAR_H - 2 - statusH - 4); }
     const outer = { x: r.x + 2, y: gridTop, w: r.w - 4, h: gridH };
@@ -122,31 +126,32 @@ export class CostApp {
     const cols = this.columns(inner.w - 16);
     headerRow(g, inner.x, inner.y, inner.w, 17, cols, pal, UI);
 
-    const bodyRect = { x: inner.x, y: inner.y + 17, w: inner.w, h: inner.h - 17 };
-    const body = this.pane.layout(bodyRect, this.rows.length * ROW + 4);
+    const hdr = 17 * UI_SCALE;
+    const bodyRect = { x: inner.x, y: inner.y + hdr, w: inner.w, h: inner.h - hdr };
+    const body = this.pane.layout(bodyRect, this.rows.length * ROW() + 4);
     fill(g, body.x, body.y, body.w, body.h, pal.window);
     clipped(g, body, () => {
-      const first = Math.max(0, Math.floor(this.pane.top / ROW));
-      const last = Math.min(this.rows.length, first + Math.ceil(body.h / ROW) + 1);
+      const first = Math.max(0, Math.floor(this.pane.top / ROW()));
+      const last = Math.min(this.rows.length, first + Math.ceil(body.h / ROW()) + 1);
       // the column rules, drawn first so text sits on top of them
       let cx = body.x;
       for (let i = 0; i < cols.length - 1; i++) { cx += cols[i].w; vline(g, cx, body.y, body.h, pal.face); }
       for (let i = first; i < last; i++) {
         const row = this.rows[i];
-        const y = body.y + i * ROW - this.pane.top;
+        const y = body.y + i * ROW() - this.pane.top;
         const on = i === this.sel && row.kind === 'line';
-        if (on) fill(g, body.x, y, body.w, ROW, pal.hilite);
+        if (on) fill(g, body.x, y, body.w, ROW(), pal.hilite);
         const fg = on ? pal.hiliteText : pal.text;
-        hline(g, body.x, y + ROW - 1, body.w, pal.face);
+        hline(g, body.x, y + ROW() - 1, body.w, pal.face);
         if (row.kind === 'trade') {
-          fill(g, body.x, y, body.w, ROW - 1, pal.face);
-          BODY_BOLD.draw(g, row.label.toUpperCase(), body.x + 4, textY(y, ROW), pal.text);
+          fill(g, body.x, y, body.w, ROW() - 1, pal.face);
+          BODY_BOLD.draw(g, row.label.toUpperCase(), body.x + 4, textY(y, ROW()), pal.text);
         } else if (row.kind === 'sub' || row.kind === 'total') {
           const f = row.kind === 'total' ? BODY_BOLD : BODY_BOLD;
-          if (row.kind === 'total') { hline(g, body.x, y, body.w, pal.text); hline(g, body.x, y + ROW - 2, body.w, pal.text); }
-          f.draw(g, row.label, body.x + 4, textY(y, ROW), pal.text);
+          if (row.kind === 'total') { hline(g, body.x, y, body.w, pal.text); hline(g, body.x, y + ROW() - 2, body.w, pal.text); }
+          f.draw(g, row.label, body.x + 4, textY(y, ROW()), pal.text);
           const t = money(row.total);
-          f.draw(g, t, body.x + body.w - 6 - f.measure(t), textY(y, ROW), pal.text);
+          f.draw(g, t, body.x + body.w - 6 - f.measure(t), textY(y, ROW()), pal.text);
         } else if (row.kind === 'line') {
           const l = row.l;
           const cells = [l.item, fmtQty(l.qty), l.unit, money(l.rate), money(l.total)];
@@ -154,8 +159,8 @@ export class CostApp {
           for (let ci = 0; ci < cols.length; ci++) {
             const cw = cols[ci].w;
             const t = BODY.ellipsis(cells[ci], cw - 8);
-            if (cols[ci].align === 'right') BODY.draw(g, t, x + cw - 6 - BODY.measure(t), textY(y, ROW), fg);
-            else BODY.draw(g, t, x + 4, textY(y, ROW), fg);
+            if (cols[ci].align === 'right') BODY.draw(g, t, x + cw - 6 - BODY.measure(t), textY(y, ROW()), fg);
+            else BODY.draw(g, t, x + 4, textY(y, ROW()), fg);
             x += cw;
           }
         }
@@ -172,7 +177,7 @@ export class CostApp {
       const right = `${money(c.total)} of ${budget ? money(budget) : '—'} credits`;
       twoColumn(g, bx, by + 2, bw, BODY_BOLD, 'Cost against budget', BODY, right, pal.text, pal.text);
 
-      const trough = { x: bx, y: by + 15, w: bw, h: 18 };
+      const trough = { x: bx, y: by + 15 * UI_SCALE, w: bw, h: 18 * UI_SCALE };
       const in2 = bevel(g, trough.x, trough.y, trough.w, trough.h, 'sunken', pal);
       fill(g, in2.x, in2.y, in2.w, in2.h, pal.face);
       const frac = budget > 0 ? Math.min(1.35, c.total / budget) : 0;
@@ -213,7 +218,7 @@ export class CostApp {
       const t = toolbarHit(this.tools, ev.gx, ev.gy);
       if (t) { this.toolState.down = t.id; this.os.invalidate(); return; }
       if (inside(this.pane.rect, ev.gx, ev.gy) && !this.pane.pointer(ev)) {
-        const i = Math.floor((ev.gy - this.pane.rect.y + this.pane.top) / ROW);
+        const i = Math.floor((ev.gy - this.pane.rect.y + this.pane.top) / ROW());
         this.sel = (i >= 0 && i < this.rows.length && this.rows[i].kind === 'line') ? i : -1;
         this.os.invalidate();
         return;

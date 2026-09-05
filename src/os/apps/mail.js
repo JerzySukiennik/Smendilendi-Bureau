@@ -16,9 +16,11 @@ import {
 } from '../widgets.js';
 import { BODY, BODY_BOLD, UI, wrap } from '../font.js';
 import { I16 } from '../icons.js';
-import { toolbar, toolbarHit, ListView, ScrollPane, TOOLBAR_H, dateShort } from './common.js';
+import { toolbar, toolbarHit, ListView, ScrollPane, TOOLBAR_H, UI_SCALE, dateShort } from './common.js';
 
-const HEADER_H = 17;
+const HEADER_BASE = 17;
+/** Column-header height, in the machine's UI scale — see cost.js's ROW(). */
+const HEADER_H = () => HEADER_BASE * UI_SCALE;
 
 export class MailApp {
   constructor(ctx, os, win) {
@@ -26,7 +28,7 @@ export class MailApp {
     this.os = os;
     this.win = win;
     this.title = 'Mail';
-    this.list = new ListView(HEADER_H);
+    this.list = new ListView(HEADER_H());
     this.body = new ScrollPane(13);
     // THE MESSAGE IS THE POINT, NOT THE LIST. At 0.42 the client list took
     // nearly half the window and the letter — the thing the whole revision
@@ -136,7 +138,7 @@ export class MailApp {
     const tb = { x: r.x, y: r.y, w: r.w, h: TOOLBAR_H };
     toolbar(g, tb, this.tools, pal, this.toolState);
 
-    const statusH = 20;
+    const statusH = 20 * UI_SCALE;
     const top = r.y + TOOLBAR_H + 2;
     const avail = r.h - TOOLBAR_H - 2 - statusH - 4;
     // Floor: four rows, so a short inbox still reads as a list. Ceiling: never
@@ -144,15 +146,15 @@ export class MailApp {
     // out again on a small screen — the tier-1 machine is only 640 x 480.
     const listH = Math.min(
       Math.round(avail * 0.34),
-      Math.max(HEADER_H + this.list.rowH * 4 + 4, Math.round(avail * this.split)),
+      Math.max(HEADER_H() + this.list.rowH * 4 + 4, Math.round(avail * this.split)),
     );
     const listRect = { x: r.x + 2, y: top, w: r.w - 4, h: listH };
 
     // --- list pane
     const inner = field(g, listRect.x, listRect.y, listRect.w, listRect.h, pal);
     const cols = this.columns(inner.w);
-    headerRow(g, inner.x, inner.y, inner.w, HEADER_H, cols, pal, UI);
-    const bodyRect = { x: inner.x, y: inner.y + HEADER_H, w: inner.w, h: inner.h - HEADER_H };
+    headerRow(g, inner.x, inner.y, inner.w, HEADER_H(), cols, pal, UI);
+    const bodyRect = { x: inner.x, y: inner.y + HEADER_H(), w: inner.w, h: inner.h - HEADER_H() };
     this.list.layout(bodyRect, this.messages.length);
     this.list.paint(g, pal, (gg, i, row, on) => this.paintRow(gg, i, row, on, cols, pal), mac);
 
@@ -209,14 +211,18 @@ export class MailApp {
       return;
     }
     const pad = 8;
-    const headH = 46;
+    const headH = 46 * UI_SCALE;
     // header block: labels in bold, values plain, then an etched rule
     fill(g, r.x, r.y, r.w, headH, pal.face);
     const lab = (s, y) => BODY_BOLD.draw(g, s, r.x + pad, y, pal.text);
     const val = (s, y, w) => BODY.draw(g, BODY.ellipsis(s, w), r.x + pad + 52, y, pal.text);
-    lab('From:', r.y + 4); val(m.from, r.y + 4, r.w - 70);
-    lab('Subject:', r.y + 17); val(m.subject, r.y + 17, r.w - 70);
-    lab('Date:', r.y + 30); val(dateShort(m.at), r.y + 30, r.w - 70);
+    // 13 px between lines is one line of 9-row type plus 4 of air; both have to
+    // follow the machine's UI scale or the three lines land on top of each other.
+    const lh = 13 * UI_SCALE, top = 4 * UI_SCALE, labW = 52 * UI_SCALE;
+    const val2 = (t, y, w) => BODY.draw(g, BODY.ellipsis(t, w), r.x + pad + labW, y, pal.text);
+    lab('From:', r.y + top); val2(m.from, r.y + top, r.w - labW - 18);
+    lab('Subject:', r.y + top + lh); val2(m.subject, r.y + top + lh, r.w - labW - 18);
+    lab('Date:', r.y + top + lh * 2); val2(dateShort(m.at), r.y + top + lh * 2, r.w - labW - 18);
     hline(g, r.x, r.y + headH, r.w, pal.shadow);
     hline(g, r.x, r.y + headH + 1, r.w, pal.hi);
 
@@ -226,15 +232,18 @@ export class MailApp {
       this.lines = wrap(BODY, m.body, textW);
       this.lineWidth = textW;
     }
-    const contentH = this.lines.length * 13 + 8;
+    // The body's line pitch follows the type, like everything else on the
+    // machine. A fixed 13 stacked the letter on top of itself at 2x and 3x.
+    const bodyLh = 13 * UI_SCALE;
+    const contentH = this.lines.length * bodyLh + 8;
     const body = this.body.layout(paneRect, contentH);
     fill(g, body.x, body.y, body.w, body.h, pal.window);
     clipped(g, body, () => {
-      const first = Math.max(0, Math.floor(this.body.top / 13) - 1);
-      const last = Math.min(this.lines.length, first + Math.ceil(body.h / 13) + 2);
+      const first = Math.max(0, Math.floor(this.body.top / bodyLh) - 1);
+      const last = Math.min(this.lines.length, first + Math.ceil(body.h / bodyLh) + 2);
       for (let i = first; i < last; i++) {
         const line = this.lines[i];
-        const y = body.y + 4 + i * 13 - this.body.top;
+        const y = body.y + 4 + i * bodyLh - this.body.top;
         // a bulleted complaint from the analysis engine is set in bold
         const bullet = line.startsWith('  - ');
         (bullet ? BODY_BOLD : BODY).draw(g, bullet ? line.slice(4) : line, body.x + pad + (bullet ? 10 : 0), y, pal.text);

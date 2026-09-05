@@ -27,7 +27,7 @@ import {
   WIN, PLATINUM, VGA, fill, hline, vline, frameRect, bevel, panel, checker, text,
   textY, textCentred, triangle, focusRect, inside, button, field, SCROLLBAR, tile,
 } from './widgets.js';
-import { SANS, SANS_BOLD, CHICAGO, CHICAGO_BOLD, GENEVA, FIXED, splitMnemonic } from './font.js';
+import { SANS, SANS_BOLD, CHICAGO, CHICAGO_BOLD, GENEVA, FIXED, splitMnemonic, scaledFace } from './font.js';
 import { I16, icon32, setIconGreys } from './icons.js';
 
 export const CAPTION_BTN = { w: 16, h: 14 };
@@ -40,9 +40,23 @@ class BaseTheme {
     // The chrome face and the small content face. Windows tiers use one
     // typeface for both, exactly as Win95 did; PlatinumTheme overrides them
     // with Chicago 12 and Geneva (ANALYSIS.md section 4).
-    this.font = SANS;
-    this.fontBold = SANS_BOLD;
-    this.fontSmall = SANS;
+    // THE MACHINE'S UI SCALE, applied to the type AND to every chrome metric
+    // that is expressed in the type's pixels. Scaling one without the other
+    // gives you 18-row text in an 18 px title bar. See scaledFace in font.js
+    // for why the type scale is an integer.
+    const n = Math.max(1, Math.round(this.uiScale || 1));
+    this.uiScale = n;
+    this.font = scaledFace(SANS, n);
+    this.fontBold = scaledFace(SANS_BOLD, n);
+    this.fontSmall = this.font;
+    if (n > 1 && this.metrics) {
+      const m = { ...this.metrics };
+      for (const k of ['titleH', 'menuH', 'menuItemH', 'startItemH', 'shellH',
+        'buttonH', 'rowH', 'menuBarH', 'dockH', 'scrollbar', 'iconPitch', 'frame', 'clientInset']) {
+        if (typeof m[k] === 'number') m[k] = Math.round(m[k] * (k === 'frame' || k === 'clientInset' ? 1 : n));
+      }
+      this.metrics = m;
+    }
   }
 
   /** Rectangle a window's own content lives in, plus every chrome hot spot. */
@@ -984,6 +998,7 @@ export const TIERS = [
     tier: 1,
     hardware: 'Pentagram 133',
     spec: '133 MHz - 16 MB RAM - 1.2 GB',
+    uiScale: 1,
     osName: 'TRESTLE',
     osVersion: '3.1',
     tagline: 'Trestle Workbench 3.1',
@@ -1008,6 +1023,7 @@ export const TIERS = [
     tier: 2,
     hardware: 'Kompakt 2000',
     spec: '1.6 GHz - 512 MB RAM - 40 GB',
+    uiScale: 2,
     osName: 'CORNICE',
     osVersion: 'XP',
     tagline: 'Cornice XP Professional',
@@ -1033,6 +1049,7 @@ export const TIERS = [
     tier: 3,
     hardware: 'Sunstation Pro',
     spec: '3.4 GHz quad - 16 GB RAM - 512 GB SSD',
+    uiScale: 2,
     osName: 'VELLUM',
     osVersion: '10',
     tagline: 'Vellum 10 Pro',
@@ -1065,6 +1082,7 @@ export const TIERS = [
     // grant is what spends the other half on the model, which is the only
     // place on this screen where the pixels are worth the milliseconds.
     spec: 'M5 12-core - 32 GB - 1 TB - 4K display',
+    uiScale: 2,
     osName: 'ATELIER',
     osVersion: '26',
     tagline: 'Atelier 26 Liquid Glass',

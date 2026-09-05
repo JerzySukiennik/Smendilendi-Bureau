@@ -965,14 +965,79 @@ export let UI_BOLD = SANS_BOLD;
 export let BODY = SANS;
 export let BODY_BOLD = SANS_BOLD;
 
-/** Point UI/BODY at the faces for a theme family ('win' | 'platinum'). */
-export function selectFaces(family) {
+/**
+ * THE SAME FACE, DRAWN N TIMES BIGGER, PIXEL FOR PIXEL.
+ *
+ * Jurek, item 12: "in all the OSes — worst on Windows XP — the font is
+ * decidedly too small." He is measuring the right thing. Apparent size on the
+ * monitor is glyph height over screen height, and a 9-row face is 1.88 % of a
+ * 480-line screen but only 1.17 % of XP's 768 lines and 0.83 % of macOS's
+ * 1080: the machines got better displays and the type stayed the same number
+ * of pixels, so it shrank as the ladder went up. Real operating systems
+ * increased the point size with the resolution; so does this.
+ *
+ * The scaling is INTEGER and nearest-neighbour, so a 1-bit face stays a 1-bit
+ * face — every pixel becomes a clean 2x2 or 3x3 block, exactly as these fonts
+ * look on a period screen at low resolution. Anything fractional would
+ * resample a bitmap font into mush, which is the one thing this whole piece
+ * is built to avoid.
+ */
+function scaledFace(font, n) {
+  if (n === 1) return font;
+  font._scaled = font._scaled || new Map();
+  const hit = font._scaled.get(n);
+  if (hit) return hit;
+  const f = Object.create(font);
+  f.scale = n;
+  f.advance = (ch) => font.advance(ch) * n;
+  f.measure = (t) => font.measure(t) * n;
+  f.fit = (t, max) => font.fit(t, Math.floor(max / n));
+  f.ellipsis = (t, max) => font.ellipsis(t, Math.floor(max / n));
+  f.draw = (g, text, x, y, color) => {
+    const prev = g.imageSmoothingEnabled;
+    g.imageSmoothingEnabled = false;
+    g.save();
+    g.translate(Math.round(x), Math.round(y));
+    g.scale(n, n);
+    const end = font.draw(g, text, 0, 0, color);
+    g.restore();
+    g.imageSmoothingEnabled = prev;
+    return Math.round(x) + end * n;
+  };
+  f.drawDisabled = (g, text, x, y) => {
+    f.draw(g, text, x + n, y + n, '#FFFFFF');
+    return f.draw(g, text, x, y, '#808080');
+  };
+  f.drawMnemonic = (g, label, x, y, color = '#000000', opts = {}) => {
+    const { text, index } = splitMnemonic(label);
+    if (opts.disabled) f.drawDisabled(g, text, x, y);
+    else f.draw(g, text, x, y, color);
+    if (index >= 0 && font.mnemonics) {
+      let ux = x;
+      for (let i = 0; i < index; i++) ux += f.advance(text[i]);
+      const gl = font.glyph(text[index]);
+      g.fillStyle = opts.disabled ? '#808080' : color;
+      g.fillRect(Math.round(ux + gl.lsb * n), Math.round(y + (BASELINE + 1) * n), gl.w * n, n);
+    }
+    return x + f.measure(text);
+  };
+  font._scaled.set(n, f);
+  return f;
+}
+
+/** Point UI/BODY at the faces for a theme family, at the machine's UI scale. */
+export function selectFaces(family, scale = 1) {
+  const n = Math.max(1, Math.round(scale));
   if (family === 'platinum') {
-    UI = CHICAGO; UI_BOLD = CHICAGO_BOLD; BODY = GENEVA; BODY_BOLD = GENEVA_BOLD;
+    UI = scaledFace(CHICAGO, n); UI_BOLD = scaledFace(CHICAGO_BOLD, n);
+    BODY = scaledFace(GENEVA, n); BODY_BOLD = scaledFace(GENEVA_BOLD, n);
   } else {
-    UI = SANS; UI_BOLD = SANS_BOLD; BODY = SANS; BODY_BOLD = SANS_BOLD;
+    UI = scaledFace(SANS, n); UI_BOLD = scaledFace(SANS_BOLD, n);
+    BODY = UI; BODY_BOLD = UI_BOLD;
   }
 }
+
+export { scaledFace };
 
 /** Word-wrap a paragraph to `width` px. Returns an array of lines. */
 export function wrap(font, text, width) {

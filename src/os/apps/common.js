@@ -9,8 +9,27 @@ import {
 import { BODY, BODY_BOLD } from '../font.js';
 import { I16 } from '../icons.js';
 
-export const TOOLBAR_H = 26;
-export const ROW_H = 17;
+// THE APPS FOLLOW THE MACHINE'S UI SCALE TOO.
+//
+// These are `let`, not `const`, and that is the point: ES module bindings are
+// live, so every app that imports them sees the new value the moment the
+// machine changes. Scaling the type without scaling the row pitch gives you
+// 18-row text in a 17 px row, which is what the first pass at item 12 looked
+// like — perfectly legible letters lying on top of each other.
+export let TOOLBAR_H = 26;
+export let ROW_H = 17;
+
+const BASE = { toolbar: 26, row: 17 };
+
+/** Called by the OS when the machine (and therefore the type) changes. */
+export function setOsUiScale(n = 1) {
+  const k = Math.max(1, Math.round(n));
+  TOOLBAR_H = BASE.toolbar * k;
+  ROW_H = BASE.row * k;
+  UI_SCALE = k;
+}
+
+export let UI_SCALE = 1;
 
 /**
  * A WordPad-style toolbar: 16x16 icons in 24x24 buttons, raised only under the
@@ -58,7 +77,8 @@ export function toolbarHit(items, x, y) {
  * The app tells it how tall the content is; it does the rest.
  */
 export class ScrollPane {
-  constructor(rowH = ROW_H) {
+  constructor(rowH = null) {
+    rowH = rowH ?? ROW_H;
     this.v = new Scroll();
     this.rowH = rowH;
     this.part = null;
@@ -118,9 +138,12 @@ export class ScrollPane {
  * navy with white text, exactly as in win95-13's Help Topics list.
  */
 export class ListView {
-  constructor(rowH = ROW_H) {
+  constructor(rowH = null) {
+    // null = "whatever this machine's row height is", re-read every draw, so a
+    // list built on the Pentagram is still right after an upgrade to the Melon.
+    this._fixedRowH = rowH;
     this.pane = new ScrollPane(rowH);
-    this.rowH = rowH;
+    this.rowH = rowH ?? ROW_H;
     this.sel = 0;
     /** Does the keyboard live here? Drives the dotted focus rectangle. */
     this.focused = true;
@@ -129,6 +152,9 @@ export class ListView {
   }
 
   layout(r, count) {
+    // Re-read the live row height unless this list asked for a fixed one, so a
+    // list built on the Pentagram is still right after an upgrade to the Melon.
+    if (this._fixedRowH == null && this.rowH !== ROW_H) { this.rowH = ROW_H; this.pane.rowH = ROW_H; }
     this.count = count;
     this.body = this.pane.layout(r, count * this.rowH);
     return this.body;

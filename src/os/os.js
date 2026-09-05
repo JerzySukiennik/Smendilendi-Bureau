@@ -25,6 +25,7 @@ installModernThemes({ makeXPTheme, makeWin10Theme, makeMacOSTheme });
 import { WindowManager, Win } from './wm.js';
 import { fill, frameRect, checker, inside, VGA, text as drawText } from './widgets.js';
 import { BODY, selectFaces, splitMnemonic } from './font.js';
+import { setOsUiScale } from './apps/common.js';
 import { I16, icon32 } from './icons.js';
 import { MailApp } from './apps/mail.js';
 import { ChatApp } from './apps/chat.js';
@@ -518,7 +519,8 @@ export class OS {
     // single pixel is drawn. Everything downstream — chrome, widgets, apps —
     // reads them live, so tiers 1-2 render in MS Sans Serif and tiers 3-4 in
     // Chicago and Geneva without either side knowing about the other.
-    selectFaces(th.family);
+    selectFaces(th.family, th.uiScale || 1);
+    setOsUiScale(th.uiScale || 1);
 
     if (this.phase === 'off') {
       fill(g, 0, 0, th.w, th.h, '#000000');
