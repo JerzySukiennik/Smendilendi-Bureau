@@ -29,6 +29,7 @@
 //   'phase'    'lobby'|'brief'|'design'|'review'|'walkthrough'|...
 //   'status'   { kind, online, warning }
 //   'host'     { hostId, isHost }
+//   'office'   { <key>: string|number|boolean }   // the room: lamps, machines
 
 import { applyOp, createModel, deserialize } from '../model/building.js';
 import { createLocalTransport } from './local.js';
@@ -145,6 +146,10 @@ export class Session {
       },
       onSnapshot: ({ model, seq }) => this._adoptSnapshot(model, seq),
       onPhase: phase => { if (phase && phase !== this.phase) { this.phase = phase; this.emit('phase', phase); } },
+      // The room itself: lamps, the computer the studio owns. Shared, small,
+      // and deliberately NOT in the op log — an undo must never switch a lamp
+      // off — nor in presence, which is per player.
+      onOffice: (o) => { this.office = o || {}; this.emit('office', this.office); },
       onHost: hostId => {
         this.hostId = hostId ?? null;
         const was = this.isHost;
@@ -322,6 +327,9 @@ export class Session {
   // -- people ---------------------------------------------------------------
 
   setCursor(cursor) { this.transport.setCursor(cursor); }
+
+  /** Merge a few keys into the shared office record. Everyone sees them. */
+  setOffice(patch) { this.transport.setOffice?.(patch); }
 
   /** Grab lock. Resolves true when this player owns the object. */
   async lock(objId) {

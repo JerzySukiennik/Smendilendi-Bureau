@@ -74,6 +74,11 @@ export class GameLoop {
     const office = this.engine.modes.get('office')?.office;
     if (!office?.workstations) return;
     for (const ws of office.workstations) if (ws.os) this._wireOs(ws.os);
+    // Replay the room once the office exists to receive it.
+    if (this._officeState && !this._officeApplied) {
+      this._officeApplied = true;
+      office.applyOfficeState?.(this._officeState);
+    }
   }
 
   /**
@@ -110,6 +115,15 @@ export class GameLoop {
       this.state.set('players', byId);
     };
     net.on('players', roster);
+    // The room: lamps and the machine the studio owns. The office may not be
+    // built yet when the first record arrives, so it is kept and replayed —
+    // a guest who joins before walking in must still see the lamps that are on.
+    const applyOffice = (o) => {
+      this._officeState = { ...(this._officeState || {}), ...(o || {}) };
+      this.engine.modes.get('office')?.office?.applyOfficeState?.(this._officeState);
+    };
+    net.on('office', applyOffice);
+    if (net.office) applyOffice(net.office);
     if (net.players && (Array.isArray(net.players) ? net.players.length : Object.keys(net.players).length)) roster(net.players);
   }
 
@@ -262,6 +276,20 @@ export class GameLoop {
   /** Hand over from the office to the editor. The office stays under it. */
   openEditor() {
     if (this._busy) return null;
+    // OPENING DESIGN TWICE MUST BE OPENING IT ONCE.
+    //
+    // Jurek, with two screenshots: the first double-click leaves the OS
+    // desktop on the monitor with the editor's palette floating over the whole
+    // office; the second gets the drawing but no cursor and no movement. Both
+    // are the same fault. openEditorOnScreen() refuses when a screen editor is
+    // already up and returns null — and the null was read as "there is no
+    // monitor to run on", so the caller fell through to pushing the editor as
+    // a MODE OVER THE GAME. That is the office plus the OS plus a HUD, with
+    // two editors fighting over the pointer. A double-click sends the open
+    // twice, so it happened on the very first attempt.
+    const office0 = this.engine.modes.get('office')?.office;
+    if (this._editorOnScreen && office0?.screenEditor) return office0.screenEditor.mode;
+    if (this.engine.activeMode?.id === 'editor') return this.engine.activeMode;
     if (!this.commission) this.newCommission();
     const ed = this.engine.modes.get('editor');
     if (!ed) { this.toast('The editor is not installed on this machine.'); return null; }

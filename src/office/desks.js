@@ -431,11 +431,19 @@ export class Workstation {
       // monitor being a black rectangle for the first 5 s. That cured the symptom
       // by deleting the feature: the startup sequence never played at all. Jurek
       // caught it immediately — "czemu komputery są już włączone od początku?")
-      if (player) this.powerOff(); else this.skipBoot(tier);
+      // EVERY MACHINE STARTS OFF, not just the player's own.
+      //
+      // Supersedes "an empty desk still runs its machine ... the way an office
+      // looks when someone is at lunch". Jurek, third playtest, items 8 and 11:
+      // "workstation 3 is always on" and "all the computers should switch off
+      // when you leave". An unattended desk sitting at a lit desktop for the
+      // whole session is exactly what he is looking at, and the two reports are
+      // one wish: a machine is on while somebody is using it and dark
+      // otherwise. It costs the room a little cool light, which the window and
+      // the desk lamps already carry.
+      this.powerOff();
     }
-    const lit = player ? 1.0 : 0.42;
-    this.screen.material.color.setScalar(lit);
-    this.glow.intensity = 1.5 * lit;
+    this.setScreenLit(false);
     this.assertPainting();
     return this;
   }
@@ -464,8 +472,22 @@ export class Workstation {
     return ok;
   }
 
+  /**
+   * The screen's own brightness and the light it throws into the room.
+   *
+   * One place, because the two used to be set together in `assign` and nowhere
+   * else — so a machine switched off later stayed bright, and a machine
+   * switched on stayed dim.
+   */
+  setScreenLit(on) {
+    const lit = on ? 1.0 : 0.06;
+    this.screen.material.color.setScalar(lit);
+    this.glow.intensity = on ? 1.5 : 0;
+  }
+
   /** Cut the power to this desk's machine, so it can be switched on later. */
   powerOff() {
+    this.setScreenLit(false);
     const raw = this.os?.os;
     if (raw?.powerOff) { raw.powerOff(); this.os.update?.(0); return true; }
     return false;
@@ -500,8 +522,17 @@ export class Workstation {
    * startup chimes over each other and a studio that looks like it lost power.
    */
   setTier(tier) {
-    if (this.player) this.os?.setTier?.(tier);
-    else this.skipBoot(tier);
+    // EVERY DESK TAKES THE NEW MACHINE, whoever bought it. Jurek, item 10:
+    // "the OS does not update on the guest after the host upgrades it." The
+    // upgrade is the office's, not one player's, so a desk that keeps the old
+    // tier is a desk showing a computer the studio no longer owns. Only the
+    // machine the buyer is sitting at plays the POST and the startup chime;
+    // the others change quietly, because three startup sounds at once is a
+    // studio that sounds like it lost power.
+    this.tier = tier;
+    if (this.player && this.os?.os?.phase !== 'off') { this.os?.setTier?.(tier); return; }
+    if (this.os?.setTier) this.os.setTier(tier, { boot: false });
+    this.powerOff();
   }
 
   // -- desk personalisation ---------------------------------------------------

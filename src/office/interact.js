@@ -274,6 +274,12 @@ export class Interaction {
 
     if (f.t >= 1) {
       if (f.dir < 0) {
+        // THE MACHINE GOES OFF WHEN YOU WALK AWAY, and at the END of the flight
+        // back rather than the start of it — a monitor that blacks out while
+        // the camera is still leaning into it reads as a crash. Jurek, item 11:
+        // "all the computers should switch off when you leave."
+        f.workstation.powerOff?.();
+        this.onScreenPower?.(f.workstation, false);
         this.focus = null;
         this.player.enabled = true;
         this.camera.fov = 55;
@@ -282,6 +288,8 @@ export class Interaction {
         return;
       }
       f.workstation.os?.focus?.(true);
+      f.workstation.setScreenLit?.(true);
+      this.onScreenPower?.(f.workstation, true);
       // While the EDITOR is on this screen the OS gets no pointer — the
       // editor's own listeners on the canvas own the mouse, re-based onto the
       // screen rectangle (see office.screenRect / camera.setViewportRect).

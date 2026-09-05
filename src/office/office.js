@@ -1255,6 +1255,11 @@ export class Office {
         onUse: (it) => {
           const l = this.lights.lamps[ws.slot.index];
           this.setLightOn(l, !l.userData.wantOn);
+          // EVERYONE'S ROOM, NOT MINE. Jurek, item 7: "when a player switches a
+          // lamp on, only he can see it." A lamp is a fact about the office, so
+          // it goes in the shared office record — not the op log, where Ctrl+Z
+          // would switch it off again.
+          this.ctx?.net?.setOffice?.({ [`lamp${ws.slot.index}`]: !!l.userData.wantOn });
           it.verb = l.userData.wantOn ? 'Switch off' : 'Switch on';
           this.ctx?.audio?.play('sfx.light-switch', { position: { x: lamp.position.x, y: 1.0, z: lamp.position.z } });
           this.hud?.setPrompt(`${it.verb} — ${it.label}`);
@@ -1538,6 +1543,9 @@ export class Office {
       // startup sound belongs to that boot — the OS plays its own tier chime, so
       // the office must not play a second one over the top of it.
       for (const ws of this.workstations) ws.setTier(tier);
+      // The studio bought it, so the studio has it. Item 10: the guest kept
+      // showing a machine the office no longer owned.
+      this.ctx?.net?.setOffice?.({ computerTier: tier });
       const spec = computerTier(tier);
       this.toast(`Installed: ${spec.name}. Sit down and switch it on.`);
     } else {
@@ -1780,7 +1788,13 @@ export class Office {
     const c = p.cursor;
     if (c && c.mode === 'office' && Number.isFinite(c.x) && Number.isFinite(c.z)) {
       a.target.set(c.x, 0, c.z);
-      if (Number.isFinite(c.ry)) a.targetY = c.ry;
+      // +PI, and it is not arbitrary. The office's yaw convention is "yaw 0
+      // looks down -Z" (player.js), while an avatar GLB is exported facing +Z
+      // (the export convention in ARCHITECTURE.md). Publishing the raw yaw
+      // therefore pointed every remote player exactly backwards: walking
+      // forwards, he moonwalked. Jurek: "the player avatar is the wrong way
+      // round - when I walk forwards he walks backwards."
+      if (Number.isFinite(c.ry)) a.targetY = c.ry + Math.PI;
     }
   }
 
@@ -1854,6 +1868,33 @@ export class Office {
     g.add(nick);
     g.userData.nick = nick;
     return g;
+  }
+
+  /**
+   * Apply the shared office record: the room as everyone else sees it.
+   *
+   * Idempotent and one-way — this only ever brings the local room INTO LINE
+   * with the record, and never writes back, so two players cannot bounce a
+   * lamp off each other.
+   */
+  applyOfficeState(o) {
+    if (!o) return;
+    for (const ws of this.workstations) {
+      const key = `lamp${ws.slot.index}`;
+      if (key in o) {
+        const l = this.lights?.lamps?.[ws.slot.index];
+        if (l && !!l.userData.wantOn !== !!o[key]) this.setLightOn(l, !!o[key]);
+      }
+    }
+    if (Number.isFinite(o.computerTier) && o.computerTier !== this.upgrades?.computer) {
+      this.upgrades.computer = o.computerTier;
+      for (const ws of this.workstations) ws.setTier(o.computerTier);
+      this.ctx?.state?.set?.('office.computerTier', o.computerTier);
+    }
+    if (Number.isFinite(o.studioTier) && o.studioTier !== this.upgrades?.studio) {
+      this.upgrades.studio = o.studioTier;
+      this._applyUpgrade('studio', o.studioTier);
+    }
   }
 
   /** Re-render the static shadow map on the next frame. */

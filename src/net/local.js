@@ -296,6 +296,12 @@ export class LocalTransport {
     return this.hub.pushOp(op);
   }
 
+  setOffice(patch) {
+    if (!this.hub) return;
+    this.hub.office = { ...(this.hub.office || {}), ...patch };
+    this.hub._emit('onOffice', { ...this.hub.office });
+  }
+
   setCursor(cursor) {
     const p = this.hub?.players[this.playerId];
     if (!p) return;

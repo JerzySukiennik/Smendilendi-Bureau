@@ -144,6 +144,12 @@ export class RtdbTransport {
       snapshot: `${root}/snapshot`,
       locks: `${root}/locks`,
       chat: `${root}/chat`,
+      // SHARED OFFICE STATE — what the room is like, as opposed to what the
+      // drawing is or where a player is standing. A flat map of small values:
+      // which desk lamps are on, which computer the studio owns. It is not the
+      // op log (that is the building, and an undo must never turn a lamp off)
+      // and it is not presence (that is per player, and a lamp is the room's).
+      office: `${root}/office`,
     };
 
     // clock skew — locks and heartbeats compare timestamps written by
@@ -276,7 +282,21 @@ export class RtdbTransport {
       if (m) this.handlers.onChat?.({ id: snap.key, ...m }, false);
     }));
 
+    // --- shared office state ----------------------------------------------
+    this._unsubs.push(onValue(ref(this.db, this.paths.office), (snap) => {
+      if (this._dead) return;
+      this.handlers.onOffice?.(snap.val() ?? {});
+    }));
+
     this.handlers.onStatus?.({ kind: this.kind, online: true, warning: null });
+  }
+
+  setOffice(patch) {
+    if (this.fallback) return this.fallback.setOffice(patch);
+    const { ref, update } = this.fb;
+    return update(ref(this.db, this.paths.office), patch).catch((err) => {
+      console.warn('[net] office state write rejected', err);
+    });
   }
 
   /** (Re)point the ops listener at everything after `from`. */
