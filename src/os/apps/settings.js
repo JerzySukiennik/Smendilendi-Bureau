@@ -158,7 +158,7 @@ export class SettingsApp {
     const gr = cfg.grants;
     const lines = [
       `Undo history: ${gr.undo} steps`,
-      `Editor viewport: ${Math.round(gr.viewportScale * 100)} % of the screen`,
+      `Drawing resolution: ${Math.round(gr.viewportScale * 100)} % of the display`,
       `Live daylight preview: ${gr.daylightPreview ? 'yes' : 'no'}`,
       `Live shadows: ${gr.shadowPreview ? 'yes' : 'no'}`,
       `Design variants on disk: ${gr.maxVariants}`,

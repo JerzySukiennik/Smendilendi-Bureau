@@ -20,7 +20,7 @@
 import {
   Scene, PerspectiveCamera, Color, Fog, Group, Mesh, InstancedMesh, Object3D,
   PointLight, Vector3, MathUtils, BoxGeometry, MeshBasicMaterial, SphereGeometry,
-  InstancedBufferAttribute, Frustum, Matrix4, Sphere, BackSide, BufferAttribute, WebGLRenderTarget,
+  InstancedBufferAttribute, Frustum, Matrix4, Sphere, BackSide, BufferAttribute, WebGLRenderTarget, LinearFilter,
   PlaneGeometry, CanvasTexture, SRGBColorSpace, NearestFilter,
   LinearMipmapLinearFilter,
 } from 'three';
@@ -1372,10 +1372,45 @@ export class Office {
     // — no Editor, no HUD, no cameras — so entering it on the screen drew
     // nothing (measured: render-target luma 0 against a control of 255).
     if (!mode.initialised && typeof mode.init === 'function') mode.init(this.ctx);
+    // HOW SHARP THE DRAWING IS, IS WHAT THE MACHINE BUYS YOU.
+    //
+    // The render target used to be the OS texture's own size — 640x480 on the
+    // starter machine — and it was then blown up to whatever the monitor
+    // happened to cover on the real screen. Measured: 806x480 shown at
+    // 1509x900, a 1.87x upscale, and the DOM HUD sitting on top of it at full
+    // crispness, so the palette was razor sharp and the building behind it was
+    // mush. Worse, upgrading the computer changed nothing about it, which is
+    // the one thing item 4 says the upgrade is for.
+    //
+    // So the target is now sized from what it will actually cover, scaled by
+    // the tier's own viewportScale grant (0.55 / 0.72 / 0.85 / 1.00) that the
+    // Settings app already shows the player. The aspect comes from the OS
+    // texture, not the canvas, or the image would be stretched on the 4:3
+    // monitor. The two retro machines stay deliberately coarse and are filtered
+    // NEAREST, so they read as a period screen rather than a blurred one; the
+    // two modern machines get the device pixel ratio and are genuinely crisp.
     const img = ws.os?.texture?.image;
-    const w = Math.max(320, img?.width || 640), h = Math.max(240, img?.height || 480);
+    const aspect = (img?.width || 640) / (img?.height || 480);
+    // ws.os is the SURFACE, not the OS: it carries the texture and forwards
+    // input, and the machine's own config lives one level in. Reading
+    // ws.os.config gave undefined and every tier silently rendered at the same
+    // size — measured, all four at 2264x1350 with linear filtering, which is
+    // exactly the "no visible difference" this change exists to remove.
+    const cfg = ws.os?.os?.config || ws.os?.config;
+    const vs = cfg?.grants?.viewportScale ?? ws.os?.grants?.viewportScale ?? 1;
+    const retro = !!cfg?.crt;
+    const eng0 = this.ctx?.engine;
+    // 1.5x is the cap, not the device ratio: at 2x the top machine renders a
+    // 2383x1800 target every frame for a 1509x900 monitor, and Jurek has
+    // already told us once that we were eating his whole CPU. 1.5x is still
+    // visibly supersampled against the display and costs 44 % fewer pixels.
+    const dpr = retro ? 1 : Math.min(eng0?.renderer?.getPixelRatio?.() || 1, 1.5);
+    const baseH = eng0?.height || 720;
+    const h = Math.max(240, Math.min(2048, Math.round(baseH * vs * dpr)));
+    const w = Math.max(320, Math.min(2730, Math.round(h * aspect)));
     const rt = new WebGLRenderTarget(w, h, { depthBuffer: true, stencilBuffer: false });
     rt.texture.colorSpace = SRGBColorSpace;
+    if (retro) { rt.texture.magFilter = NearestFilter; rt.texture.minFilter = LinearFilter; }
     const mat = ws.screen.material;
     this.screenEditor = { ws, rt, mode, prevMap: mat.map, prevColor: mat.color.getHex() };
     mat.map = rt.texture; mat.color.setHex(0xffffff); mat.needsUpdate = true;

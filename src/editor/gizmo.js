@@ -75,8 +75,20 @@ export class Gizmos {
 
   begin() { this._n = 0; }
 
+  /**
+   * Everything drawn until the next begin() is a thing that WILL BE REFUSED.
+   *
+   * The critic's last editor finding: dragging a room off the plot already
+   * refused the op, but the player was told only on release, by a line at the
+   * bottom of the screen. The ghost is where he is looking, so the ghost is
+   * where the refusal belongs — red while the drag is still live, and cheap
+   * to fix by moving the mouse back.
+   */
+  setRefused(on) { this._refused = !!on; }
+
   line(a, b, color = 0xffffff) {
     if (this._n >= MAX_SEGMENTS) return;
+    if (this._refused) color = COLOR.refused;
     const i = this._n * 6;
     this._pos[i] = a.x; this._pos[i + 1] = a.y; this._pos[i + 2] = a.z;
     this._pos[i + 3] = b.x; this._pos[i + 4] = b.y; this._pos[i + 5] = b.z;
@@ -187,6 +199,7 @@ export class Gizmos {
 
   /** A translucent block, given a centre, size and rotation about Y. */
   ghostBox(cx, cy, cz, w, h, d, rot = 0, color = COLOR.ghost) {
+    if (this._refused) color = COLOR.refused;
     const m = new Mesh(new BoxGeometry(w, h, d), this._ghostMat);
     if (color !== COLOR.ghost) {
       m.material = new MeshBasicMaterial({ color, transparent: true, opacity: 0.34, depthWrite: false, side: DoubleSide });

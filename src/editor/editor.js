@@ -31,6 +31,9 @@ import { FurnitureRenderer } from './furniture.js';
 import { TextRenderer } from './text3d.js';
 import { MeasurementsBox } from './measure.js';
 import { COLOR, HISTORY_BY_TIER, AXIS } from './constants.js';
+
+/** Tools that put a node on the ground — the ones _opAllowed can refuse. */
+const SITED_TOOLS = new Set(['wall', 'rect', 'room', 'move']);
 import { TOOLS } from './tools/index.js';
 
 const CLICK_PX = 6;
@@ -231,6 +234,25 @@ export class Editor {
       || this.ctx?.state?.get('commission')?.plot?.buildable
       || this.brief?.plot?.buildable
       || null;
+  }
+
+  /**
+   * Is the point under the cursor on ground the client owns?
+   *
+   * Only true refusals count: a tool that draws no geometry (Orbit, Select,
+   * Paint, the tape measure) is free to hover anywhere, and so is the first
+   * frame before a plot exists. Anything that would put a node down is not.
+   * SITED_TOOLS is exactly the set whose ops _opAllowed refuses, and the two
+   * must be kept together — a ghost that goes red and is then accepted, or
+   * stays orange and is then refused, is worse than no colour at all.
+   */
+  _pointerRefused() {
+    const pt = this._pointer?.snap?.point;
+    if (!pt || !this._pointer.over || this.cameras.navigating) return false;
+    if (!SITED_TOOLS.has(this.tool?.id)) return false;
+    const poly = this._buildablePoly();
+    if (!Array.isArray(poly) || poly.length < 3) return false;
+    return !pointInPoly(poly, pt.x, pt.z);
   }
 
   _opAllowed(op) {
@@ -1142,7 +1164,17 @@ export class Editor {
     if (this.cameras.mode !== 'plan') g.drawAxes(new Vector3(0, this.level?.elevation ?? 0, 0));
     for (const gd of this.guides) g.dotted(gd.a, gd.b, COLOR.guide);
     this._drawSelection(g);
+    // THE REFUSAL IS SHOWN ON THE GHOST, NOT AFTER THE FACT. Dragging off the
+    // plot was already refused by _opAllowed, but the only sign of it was a
+    // line at the bottom of the screen on release: the player watched a ghost
+    // that looked perfectly ordinary, let go, and got nothing. Now the ghost
+    // itself goes red while the pointer is off the client's land, and the
+    // ScreenTip beside the cursor says why — both live, both where he is
+    // looking, both cheap to undo by moving the mouse back.
+    const refused = this._pointerRefused();
+    g.setRefused(refused);
     this.tool?.draw?.(g, this._pointer);
+    g.setRefused(false);
     const snap = this._pointer.over && !this.cameras.navigating ? this._pointer.snap : null;
     if (snap) {
       for (const gu of snap.guides || []) {
@@ -1150,7 +1182,8 @@ export class Editor {
         else g.line(gu.a, gu.b, gu.color);
       }
       g.showMarker(snap.free ? null : snap);
-      this.hud?.setInference(snap.free ? '' : snap.name, snap.color, this._pixel);
+      if (refused) this.hud?.setInference('Off the plot', COLOR.refused, this._pixel);
+      else this.hud?.setInference(snap.free ? '' : snap.name, snap.color, this._pixel);
     } else {
       g.showMarker(null);
       this.hud?.setInference('', 0, this._pixel);

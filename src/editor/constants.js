@@ -39,6 +39,7 @@ export const COLOR = {
   selection: 0x2f6fd0,
   hover: 0xf3ece1,
   ghost: 0xd4763a,
+  refused: 0xc0392b,    // the ghost of something that will not be allowed
 };
 
 /** The official inference names. A snap that cannot name itself is not shipped. */

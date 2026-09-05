@@ -396,3 +396,41 @@ MacBook Pro 2019, furniture instanced, NPC count capped.
 Only key assets need sign-off: the music, the UI sounds and 10–15 headline models.
 Present them on a local review page (turntable renders / play buttons, source and licence)
 in batches; everything else follows the agreed style automatically.
+
+## Interface — item 17, the editor (2026-09-05)
+
+Two things the critic left standing after the palette was labelled.
+
+**The drawing is as sharp as the machine, and only as sharp as the machine.**
+The editor's render target used to be the OS texture's own size and was then
+blown up to whatever the monitor covered on the real screen: measured at
+806×480 shown at 1509×900, a 1.87× upscale, sitting under a DOM HUD drawn at
+full crispness. The palette was razor sharp and the building behind it was
+mush, and upgrading the computer changed nothing about it — which is the one
+thing item 4 says the upgrade is for. The target is now sized from what it
+will actually cover, scaled by the tier's own `viewportScale` grant that the
+Settings app already shows the player. Measured, at a 1600×900 canvas:
+
+| machine | render target | pixels | filter |
+|---|---|---|---|
+| Pentagram 133 | 831 × 495 | 0.41 MP | NEAREST |
+| Kompakt 2000 | 1086 × 648 | 0.70 MP | NEAREST |
+| Sunstation Pro | 1925 × 1148 | 2.21 MP | linear |
+| Melon Studio M5 | 2266 × 1350 | 3.06 MP | linear |
+
+The two retro machines stay deliberately coarse and are filtered NEAREST, so
+they read as a period screen rather than a blurred one. The two modern ones
+are supersampled against the 1509×900 the monitor covers. The device pixel
+ratio is capped at 1.5, not taken as given: at 2× the top machine renders 4.3 MP
+every frame, and we have been told once already that we were eating the CPU.
+
+**A refusal belongs on the ghost, not on the receipt.** Dragging a room off the
+plot was already refused, but the only sign of it was a line at the bottom of
+the screen *on release* — the player watched an ordinary-looking ghost, let go,
+and got nothing. The ghost now turns red while the pointer is off the client's
+land and the ScreenTip beside the cursor reads "Off the plot", both live, both
+where he is looking, both undone by moving the mouse back. The tools this
+applies to are exactly the ones `_opAllowed` can refuse (wall, rectangle, room,
+move); Orbit, Paint and the tape measure are free to hover anywhere. Those two
+sets must be kept together — a ghost that goes red and is then accepted, or
+stays orange and is then refused, is worse than no colour at all.
