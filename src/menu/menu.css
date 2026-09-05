@@ -62,7 +62,12 @@
 .mn-btn-primary:hover { background: #e08a4d; }
 .mn-btn-ghost { background: transparent; }
 
-/* ---------- identity chip, bottom left ----------------------------------- */
+/* ---------- identity, inside the Multiplayer panel ----------------------- */
+
+.mn-identity-slot { margin: 14px 0 4px; }
+.mn-identity-block { display: block; }
+
+/* the old free-floating chip, kept for the .mn-identity rules below */
 
 .mn-identity {
   position: absolute;
@@ -112,19 +117,6 @@
   vertical-align: 1px;
 }
 .mn-tools b { color: var(--accent); margin-left: 5px; }
-
-/* ---------- hint, bottom right ------------------------------------------- */
-
-.mn-hint {
-  position: absolute;
-  right: 22px;
-  bottom: 22px;
-  padding: 11px 14px;
-  font-size: 12px;
-  line-height: 1.6;
-  text-align: right;
-  max-width: 290px;
-}
 
 /* ---------- the surveyor's tag tooltip ----------------------------------- */
 

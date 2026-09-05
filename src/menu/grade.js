@@ -144,6 +144,7 @@ export function menuMaterial(id, opts = {}) {
       vertexColors: !!opts.vertexColors,
     });
     sm.name = `menu:${id}`;
+    applyDepthBias(sm, id);
     _mats.set(key, sm);
     return sm;
   }
@@ -155,8 +156,37 @@ export function menuMaterial(id, opts = {}) {
     if (g.roughness != null) m.roughness = g.roughness;
   }
   m.name = `menu:${id}`;
+  applyDepthBias(m, id);
   _mats.set(key, m);
   return m;
+}
+
+/**
+ * THE BACKGROUND SURFACES LOSE THE DEPTH TEST ON PURPOSE.
+ *
+ * Jurek, item 4: "there is z-fighting in a lot of places on the menu building —
+ * the windows on the right, the main door frame, the whole band above the
+ * single-player line, and that band right round the building."
+ *
+ * The building is a stack of applied layers: a frame ON a wall, a glazing bar ON
+ * a frame, a leaf IN a reveal, a band ACROSS an elevation. Several of them share
+ * a face plane with what they sit on, exactly, because that is how you draw them
+ * when you are thinking in millimetres — and two coplanar faces 25 m from the
+ * camera is a shimmer, not a surface. Chasing each pair with an epsilon is a
+ * game of whack-a-mole that reopens every time the building is edited.
+ *
+ * So the rule is made structural instead: the four BACKGROUND materials — the
+ * things other things are applied to — are pushed one depth unit back. Anything
+ * drawn on them wins, always, whatever its geometry says, and a new piece of
+ * trim added later is correct without anybody remembering this file.
+ */
+const BACKGROUND = new Set(['plaster-warm', 'brick', 'concrete', 'paving', 'concrete-dark']);
+
+function applyDepthBias(m, id) {
+  if (!BACKGROUND.has(id)) return;
+  m.polygonOffset = true;
+  m.polygonOffsetFactor = 1;
+  m.polygonOffsetUnits = 1;
 }
 
 export function disposeGrades() {

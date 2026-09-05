@@ -1075,7 +1075,7 @@ export class MenuMode extends Mode {
     this._flyCamera(dt, t);
     this._billboardTags();
     this._motion(dt, t);
-    this._pick();
+    this._pick(dt);
     this._tweenLines(dt);
     this._tweenTags(dt);
 
@@ -1195,7 +1195,7 @@ export class MenuMode extends Mode {
   }
 
   /** Raycast the signage and the tags. */
-  _pick() {
+  _pick(dt = 0.016) {
     const input = this.ctx?.input;
     if (!input) return;
     if (this.blocked) {
@@ -1252,12 +1252,29 @@ export class MenuMode extends Mode {
       }
     }
 
+    // HOVER HAS TO SURVIVE THE GAP BETWEEN TWO LINES.
+    //
+    // Jurek, item 1: "when the cursor is between the menu buttons they switch
+    // insanely fast, and that's a bug." The sign lines are separate hit boxes
+    // with air between them, so dragging the pointer across the sign fired
+    // hit -> miss -> hit -> miss, and every one of those transitions cleared
+    // the highlight, restarted the colour tween from cold and PLAYED A CLICK.
+    // A hover is a statement about where the pointer is heading, not a
+    // per-frame raycast result, so a miss now has to persist for 140 ms before
+    // it counts. Landing on a different line is instant, as it should be.
     let item = -1;
     if (tag < 0 && this.lines.length) {
       const hit = this.ray.intersectObjects(this.lines.map((l) => l.hit), false)[0];
       if (hit) item = this.lines.findIndex((l) => l.hit === hit.object);
     }
-    this._setHover(item);
+    if (item >= 0) {
+      this._hoverMiss = 0;
+      this._setHover(item);
+    } else if (this.hoverItem >= 0) {
+      this._hoverMiss = (this._hoverMiss || 0) + dt;
+      if (this._hoverMiss > 0.14) this._setHover(-1);
+      else item = this.hoverItem;                 // keep the pointer cursor too
+    }
 
     const canvas = this.ctx.engine?.canvas;
     if (canvas) canvas.style.cursor = (item >= 0 || tag >= 0) ? 'pointer' : 'default';

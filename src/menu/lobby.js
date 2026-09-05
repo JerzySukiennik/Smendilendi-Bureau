@@ -91,14 +91,22 @@ export class Lobby {
     this.root = root;
     host.appendChild(root);
 
-    // --- who you are, bottom left -----------------------------------------
-    const id = el('div', 'mn-chip mn-identity');
+    // --- who you are ------------------------------------------------------
+    //
+    // Built here, shown in the Multiplayer panel. Jurek, item 3: "put that
+    // picker in the bottom left into the multiplayer panel instead." He is
+    // right that it does not belong on the title screen — a name and a colour
+    // only mean anything once there is somebody else in the office — but the
+    // element still has to EXIST from the start, because `this.nick` and
+    // `this.color` are read when a single-player session is created and the
+    // saved preference has to be applied before any panel is opened.
+    const id = el('div', 'mn-identity-block');
     id.innerHTML = `
       <div class="mn-chip-label">Your name on the desk</div>
       <input class="mn-nick" type="text" maxlength="16" spellcheck="false" placeholder="Architect" aria-label="Nickname">
       <div class="mn-chip-label mn-mt">Your colour in the office</div>
       <div class="mn-swatches"></div>`;
-    root.appendChild(id);
+    this.identityBlock = id;
     this.nickInput = id.querySelector('.mn-nick');
     this.nickInput.addEventListener('input', () => {
       this.prefs.nick = this.nickInput.value;
@@ -133,18 +141,11 @@ export class Lobby {
     }
     root.appendChild(tools);
 
-    // --- bottom right: the hint -------------------------------------------
-    // BLUE, not orange. The discs in the scene are survey blue (#3f6a86, set by
-    // TAG_FACE in menu.js) and have been since the round that moved them off the
-    // accent; this sentence was not updated with them and spent a whole round
-    // telling the player to look for a colour that is not there. The chips in
-    // the report panel are orange, which is why it read as true to whoever wrote
-    // it — but this line points at the scene, not at the panel.
-    const hint = el('div', 'mn-hint');
-    hint.innerHTML = `The signage is the menu — hover a line.<br>
-      ${this.crimes.length ? `<span class="mn-dim">The blue tags are the ${this.crimes.length} defects. Click one and the camera goes there.</span>` : ''}`;
-    root.appendChild(hint);
-    this.hint = hint;
+    // --- bottom right: nothing --------------------------------------------
+    // There WAS a hint here ("the signage is the menu - hover a line"). Jurek,
+    // item 2: remove it. The signage reads as a menu the moment the pointer
+    // touches it, and a caption explaining a three-second discovery is the
+    // kind of thing a title screen is better without.
 
     // --- the tag tooltip ---------------------------------------------------
     this.tagCard = el('div', 'mn-tag');
@@ -324,7 +325,9 @@ export class Lobby {
       ${offline ? `<div class="mn-status warn">This build has no Firebase credentials
         (<code>src/net/firebase-config.js</code> still holds placeholders), so there is nothing
         to join. Opening an office still works — it just runs on this machine alone.</div>` : ''}
+      <div class="mn-identity-slot"></div>
       <div class="mn-slot"></div>`);
+    p.querySelector('.mn-identity-slot').appendChild(this.identityBlock);
     p.querySelector('[data-a="host"]').addEventListener('click', () => this._host());
     const join = p.querySelector('[data-a="join"]');
     if (!offline) join.addEventListener('click', () => this._joinForm());
