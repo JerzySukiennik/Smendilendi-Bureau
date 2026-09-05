@@ -130,18 +130,63 @@ export class GameLoop {
   /** First commission of the session. Called the moment the office opens. */
   startCampaign() {
     if (this.state.get('commission')) { this.phase = 'brief'; return; }
+    // A GUEST NEVER STARTS A JOB. THE HOST'S JOB IS THE JOB.
+    //
+    // A commission is derived from (session code, round number), so two players
+    // in the same office agree only while their round numbers agree — and a
+    // player joining an office where one job is already finished had n = 0
+    // against the host's n = 1. Measured on code NPVPYYT7: the buildable
+    // corner moves from (-9.4, -32.3) to (-14.4, 21.7). Different site,
+    // different brief, same office. Everything the guest drew inside the
+    // host's building was then off his own plot and REFUSED, which is exactly
+    // "design does not work". Worse, newCommission() replaces the model, and
+    // that travels as an op — so the guest's arrival wiped the host's drawing.
+    //
+    // So the guest waits, and adopts the round the host's model announces.
+    if (this.ctx.net && this.ctx.net.isHost === false) { this._awaitHostCommission(); return; }
     this.newCommission();
   }
 
-  newCommission() {
+  /**
+   * Adopt the host's commission from the model id.
+   *
+   * The round number rides in the model id (`m<n>-<commissionId>`) because the
+   * model already travels to every player as an op and needs no new channel,
+   * no new presence field and no database rule change. Anything else would be
+   * a second source of truth for the same number.
+   */
+  _awaitHostCommission() {
+    this._setPhase('brief');
+    const adopt = (model) => {
+      const m = /^m(\d+)-/.exec(model?.id || '');
+      if (!m) return;
+      const n = Number(m[1]);
+      if (this._adoptedRound === n) return;
+      this._adoptedRound = n;
+      this.newCommission({ n, keepModel: true });
+    };
+    const net = this.ctx.net;
+    if (net.model) adopt(net.model);
+    net.on('op', (e) => adopt(e?.model));
+    net.on('snapshot', (e) => adopt(e?.model));
+  }
+
+  newCommission({ n = this.completed.length, keepModel = false } = {}) {
     const code = this.state.get('session.code') || 'LOCAL';
-    const n = this.completed.length;
-    const seed = `${code}-${n}`;
     // The first job is a soft one. Difficulty tightens the budget and the
     // deadline and shrinks the plot; an architect meeting the game for the
-    // first time should not open on the worst site it can generate.
-    const difficulty = Math.min(0.85, 0.30 + n * 0.09);
-    const c = generateCommission(seed, difficulty, this.completed);
+    // first time should not open on the worst site it can generate — see
+    // commissionAt, which owns the seed and the difficulty ramp.
+    // REPLAY THE CHAIN INSTEAD OF TRUSTING THE LOCAL HISTORY.
+    //
+    // generateCommission reads the history's CONTENTS, not just its length —
+    // it avoids repeating the last three building types and the last six
+    // clients. A guest adopting round 3 has an empty `completed`, so passing
+    // it straight in produced a different building type and a different client
+    // from the host's, on the same code and the same round. Every past job was
+    // itself generated from (code, k), so the chain can simply be rebuilt: it
+    // is exact, it needs no extra channel, and n is never more than a handful.
+    const c = commissionAt(code, n);
 
     this.round = 0;
     this.report = null;
@@ -151,8 +196,12 @@ export class GameLoop {
     // A new job is a new drawing. The model lives in the session, so this is
     // the one place it is ever replaced, and it travels as an op so every
     // player in the office lands on the same empty sheet.
+    // The round number rides in the model id so a guest can read it back; see
+    // _awaitHostCommission. `keepModel` is the guest adopting a job that is
+    // already under way — replacing the model there would wipe the drawing it
+    // just joined.
     const net = this.ctx.net;
-    if (net?.setModel) net.setModel(createModel({ id: `m-${c.id}` }));
+    if (net?.setModel && !keepModel) net.setModel(createModel({ id: `m${n}-${c.id}` }));
     this.state.set('model', net?.model ?? null);
 
     // The editor may already have been built for the previous commission: it
@@ -576,3 +625,23 @@ export function createLoop(ctx) {
 }
 
 export default GameLoop;
+
+
+/**
+ * The nth commission of an office, from nothing but the office code.
+ *
+ * Deterministic and self-contained: every earlier job is regenerated in order
+ * so the avoidance rules see the same history the host's did. This is the ONE
+ * definition of what job an office is on, shared by host and guest, so the two
+ * cannot drift.
+ */
+function commissionAt(code, n) {
+  const history = [];
+  let c = null;
+  for (let k = 0; k <= n; k++) {
+    const d = Math.min(0.85, 0.30 + k * 0.09);
+    c = generateCommission(`${code}-${k}`, d, history);
+    if (k < n) history.push(c);
+  }
+  return c;
+}
