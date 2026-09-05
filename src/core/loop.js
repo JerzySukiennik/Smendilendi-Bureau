@@ -322,13 +322,31 @@ export class GameLoop {
     // path (a mode pushed over the game) remains for the case where there is
     // no focused monitor, e.g. a harness page.
     const office = this.engine.modes.get('office')?.office;
-    const ws = office?.interact?.focus?.workstation;
+    // IF THERE IS A MONITOR, THE EDITOR RUNS ON IT. The fallback to a mode over
+    // the game exists for a harness with no office in it, and it was being
+    // taken in the real game whenever `interact.focus` happened to be null —
+    // which is every route into Design that is not "already leaning into the
+    // screen". So: take the focused workstation if there is one, otherwise this
+    // player's own desk, and fly to it first. Only a genuinely office-less
+    // engine falls through.
+    let ws = office?.interact?.focus?.workstation;
+    if (office && !ws) {
+      ws = office.workstations?.find((w) => w.player?.local)
+        || office.workstations?.find((w) => w.player)
+        || office.workstations?.[0];
+      if (ws) office.interact.focusScreen(ws, { fill: true });
+    }
     let mode;
     if (office && ws && this.engine.activeMode?.id === 'office' && ed.enterOnScreen) {
       mode = office.openEditorOnScreen(ws, ed, { commission: this.commission });
       this._editorOnScreen = !!mode;
     }
-    if (!mode) { mode = this.engine.push('editor', { commission: this.commission }); this._editorOnScreen = false; }
+    if (!mode) {
+      console.warn('[loop] no monitor to run the editor on — falling back to a mode over the game',
+        { hasOffice: !!office, hasWorkstation: !!ws, activeMode: this.engine.activeMode?.id });
+      mode = this.engine.push('editor', { commission: this.commission });
+      this._editorOnScreen = false;
+    }
     const editor = mode?.editor;
     if (editor) {
       editor.onSubmit = () => this.submit();

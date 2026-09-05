@@ -368,6 +368,20 @@ export class EditorMode extends Mode {
 
   enter(params = {}) {
     super.enter(params);
+    // A MODE PUSHED OVER THE GAME DRAWS TO THE SCREEN. ALWAYS.
+    //
+    // This is the second half of "design does not work", and the half the
+    // screenshots actually show: the office and the OS desktop both visible,
+    // with the editor's palette floating over them. That is not two editors
+    // fighting — it is ONE editor rendering into a render target nobody is
+    // looking at. `renderTarget` is only ever cleared by exitOnScreen(), so any
+    // route out of an on-screen session that does not go through it leaves the
+    // mode pointing at a disposed target; the next push then paints the drawing
+    // into that target and the screen keeps whatever was already on it.
+    //
+    // The mode cannot know how it was left. It CAN know how it is being
+    // entered, so it asserts it here.
+    if (!this.onScreen && this.renderTarget) this.setRenderTarget(null);
     // The loop hands the current brief in on every push; a commission that has
     // moved on since this mode was built re-sites it here rather than silently
     // drawing on the wrong plot.

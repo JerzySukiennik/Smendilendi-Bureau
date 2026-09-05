@@ -1076,10 +1076,32 @@ export class Office {
       // 60 mm ABOVE the shade, so it lit the desk from over the top of a lamp
       // it was not inside. Radius comes down with it — a bulb under a 90 mm
       // shade throws a pool, not a 2.6 m glow.
-      const l = new PointLight(0xffc98a, 4.2, 1.9, 2.4);
+      const l = new PointLight(0xffc98a, 4.2, 2.4, 2.2);
       l.position.set(s.x - 0.643, 1.16, s.z - 0.212);
       l.visible = s.index < studio.deskLamps;
       this.scene.add(l);
+      // THE LAMP HAS TO LOOK ON, not just light the desk.
+      //
+      // "The lamp still does not come on." It did — measured, wantOn went true,
+      // the PointLight went visible at intensity 4.2 — but the LAMP was
+      // identical either way, because the prop is an instanced mesh with a
+      // static material and nothing about it changes. A desk lamp you switch on
+      // and cannot tell is on has not been switched on as far as the player is
+      // concerned, and he is right about that.
+      //
+      // So the bulb gets an emitter: a small unlit sphere at the filament and a
+      // bigger, fainter one around it for the shade's own glow. Unlit and
+      // toneMapped:false so they read as a source rather than a lit object,
+      // which is the same reason the monitor screen is a basic material.
+      const bulb = new Mesh(new SphereGeometry(0.030, 10, 8),
+        new MeshBasicMaterial({ color: 0xfff0cf, toneMapped: false }));
+      bulb.position.copy(l.position);
+      const halo = new Mesh(new SphereGeometry(0.085, 12, 9),
+        new MeshBasicMaterial({ color: 0xffcf8a, transparent: true, opacity: 0.30, toneMapped: false, depthWrite: false }));
+      halo.position.copy(l.position);
+      bulb.visible = halo.visible = l.visible;
+      this.scene.add(bulb); this.scene.add(halo);
+      l.userData.emitters = [bulb, halo];
       this.lights.lamps.push(l);
     }
 
@@ -1150,6 +1172,10 @@ export class Office {
     if (!light) return;
     light.userData.wantOn = !!on;
     light.visible = !!on;      // _cullLights re-decides on the next frame
+    // The emitters follow `wantOn`, NOT `visible`: culling hides a light whose
+    // sphere is off screen, and a bulb you can see must not go dark because the
+    // light it stands for was culled behind you.
+    for (const e of light.userData.emitters || []) e.visible = !!on;
   }
 
   _cullLights() {
