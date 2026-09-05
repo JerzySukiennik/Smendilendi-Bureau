@@ -28,7 +28,13 @@ export class MailApp {
     this.title = 'Mail';
     this.list = new ListView(HEADER_H);
     this.body = new ScrollPane(13);
-    this.split = 0.42;
+    // THE MESSAGE IS THE POINT, NOT THE LIST. At 0.42 the client list took
+    // nearly half the window and the letter — the thing the whole revision
+    // round turns on — was squeezed into the rest: "there is too little room
+    // for the mail and too much for that client list". A mail client shows a
+    // few rows and devotes the window to what you are reading, so the list gets
+    // a quarter, floored at four rows so it never becomes a slit.
+    this.split = 0.26;
     this.tools = [
       { id: 'reply', tip: 'Reply', icon: 'mail' },
       { id: 'forward', tip: 'Forward', icon: 'mailOpen' },
@@ -133,7 +139,13 @@ export class MailApp {
     const statusH = 20;
     const top = r.y + TOOLBAR_H + 2;
     const avail = r.h - TOOLBAR_H - 2 - statusH - 4;
-    const listH = Math.max(HEADER_H + this.list.rowH * 3 + 4, Math.round(avail * this.split));
+    // Floor: four rows, so a short inbox still reads as a list. Ceiling: never
+    // more than a third of the window, so a long one cannot crowd the letter
+    // out again on a small screen — the tier-1 machine is only 640 x 480.
+    const listH = Math.min(
+      Math.round(avail * 0.34),
+      Math.max(HEADER_H + this.list.rowH * 4 + 4, Math.round(avail * this.split)),
+    );
     const listRect = { x: r.x + 2, y: top, w: r.w - 4, h: listH };
 
     // --- list pane
