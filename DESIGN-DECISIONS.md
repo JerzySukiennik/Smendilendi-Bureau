@@ -493,3 +493,43 @@ sliding three-block bar, Vellum 10 to the white mark and a ring of dots, Atelier
 1990s bitmap — MS Sans Serif and Chicago/Geneva — so Windows 10 and macOS 26
 render in the right shapes and the wrong letterforms. Fixing it means a new
 font, not a new theme.
+
+## Jurek's third playtest — 2026-09-05
+
+> You cannot see the second player (he sits permanently at computer 2), the new
+> avatar is not there (only the old one), design does not work.
+
+Three reports, three separate causes, all in the joined-office path.
+
+**Design does not work.** A commission is derived from `(office code, round
+number)`, and a guest joining an office where a job was already finished had
+n = 0 against the host's n = 1. Measured on code NPVPYYT7, the buildable corner
+moves from (−9.4, −32.3) to (−14.4, 21.7): a different site and a different
+brief in the same office, so everything the guest drew inside the host's
+building stood off his own plot and was refused. Since the refusal became
+visible on the ghost this week, that reads as a dead editor. A guest now never
+starts a job: it adopts the round the host's model announces, and the round
+number rides in the model id (`m<n>-<commissionId>`), because the model already
+reaches every player and needs no new channel. `newCommission()` also replaced
+the model, and that travels as an op — so a guest's arrival wiped the host's
+drawing. It no longer does.
+
+The commission is also rebuilt by **replaying the chain** rather than trusting
+the local history. `generateCommission` reads the history's *contents* — it
+avoids the last three building types and the last six clients — so a guest with
+an empty `completed` list got a different building on the same code and round.
+Every past job was itself generated from `(code, k)`, so replaying is exact.
+
+**The other player never moved.** A presence record carries a `cursor` for the
+editor and nothing else, so nobody ever transmitted a walking position: remote
+players were parked at a desk on join and stood there. The office now publishes
+its pose at 8 Hz and eases remote avatars towards it. The yaw travels *inside*
+`cursor`: a player record is `$other: false`, so a new sibling field would be
+rejected outright, while `cursor` is validated only as "has children" — no rule
+change, and the shared RTDB instance is not touched.
+
+**The old avatar.** `src/office/avatar.js` — rigged, dressed, animated, and
+signed off — was exported and referenced nowhere; the office drew its own box
+figure. The rigged one loads now, with the box kept as the placeholder for the
+frame before the GLB arrives and for a failed load, which is logged rather than
+left looking like it worked.
