@@ -13,7 +13,7 @@
     "m4a": "music/office-ambient-1.m4a",
     "kind": "music",
     "loop": true,
-    "gain": 0.315,
+    "gain": 0.047,
     "positional": false,
     "duration": "1:15"
   },
@@ -22,7 +22,7 @@
     "m4a": "music/office-ambient-2.m4a",
     "kind": "music",
     "loop": true,
-    "gain": 0.315,
+    "gain": 0.032,
     "positional": false,
     "duration": "1:15"
   },
@@ -31,7 +31,7 @@
     "m4a": "music/walkthrough.m4a",
     "kind": "music",
     "loop": true,
-    "gain": 0.175,
+    "gain": 0.219,
     "positional": false,
     "duration": "1:30"
   },

@@ -1,0 +1,307 @@
+{
+ "project": "smendilendi-bureau",
+ "kind": "asset-review",
+ "at": "2026-09-05T07:46:26.085Z",
+ "summary": {
+  "total": 34,
+  "decided": 34,
+  "approve": 31,
+  "reject": 0,
+  "needswork": 3
+ },
+ "decisions": [
+  {
+   "id": "music.menu",
+   "batch": "audio-music",
+   "name": "Menu",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:42:02.051Z"
+  },
+  {
+   "id": "music.office-ambient-1",
+   "batch": "audio-music",
+   "name": "Office ambient 1",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:42:13.497Z",
+   "trim": 0.15,
+   "newGain": 0.047
+  },
+  {
+   "id": "music.office-ambient-2",
+   "batch": "audio-music",
+   "name": "Office ambient 2",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:42:28.684Z",
+   "trim": 0.1,
+   "newGain": 0.032
+  },
+  {
+   "id": "music.walkthrough",
+   "batch": "audio-music",
+   "name": "Walkthrough",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:42:40.994Z",
+   "trim": 1.25,
+   "newGain": 0.219
+  },
+  {
+   "id": "ui.click-soft",
+   "batch": "audio-ui",
+   "name": "Click soft",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:42:47.979Z"
+  },
+  {
+   "id": "ui.click",
+   "batch": "audio-ui",
+   "name": "Click",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:42:51.821Z"
+  },
+  {
+   "id": "ui.error",
+   "batch": "audio-ui",
+   "name": "Error",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:42:56.312Z"
+  },
+  {
+   "id": "ui.mail-notify",
+   "batch": "audio-ui",
+   "name": "Mail notify",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:43:01.011Z"
+  },
+  {
+   "id": "ui.submit",
+   "batch": "audio-ui",
+   "name": "Submit",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:43:06.611Z"
+  },
+  {
+   "id": "ui.tool-select",
+   "batch": "audio-ui",
+   "name": "Tool select",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:43:12.578Z"
+  },
+  {
+   "id": "ui.window-close",
+   "batch": "audio-ui",
+   "name": "Window close",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:43:15.830Z"
+  },
+  {
+   "id": "ui.window-open",
+   "batch": "audio-ui",
+   "name": "Window open",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:43:18.211Z"
+  },
+  {
+   "id": "os.boot-tier1",
+   "batch": "audio-ui",
+   "name": "Boot tier1",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:43:21.461Z"
+  },
+  {
+   "id": "os.boot-tier2",
+   "batch": "audio-ui",
+   "name": "Boot tier2",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:43:31.283Z"
+  },
+  {
+   "id": "os.boot-tier3",
+   "batch": "audio-ui",
+   "name": "Boot tier3",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:43:36.711Z"
+  },
+  {
+   "id": "os.boot-tier4",
+   "batch": "audio-ui",
+   "name": "Boot tier4",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:43:39.478Z"
+  },
+  {
+   "id": "chair-task",
+   "batch": "models-1",
+   "name": "Task chair",
+   "verdict": "approve",
+   "note": "Daj je pracownikom (na te miejsca pracowników) bo ich są słabe",
+   "at": "2026-09-05T07:44:21.324Z"
+  },
+  {
+   "id": "sofa-3seat",
+   "batch": "models-1",
+   "name": "Sofa, 3 seats",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:44:26.445Z"
+  },
+  {
+   "id": "table-dining-4",
+   "batch": "models-1",
+   "name": "Dining table, 4",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:44:30.995Z"
+  },
+  {
+   "id": "bed-double-1600",
+   "batch": "models-1",
+   "name": "Double bed 160 x 200",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:44:34.211Z"
+  },
+  {
+   "id": "wc-floor",
+   "batch": "models-1",
+   "name": "WC, close-coupled",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:44:36.629Z"
+  },
+  {
+   "id": "basin-560",
+   "batch": "models-1",
+   "name": "Washbasin 560",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:44:39.811Z"
+  },
+  {
+   "id": "kitchen-base-sink-800",
+   "batch": "models-1",
+   "name": "Kitchen sink unit 800",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:44:45.496Z"
+  },
+  {
+   "id": "fridge-freezer-tall",
+   "batch": "models-1",
+   "name": "Fridge-freezer, tall",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:44:49.045Z"
+  },
+  {
+   "id": "door-internal-900",
+   "batch": "models-1",
+   "name": "Internal door 900",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:44:52.695Z"
+  },
+  {
+   "id": "window-1200x1400",
+   "batch": "models-1",
+   "name": "Window 1200 x 1400",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:44:57.061Z"
+  },
+  {
+   "id": "pendant-lamp",
+   "batch": "models-1",
+   "name": "Pendant lamp",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:44:59.545Z"
+  },
+  {
+   "id": "plant-ficus-large",
+   "batch": "models-1",
+   "name": "Large ficus",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:45:04.680Z"
+  },
+  {
+   "id": "desk-reception",
+   "batch": "models-1",
+   "name": "Reception desk",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:45:08.845Z"
+  },
+  {
+   "id": "espresso-machine",
+   "batch": "models-1",
+   "name": "Espresso machine",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:45:11.812Z"
+  },
+  {
+   "id": "exam-couch",
+   "batch": "models-1",
+   "name": "Examination couch",
+   "verdict": "approve",
+   "note": "",
+   "at": "2026-09-05T07:45:14.361Z"
+  },
+  {
+   "id": "avatar-broad",
+   "batch": "avatars-1",
+   "name": "Broad build",
+   "verdict": "needswork",
+   "note": "Jest zbyt female, ręce są zbyt blisko ciała i przez to ich nie widać",
+   "at": "2026-09-05T07:46:22.557Z"
+  },
+  {
+   "id": "avatar-regular",
+   "batch": "avatars-1",
+   "name": "Regular build",
+   "verdict": "needswork",
+   "note": "Jest zbyt female, ręce są zbyt blisko ciała i przez to ich nie widać",
+   "at": "2026-09-05T07:46:25.058Z"
+  },
+  {
+   "id": "avatar-slim",
+   "batch": "avatars-1",
+   "name": "Slim build",
+   "verdict": "needswork",
+   "note": "Jest zbyt female, ręce są zbyt blisko ciała i przez to ich nie widać",
+   "at": "2026-09-05T07:46:26.084Z"
+  }
+ ],
+ "pending": [],
+ "levelChanges": [
+  {
+   "id": "music.office-ambient-1",
+   "newGain": 0.047
+  },
+  {
+   "id": "music.office-ambient-2",
+   "newGain": 0.032
+  },
+  {
+   "id": "music.walkthrough",
+   "newGain": 0.219
+  }
+ ]
+}

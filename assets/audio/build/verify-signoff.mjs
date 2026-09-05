@@ -43,7 +43,7 @@
 // The engine now refuses all three at runtime as well; these checks make writing
 // one a build failure rather than a silent no-op.
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { execFileSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -62,7 +62,28 @@ const FAST = process.argv.includes('--fast');
 const manifest = JSON.parse(readFileSync(join(AUDIO, 'manifest.json'), 'utf8'));
 const mix = JSON.parse(readFileSync(join(AUDIO, 'mix.json'), 'utf8'));
 const credits = readFileSync(join(ROOT, 'CREDITS.md'), 'utf8');
-const decisions = JSON.parse(readFileSync(join(ROOT, 'review/decisions-2026-08-27.json'), 'utf8'));
+// EVERY sign-off, newest last. A second review round does not replace the
+// first: it re-decides some ids and leaves the rest standing, so the ledger is
+// the older files overlaid by the newer ones, id by id. Reading only the
+// 2026-08-27 file made the three levels Jurek re-trimmed on 2026-09-05 look
+// like drift in the manifest, which is precisely backwards.
+const SIGNOFFS = readdirSync(join(ROOT, 'review'))
+  .filter(f => /^decisions-\d{4}-\d{2}-\d{2}\.json$/.test(f))
+  .sort();
+const signedOff = new Map();
+for (const f of SIGNOFFS)
+  for (const d of JSON.parse(readFileSync(join(ROOT, 'review', f), 'utf8')).decisions || [])
+    signedOff.set(d.id, d);
+// A LEVEL, ONCE SET, STAYS SET UNTIL IT IS RE-TRIMMED. Round 2 approved
+// ui.click-soft with no trim, which means "the level I just heard is right" —
+// and the level he just heard is the one round 1 trimmed it to. So the newest
+// decision that CARRIES a level wins, rather than the newest decision full
+// stop, or a second review would quietly drop the first review's guards.
+const levels = new Map();
+for (const f of SIGNOFFS)
+  for (const c of JSON.parse(readFileSync(join(ROOT, 'review', f), 'utf8')).levelChanges || [])
+    levels.set(c.id, c);
+const decisions = { decisions: [...signedOff.values()], levelChanges: [...levels.values()] };
 const batches = JSON.parse(readFileSync(join(ROOT, 'review/batches.json'), 'utf8'));
 
 let fails = 0;

@@ -1,947 +1,947 @@
 {
-  "generated": "tools/make-batch.mjs",
-  "batches": [
+ "generated": "tools/make-batch.mjs",
+ "batches": [
+  {
+   "id": "audio-music",
+   "title": "Music",
+   "kind": "audio",
+   "note": "The four long-form tracks. Listen with the loop toggle on: the only question that matters for music here is whether you can hear the seam when it wraps.",
+   "items": [
     {
-      "id": "audio-music",
-      "title": "Music",
-      "kind": "audio",
-      "note": "The four long-form tracks. Listen with the loop toggle on: the only question that matters for music here is whether you can hear the seam when it wraps.",
-      "items": [
-        {
-          "id": "music.menu",
-          "name": "Menu",
-          "why": "Plays under the badly-designed building on the main menu. Wants to be curious rather than grand — this is a game about drawing, not about saving the world.",
-          "whyAuto": false,
-          "loop": true,
-          "src": {
-            "ogg": "../assets/audio/music/menu.ogg",
-            "m4a": "../assets/audio/music/menu.m4a"
-          },
-          "mix": {
-            "kind": "music",
-            "bus": "music",
-            "master": 0.9,
-            "busGain": 0.45,
-            "asset": 0.7,
-            "effective": 0.2835,
-            "positional": false
-          },
-          "meta": {
-            "duration": "0:58",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://opengameart.org/content/cozy-puzzle-title",
-            "author": "MintoDog",
-            "origTitle": "Cozy Puzzle Title"
-          },
-          "decided": {
-            "verdict": "approve",
-            "at": "2026-08-27T13:11:10.785Z",
-            "applied": "Approved 2026-08-27, unchanged."
-          }
-        },
-        {
-          "id": "music.office-ambient-1",
-          "name": "Office ambient 1",
-          "why": "Long-form office-ambient-1 track. Rationale not recorded yet — check the loop point.",
-          "whyAuto": true,
-          "loop": true,
-          "src": {
-            "ogg": "../assets/audio/music/office-ambient-1.ogg",
-            "m4a": "../assets/audio/music/office-ambient-1.m4a"
-          },
-          "mix": {
-            "kind": "music",
-            "bus": "music",
-            "master": 0.9,
-            "busGain": 0.45,
-            "asset": 0.315,
-            "effective": 0.12757500000000002,
-            "positional": false
-          },
-          "meta": {
-            "duration": "1:15",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://opengameart.org/content/osmotic-memory",
-            "author": "Tsorthan Grove",
-            "origTitle": "Osmotic Memory"
-          },
-          "decided": {
-            "verdict": "approve",
-            "at": "2026-08-27T13:23:19.549Z",
-            "applied": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315."
-          }
-        },
-        {
-          "id": "music.office-ambient-2",
-          "name": "Office ambient 2",
-          "why": "Long-form office-ambient-2 track. Rationale not recorded yet — check the loop point.",
-          "whyAuto": true,
-          "loop": true,
-          "src": {
-            "ogg": "../assets/audio/music/office-ambient-2.ogg",
-            "m4a": "../assets/audio/music/office-ambient-2.m4a"
-          },
-          "mix": {
-            "kind": "music",
-            "bus": "music",
-            "master": 0.9,
-            "busGain": 0.45,
-            "asset": 0.315,
-            "effective": 0.12757500000000002,
-            "positional": false
-          },
-          "meta": {
-            "duration": "1:15",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://opengameart.org/content/qubiliu",
-            "author": "cinameng (James Gargette)",
-            "origTitle": "Qubiliu"
-          },
-          "decided": {
-            "verdict": "approve",
-            "at": "2026-08-27T13:23:30.409Z",
-            "applied": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315."
-          }
-        },
-        {
-          "id": "music.walkthrough",
-          "name": "Walkthrough",
-          "why": "The \"30 years later\" walk. Warmer and slower than the office track — the building is finished and full of people, and the music should let that land.",
-          "whyAuto": false,
-          "loop": true,
-          "src": {
-            "ogg": "../assets/audio/music/walkthrough.ogg",
-            "m4a": "../assets/audio/music/walkthrough.m4a"
-          },
-          "mix": {
-            "kind": "music",
-            "bus": "music",
-            "master": 0.9,
-            "busGain": 0.45,
-            "asset": 0.175,
-            "effective": 0.070875,
-            "positional": false
-          },
-          "meta": {
-            "duration": "1:30",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://opengameart.org/content/forget-me-not",
-            "author": "Kistol",
-            "origTitle": "Forget Me Not (in F major, looped edit)"
-          },
-          "decided": {
-            "verdict": "approve",
-            "at": "2026-08-27T13:23:55.610Z",
-            "applied": "Approved 2026-08-27 with a 0.25 trim — applied, asset gain is now 0.175."
-          }
-        }
-      ]
+     "id": "music.menu",
+     "name": "Menu",
+     "why": "Plays under the badly-designed building on the main menu. Wants to be curious rather than grand — this is a game about drawing, not about saving the world.",
+     "whyAuto": false,
+     "loop": true,
+     "src": {
+      "ogg": "../assets/audio/music/menu.ogg",
+      "m4a": "../assets/audio/music/menu.m4a"
+     },
+     "mix": {
+      "kind": "music",
+      "bus": "music",
+      "master": 0.9,
+      "busGain": 0.45,
+      "asset": 0.7,
+      "effective": 0.2835,
+      "positional": false
+     },
+     "meta": {
+      "duration": "0:58",
+      "licence": "CC0 1.0 Universal (Public Domain Dedication)",
+      "source": "https://opengameart.org/content/cozy-puzzle-title",
+      "author": "MintoDog",
+      "origTitle": "Cozy Puzzle Title"
+     },
+     "decided": {
+      "verdict": "approve",
+      "at": "2026-08-27T13:11:10.785Z",
+      "applied": "Approved 2026-08-27, unchanged."
+     }
     },
     {
-      "id": "audio-ui",
-      "title": "UI sounds",
-      "kind": "audio",
-      "note": "Every click, snap and chime the player hears through the in-game computer. Play them back to back — they have to sound like one set of hardware, not thirteen downloads.",
-      "items": [
-        {
-          "id": "ui.click-soft",
-          "name": "Click soft",
-          "why": "Hover and secondary presses. The same character as the confirm click but quieter and duller, so the two read as one family.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/ui/click-soft.ogg",
-            "m4a": "../assets/audio/ui/click-soft.m4a"
-          },
-          "mix": {
-            "kind": "ui",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.51,
-            "effective": 0.32130000000000003,
-            "positional": false
-          },
-          "meta": {
-            "duration": "0.06 s",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://kenney.nl/assets/interface-sounds",
-            "author": "Kenney (Kenney Vleugels / Kenney.nl)",
-            "origTitle": "tick_004.ogg"
-          },
-          "decided": {
-            "verdict": "approve",
-            "at": "2026-08-27T13:24:09.811Z",
-            "applied": "Approved 2026-08-27 with a 0.6 trim — applied, asset gain is now 0.51."
-          }
-        },
-        {
-          "id": "ui.click",
-          "name": "Click",
-          "why": "The default confirm. Short, dry, no tail — a hundred of these happen per minute in the editor and anything ringy becomes torture.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/ui/click.ogg",
-            "m4a": "../assets/audio/ui/click.m4a"
-          },
-          "mix": {
-            "kind": "ui",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.85,
-            "effective": 0.5355,
-            "positional": false
-          },
-          "meta": {
-            "duration": "0.06 s",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://freesound.org/people/Pepe827/sounds/596879/",
-            "author": "Pepe827",
-            "origTitle": "AA Foley Mouse Click Central.wav — press only, trimmed to 57 ms"
-          }
-        },
-        {
-          "id": "ui.error",
-          "name": "Error",
-          "why": "A refused action. Flat and short — an unpleasant sound is a punishment, and the analysis engine already does the criticising.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/ui/error.ogg",
-            "m4a": "../assets/audio/ui/error.m4a"
-          },
-          "mix": {
-            "kind": "ui",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.85,
-            "effective": 0.5355,
-            "positional": false
-          },
-          "meta": {
-            "duration": "0.85 s",
-            "licence": "Proprietary — third-party system audio, supplied by the project owner",
-            "source": "owner-supplied file: erro.mp3",
-            "author": "Unknown — treat as third-party rights-reserved",
-            "origTitle": "A system error / critical-stop tone. Not identifiable from the file — no metadata, no title; measures as three low buzzed pulses 0.09 / 0.22 / 0.37 s over a harmonic series on ≈ 32 Hz. Presented here as unidentified third-party audio, **not** as CC0."
-          }
-        },
-        {
-          "id": "ui.mail-notify",
-          "name": "Mail notify",
-          "why": "A brief or a client reply lands in Mail. Must cut through the room tone from across the office but never startle.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/ui/mail-notify.ogg",
-            "m4a": "../assets/audio/ui/mail-notify.m4a"
-          },
-          "mix": {
-            "kind": "ui",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.85,
-            "effective": 0.5355,
-            "positional": false
-          },
-          "meta": {
-            "duration": "1.99 s",
-            "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
-            "source": "owner-supplied file: windows-10-notification.mp3",
-            "author": "Microsoft Corporation",
-            "origTitle": "Microsoft Windows 10 notification chime — a descending glockenspiel figure, C5 → G4 → C4, with a long reverb tail."
-          }
-        },
-        {
-          "id": "ui.submit",
-          "name": "Submit",
-          "why": "Sending a design to the client. The one UI sound allowed to feel like a small ceremony, because it commits you to the single revision round.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/ui/submit.ogg",
-            "m4a": "../assets/audio/ui/submit.m4a"
-          },
-          "mix": {
-            "kind": "ui",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.85,
-            "effective": 0.5355,
-            "positional": false
-          },
-          "meta": {
-            "duration": "0.44 s",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://freesound.org/people/Lau7/sounds/153341/",
-            "author": "Lau7",
-            "origTitle": "014_throw_paper.wav — sheet gathered and released, trimmed to 440 ms"
-          }
-        },
-        {
-          "id": "ui.tool-select",
-          "name": "Tool select",
-          "why": "Switching tool in the editor. Slightly pitched so it is distinguishable from a plain click without being a separate event in your head.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/ui/tool-select.ogg",
-            "m4a": "../assets/audio/ui/tool-select.m4a"
-          },
-          "mix": {
-            "kind": "ui",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.85,
-            "effective": 0.5355,
-            "positional": false
-          },
-          "meta": {
-            "duration": "0.12 s",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://freesound.org/people/chris112233/sounds/738440/",
-            "author": "chris112233",
-            "origTitle": "key-clack1 — one key, down and up, trimmed to 119 ms"
-          }
-        },
-        {
-          "id": "ui.window-close",
-          "name": "Window close",
-          "why": "The counterpart to window-open: same material, shorter, falling instead of rising.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/ui/window-close.ogg",
-            "m4a": "../assets/audio/ui/window-close.m4a"
-          },
-          "mix": {
-            "kind": "ui",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.85,
-            "effective": 0.5355,
-            "positional": false
-          },
-          "meta": {
-            "duration": "0.18 s",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://freesound.org/people/JohnyTud/sounds/710063/",
-            "author": "JohnyTud",
-            "origTitle": "door01_close — the latch catching, trimmed and pitched up 14 %"
-          }
-        },
-        {
-          "id": "ui.window-open",
-          "name": "Window open",
-          "why": "A window opening in the in-game OS. Retro-mechanical, matching the fictional operating system rather than anything modern.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/ui/window-open.ogg",
-            "m4a": "../assets/audio/ui/window-open.m4a"
-          },
-          "mix": {
-            "kind": "ui",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.85,
-            "effective": 0.5355,
-            "positional": false
-          },
-          "meta": {
-            "duration": "0.22 s",
-            "licence": "CC0 1.0 Universal (Public Domain Dedication)",
-            "source": "https://freesound.org/people/JohnyTud/sounds/710064/",
-            "author": "JohnyTud",
-            "origTitle": "door01_open — the handle press only, trimmed and pitched up 14 %"
-          }
-        },
-        {
-          "id": "os.boot-tier1",
-          "name": "Boot tier1",
-          "why": "Startup chime for the Pentagram 133, the starter machine. Should sound cheap and a bit sad; it is the sound you upgrade away from.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/os/boot-tier1.ogg",
-            "m4a": "../assets/audio/os/boot-tier1.m4a"
-          },
-          "mix": {
-            "kind": "os",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.9,
-            "effective": 0.5670000000000001,
-            "positional": true
-          },
-          "meta": {
-            "duration": "4.27 s",
-            "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
-            "source": "owner-supplied file: windows-xp-startup.mp3",
-            "author": "Microsoft Corporation",
-            "origTitle": "Microsoft Windows XP startup sound (2001)."
-          }
-        },
-        {
-          "id": "os.boot-tier2",
-          "name": "Boot tier2",
-          "why": "Kompakt 2000. Recognisably the same idea as tier 1, but cleaner — the progression has to be audible in one A/B.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/os/boot-tier2.ogg",
-            "m4a": "../assets/audio/os/boot-tier2.m4a"
-          },
-          "mix": {
-            "kind": "os",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.9,
-            "effective": 0.5670000000000001,
-            "positional": true
-          },
-          "meta": {
-            "duration": "4.02 s",
-            "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
-            "source": "owner-supplied file: windows-vista-startup.mp3",
-            "author": "Microsoft Corporation",
-            "origTitle": "Microsoft Windows Vista startup sound (2006). The source file's own ID3 tags say so: artist *Microsoft*, album *Windows*, title *Vista*, date *2006*."
-          }
-        },
-        {
-          "id": "os.boot-tier3",
-          "name": "Boot tier3",
-          "why": "Sunstation Pro. A workstation noise: confident, a little corporate.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/os/boot-tier3.ogg",
-            "m4a": "../assets/audio/os/boot-tier3.m4a"
-          },
-          "mix": {
-            "kind": "os",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.9,
-            "effective": 0.5670000000000001,
-            "positional": true
-          },
-          "meta": {
-            "duration": "2.28 s",
-            "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
-            "source": "owner-supplied file: w.mp3",
-            "author": "Microsoft Corporation",
-            "origTitle": "A Microsoft Windows startup chime, **release not identified**: the file arrived as an unlabelled `w.mp3` with no title metadata. Measured: three struck bell notes, F♯3 → C♯4 → G♯4 over 0.9 s, then a 1.6 s shimmering decay. It is demonstrably neither the XP nor the Vista chime (both supplied separately here and measured differently), and matches the Windows 7 / Windows 8-era startup chime in structure. Named by measurement rather than by guess."
-          }
-        },
-        {
-          "id": "os.boot-tier4",
-          "name": "Boot tier4",
-          "why": "Melon Studio M5, the endgame machine. Short, expensive, over before you can get bored of it.",
-          "whyAuto": false,
-          "loop": false,
-          "src": {
-            "ogg": "../assets/audio/os/boot-tier4.ogg",
-            "m4a": "../assets/audio/os/boot-tier4.m4a"
-          },
-          "mix": {
-            "kind": "os",
-            "bus": "ui",
-            "master": 0.9,
-            "busGain": 0.7,
-            "asset": 0.9,
-            "effective": 0.5670000000000001,
-            "positional": true
-          },
-          "meta": {
-            "duration": "2.83 s",
-            "licence": "Proprietary — Apple macOS system audio, supplied by the project owner",
-            "source": "owner-supplied file: mac-os-big-sur-startup.mp3",
-            "author": "Apple Inc.",
-            "origTitle": "Apple macOS Big Sur startup chime — the Mac startup chord, low F♯/G♭ major with a long tail."
-          }
-        }
-      ]
+     "id": "music.office-ambient-1",
+     "name": "Office ambient 1",
+     "why": "Long-form office-ambient-1 track. Rationale not recorded yet — check the loop point.",
+     "whyAuto": true,
+     "loop": true,
+     "src": {
+      "ogg": "../assets/audio/music/office-ambient-1.ogg",
+      "m4a": "../assets/audio/music/office-ambient-1.m4a"
+     },
+     "mix": {
+      "kind": "music",
+      "bus": "music",
+      "master": 0.9,
+      "busGain": 0.45,
+      "asset": 0.047,
+      "effective": 0.019035,
+      "positional": false
+     },
+     "meta": {
+      "duration": "1:15",
+      "licence": "CC0 1.0 Universal (Public Domain Dedication)",
+      "source": "https://opengameart.org/content/osmotic-memory",
+      "author": "Tsorthan Grove",
+      "origTitle": "Osmotic Memory"
+     },
+     "decided": {
+      "verdict": "approve",
+      "at": "2026-08-27T13:23:19.549Z",
+      "applied": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315."
+     }
     },
     {
-      "id": "models-1",
-      "title": "Headline models",
-      "kind": "model",
-      "note": "The headline pieces — every catalogue item that is modelled by hand rather than generated. Judge them at the scale figure: 1.75 m, standing next to the model, with the real bounding box in metres under it. If a dimension looks wrong to you, it is wrong. — unclaimed GLBs in assets/models: armchair-lounge.glb, balustrade-1100.glb, basin-clinical.glb, basin-cloak-400.glb, basin-vanity-800.glb, bath-1700.glb, bed-bunk-900.glb, bed-king-1800.glb, bed-single-900.glb, bedside-table.glb, bench-waiting-3.glb, bin-office.glb, bookshelf-800.glb, chair-dining.glb, chair-stacking.glb, chair-visitor.glb, chest-drawers-800.glb, cot-child.glb, counter-cafe-3000.glb, counter-till.glb, desk-1600.glb, desk-corner.glb, dishwasher-600.glb, display-fridge-glass.glb, display-table-retail.glb, door-double-1600.glb, door-entrance-1000.glb, door-fire-ei30-900.glb, door-glazed-900.glb, door-internal-1000.glb, door-internal-800.glb, door-sliding-900.glb, downlight.glb, exam-stool.glb, extractor-hood-600.glb, filing-cabinet-4.glb, fitting-room-cubicle.glb, hob-induction-600.glb, kids-basin-row.glb, kids-chair-sm1.glb, kids-chair-sm2.glb, kids-table-rect-sm2.glb, kids-table-round-sm1.glb, kids-wc.glb, kitchen-base-600.glb, kitchen-base-corner.glb, kitchen-island-1800.glb, kitchen-tall-oven.glb, kitchen-wall-600.glb, lamp-desk.glb, lamp-floor.glb, lift-passenger-630.glb, lockers-4.glb, luminaire-linear-1200.glb, medicine-cabinet.glb, monitor-24.glb, nap-mat.glb, piano-upright.glb, plant-monstera.glb, plant-pot-small.glb, planter-trough-1200.glb, play-rug.glb, printer-mfp.glb, radiator-panel-1000.glb, radiator-towel.glb, ramp-accessible.glb, rooflight-1000.glb, scales-column.glb, sconce-wall.glb, screen-meeting-65.glb, shelving-gondola.glb, shower-900.glb, shower-walkin-1200.glb, sideboard-1600.glb, sofa-2seat.glb, sofa-corner.glb, stair-straight.glb, stair-u-return.glb, stool-bar.glb, stove-wood.glb, table-bar-high.glb, table-cafe-2.glb, table-coffee.glb, table-dining-6.glb, table-dining-round-4.glb, table-meeting-8.glb, toy-storage-unit.glb, track-light-2000.glb, treatment-trolley.glb, tv-wall-55.glb, urinal.glb, wardrobe-hinged-1000.glb, wardrobe-sliding-1800.glb, washing-machine.glb, water-cooler.glb, wc-accessible.glb, wc-wall-hung.glb, whiteboard-2000.glb, window-1500x1400.glb, window-600x600.glb, window-900x1400.glb, window-escape-1000x1200.glb, window-full-height-1200.glb, window-patio-2400.glb, window-shopfront-3000.glb, window-strip-3000x900.glb, workstation-bench-2.glb.",
-      "items": [
-        {
-          "id": "chair-task",
-          "name": "Task chair",
-          "why": "Seat adjusts 0.42-0.53. Needs 1.00 m clear behind the desk edge to roll back.",
-          "whyAuto": false,
-          "glb": "../assets/models/chair-task.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            0.65,
-            1.1,
-            0.65
-          ],
-          "price": 1400,
-          "meta": {
-            "category": "seating",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 0.1 / 1 / 0.15 / 0.15 m",
-            "seatHeight": 0.46,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "sofa-3seat",
-          "name": "Sofa, 3 seats",
-          "why": "Sofa, 3 seats — 2.1 x 0.82 x 0.92 m, 3800 units. No rationale recorded in the catalogue; check the dimensions against the scale figure.",
-          "whyAuto": true,
-          "glb": "../assets/models/sofa-3seat.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            2.1,
-            0.82,
-            0.92
-          ],
-          "price": 3800,
-          "meta": {
-            "category": "seating",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 0.45 / 0.05 / 0.1 / 0.1 m",
-            "seatHeight": 0.42,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "table-dining-4",
-          "name": "Dining table, 4",
-          "why": "Top at 0.75. 0.60 m of edge per diner; 0.80 m all round to seat and pass.",
-          "whyAuto": false,
-          "glb": "../assets/models/table-dining-4.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            1.4,
-            0.75,
-            0.8
-          ],
-          "price": 1900,
-          "meta": {
-            "category": "tables",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 0.8 / 0.8 / 0.8 / 0.8 m",
-            "seatHeight": null,
-            "workHeight": 0.75,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "bed-double-1600",
-          "name": "Double bed 160 x 200",
-          "why": "Both sides need 0.70 m when two people sleep in it.",
-          "whyAuto": false,
-          "glb": "../assets/models/bed-double-1600.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            1.6,
-            0.55,
-            2
-          ],
-          "price": 2600,
-          "meta": {
-            "category": "beds",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 0.55 / 0.02 / 0.7 / 0.7 m",
-            "seatHeight": null,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "wc-floor",
-          "name": "WC, close-coupled",
-          "why": "Pan projection 0.70, cistern against the wall. 0.60 m clear in front, 0.20 m each side of the centre line.",
-          "whyAuto": false,
-          "glb": "../assets/models/wc-floor.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            0.38,
-            0.79,
-            0.7
-          ],
-          "price": 1300,
-          "meta": {
-            "category": "sanitary",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 0.6 / 0 / 0.2 / 0.2 m",
-            "seatHeight": 0.42,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "basin-560",
-          "name": "Washbasin 560",
-          "why": "Rim at 0.85. 0.70 m of activity space in front (0.60 is the absolute minimum).",
-          "whyAuto": false,
-          "glb": "../assets/models/basin-560.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            0.56,
-            0.85,
-            0.46
-          ],
-          "price": 900,
-          "meta": {
-            "category": "sanitary",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 0.7 / 0 / 0.1 / 0.1 m",
-            "seatHeight": null,
-            "workHeight": 0.85,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "kitchen-base-sink-800",
-          "name": "Kitchen sink unit 800",
-          "why": "Single bowl 0.50 x 0.40 x 0.18 deep, mixer to the rear.",
-          "whyAuto": false,
-          "glb": "../assets/models/kitchen-base-sink-800.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            0.8,
-            0.9,
-            0.6
-          ],
-          "price": 2300,
-          "meta": {
-            "category": "kitchen",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 1.2 / 0 / 0 / 0 m",
-            "seatHeight": null,
-            "workHeight": 0.9,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "fridge-freezer-tall",
-          "name": "Fridge-freezer, tall",
-          "why": "The door sweeps 0.65 m; 1.20 m keeps the run usable with the door open.",
-          "whyAuto": false,
-          "glb": "../assets/models/fridge-freezer-tall.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            0.6,
-            2,
-            0.65
-          ],
-          "price": 3200,
-          "meta": {
-            "category": "kitchen",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 1.2 / 0.05 / 0 / 0 m",
-            "seatHeight": null,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "door-internal-900",
-          "name": "Internal door 900",
-          "why": "The default. Leaf 0.90 x 2.05; 0.90 m clear width satisfies wheelchair access.",
-          "whyAuto": false,
-          "glb": "../assets/models/door-internal-900.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            0.9,
-            2.05,
-            0.06
-          ],
-          "price": 1400,
-          "meta": {
-            "category": "doors",
-            "anchor": "wall",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 0.9 / 0.3 / 0 / 0 m",
-            "seatHeight": null,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "window-1200x1400",
-          "name": "Window 1200 x 1400",
-          "why": "The workhorse. 1.68 m2 of opening; 0.86 m2 of glass per 1.00 m2 of hole.",
-          "whyAuto": false,
-          "glb": "../assets/models/window-1200x1400.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            1.2,
-            1.4,
-            0.12
-          ],
-          "price": 2600,
-          "meta": {
-            "category": "windows",
-            "anchor": "wall",
-            "mount": 0.85,
-            "clearance": null,
-            "seatHeight": null,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "pendant-lamp",
-          "name": "Pendant lamp",
-          "why": "Hung 1.20 below the ceiling — 1.50 m above a dining table top.",
-          "whyAuto": false,
-          "glb": "../assets/models/pendant-lamp.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            0.4,
-            0.24,
-            0.4
-          ],
-          "price": 460,
-          "meta": {
-            "category": "lighting",
-            "anchor": "ceiling",
-            "mount": 1.2,
-            "clearance": null,
-            "seatHeight": null,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "plant-ficus-large",
-          "name": "Large ficus",
-          "why": "Large ficus — 0.8 x 1.8 x 0.8 m, 900 units. No rationale recorded in the catalogue; check the dimensions against the scale figure.",
-          "whyAuto": true,
-          "glb": "../assets/models/plant-ficus-large.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            0.8,
-            1.8,
-            0.8
-          ],
-          "price": 900,
-          "meta": {
-            "category": "plants",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 0.05 / 0.05 / 0.05 / 0.05 m",
-            "seatHeight": null,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "desk-reception",
-          "name": "Reception desk",
-          "why": "Counter at 1.10 with a 0.75 m accessible ledge. 1.20 m of queuing space in front.",
-          "whyAuto": false,
-          "glb": "../assets/models/desk-reception.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            2.2,
-            1.1,
-            0.8
-          ],
-          "price": 6800,
-          "meta": {
-            "category": "office",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 1.2 / 1 / 0.1 / 0.1 m",
-            "seatHeight": null,
-            "workHeight": 0.74,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "espresso-machine",
-          "name": "Espresso machine",
-          "why": "Two-group commercial machine, sits on the 0.95 m bar top.",
-          "whyAuto": false,
-          "glb": "../assets/models/espresso-machine.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            0.75,
-            0.55,
-            0.55
-          ],
-          "price": 12000,
-          "meta": {
-            "category": "retail",
-            "anchor": "floor",
-            "mount": 0.95,
-            "clearance": "Clearance F/B/L/R 0.6 / 0.1 / 0.1 / 0.1 m",
-            "seatHeight": null,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        },
-        {
-          "id": "exam-couch",
-          "name": "Examination couch",
-          "why": "1900 x 620 mm at 0.70 m. Clinicians need 0.90 m on the examination side.",
-          "whyAuto": false,
-          "glb": "../assets/models/exam-couch.glb",
-          "present": true,
-          "proc": true,
-          "size": [
-            0.62,
-            0.7,
-            1.9
-          ],
-          "price": 4800,
-          "meta": {
-            "category": "clinic",
-            "anchor": "floor",
-            "mount": 0,
-            "clearance": "Clearance F/B/L/R 0.75 / 0.3 / 0.9 / 0.75 m",
-            "seatHeight": null,
-            "workHeight": null,
-            "licence": "authored in Blender for this project",
-            "source": null
-          }
-        }
-      ]
+     "id": "music.office-ambient-2",
+     "name": "Office ambient 2",
+     "why": "Long-form office-ambient-2 track. Rationale not recorded yet — check the loop point.",
+     "whyAuto": true,
+     "loop": true,
+     "src": {
+      "ogg": "../assets/audio/music/office-ambient-2.ogg",
+      "m4a": "../assets/audio/music/office-ambient-2.m4a"
+     },
+     "mix": {
+      "kind": "music",
+      "bus": "music",
+      "master": 0.9,
+      "busGain": 0.45,
+      "asset": 0.032,
+      "effective": 0.01296,
+      "positional": false
+     },
+     "meta": {
+      "duration": "1:15",
+      "licence": "CC0 1.0 Universal (Public Domain Dedication)",
+      "source": "https://opengameart.org/content/qubiliu",
+      "author": "cinameng (James Gargette)",
+      "origTitle": "Qubiliu"
+     },
+     "decided": {
+      "verdict": "approve",
+      "at": "2026-08-27T13:23:30.409Z",
+      "applied": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315."
+     }
     },
     {
-      "id": "avatars-1",
-      "title": "Avatars",
-      "kind": "model",
-      "note": "Three builds, wardrobe pieces switchable, six tint slots. Look at the walk: the trousers should swing like fabric, and the feet should not slide. Known weak spots the builder flagged: hands are two-finger mittens, the hoodie is boxy, the bun reads as short hair from the front, and the glasses are heavy blocks up close.",
-      "items": [
-        {
-          "id": "avatar-broad",
-          "name": "Broad build",
-          "why": "The broad build, 1.795 m — the tallest, and the one a hairstyle could once push past 1.80 m.",
-          "glb": "../assets/avatars/avatar-broad.glb",
-          "meta": {
-            "clips": "idle 4.0 s · walk 1.0 s · sit 3.2 s · sit_idle 2.4 s · type 2.0 s · wave 1.6 s",
-            "wearables": "tops: t-shirt / shirt / hoodie · bottoms: tracksuit / chinos / skirt · shoes: trainers / boots · hair: 6 · cap, glasses",
-            "tints": "top, bottom, shoes, hair, skin, extra",
-            "measured": "foot slide 0.3 mm · trouser hem swing 225 mm peak-to-peak · 1884-3036 triangles worn"
-          }
-        },
-        {
-          "id": "avatar-regular",
-          "name": "Regular build",
-          "why": "The default build, 1.770 m. This is the one you get if you change nothing.",
-          "glb": "../assets/avatars/avatar-regular.glb",
-          "meta": {
-            "clips": "idle 4.0 s · walk 1.0 s · sit 3.2 s · sit_idle 2.4 s · type 2.0 s · wave 1.6 s",
-            "wearables": "tops: t-shirt / shirt / hoodie · bottoms: tracksuit / chinos / skirt · shoes: trainers / boots · hair: 6 · cap, glasses",
-            "tints": "top, bottom, shoes, hair, skin, extra",
-            "measured": "foot slide 0.3 mm · trouser hem swing 225 mm peak-to-peak · 1884-3036 triangles worn"
-          }
-        },
-        {
-          "id": "avatar-slim",
-          "name": "Slim build",
-          "why": "The slim build. 1.740 m dressed, whatever hairstyle is on it.",
-          "glb": "../assets/avatars/avatar-slim.glb",
-          "meta": {
-            "clips": "idle 4.0 s · walk 1.0 s · sit 3.2 s · sit_idle 2.4 s · type 2.0 s · wave 1.6 s",
-            "wearables": "tops: t-shirt / shirt / hoodie · bottoms: tracksuit / chinos / skirt · shoes: trainers / boots · hair: 6 · cap, glasses",
-            "tints": "top, bottom, shoes, hair, skin, extra",
-            "measured": "foot slide 0.3 mm · trouser hem swing 225 mm peak-to-peak · 1884-3036 triangles worn"
-          }
-        }
-      ]
+     "id": "music.walkthrough",
+     "name": "Walkthrough",
+     "why": "The \"30 years later\" walk. Warmer and slower than the office track — the building is finished and full of people, and the music should let that land.",
+     "whyAuto": false,
+     "loop": true,
+     "src": {
+      "ogg": "../assets/audio/music/walkthrough.ogg",
+      "m4a": "../assets/audio/music/walkthrough.m4a"
+     },
+     "mix": {
+      "kind": "music",
+      "bus": "music",
+      "master": 0.9,
+      "busGain": 0.45,
+      "asset": 0.219,
+      "effective": 0.088695,
+      "positional": false
+     },
+     "meta": {
+      "duration": "1:30",
+      "licence": "CC0 1.0 Universal (Public Domain Dedication)",
+      "source": "https://opengameart.org/content/forget-me-not",
+      "author": "Kistol",
+      "origTitle": "Forget Me Not (in F major, looped edit)"
+     },
+     "decided": {
+      "verdict": "approve",
+      "at": "2026-08-27T13:23:55.610Z",
+      "applied": "Approved 2026-08-27 with a 0.25 trim — applied, asset gain is now 0.175."
+     }
     }
-  ],
-  "decisions": {
-    "source": "review/decisions-2026-08-27.json",
-    "appliedAt": "2026-08-27T21:15:10.867Z",
-    "appliedBy": "audio-signoff",
-    "levelChanges": [
-      {
-        "id": "music.office-ambient-1",
-        "newGain": 0.315
-      },
-      {
-        "id": "music.office-ambient-2",
-        "newGain": 0.315
-      },
-      {
-        "id": "music.walkthrough",
-        "newGain": 0.175
-      },
-      {
-        "id": "ui.click-soft",
-        "newGain": 0.51
-      }
-    ],
-    "applied": {
-      "music.menu": "Approved 2026-08-27, unchanged.",
-      "music.office-ambient-1": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315.",
-      "music.office-ambient-2": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315.",
-      "music.walkthrough": "Approved 2026-08-27 with a 0.25 trim — applied, asset gain is now 0.175.",
-      "ui.click-soft": "Approved 2026-08-27 with a 0.6 trim — applied, asset gain is now 0.51.",
-      "ui.click": "REPLACED — you rejected the old one as too synthetic. This is a real mouse switch (freesound CC0, Pepe827), press only, 57 ms.",
-      "ui.window-open": "REPLACED — too synthetic. This is a real door latch being pressed (freesound CC0, JohnyTud), trimmed and pitched up 14 % so it reads as a drawer front.",
-      "ui.window-close": "REPLACED — too synthetic. Same door, the latch catching. Same trim and pitch, so open and close are one object.",
-      "ui.snap": "REPLACED — you have the Kenney set in too many games. This is a real toggle light switch (freesound CC0, Philip_Berger). Nothing from Kenney.",
-      "ui.submit": "REPLACED — same reason. A real sheet of paper gathered and released (freesound CC0, Lau7). Nothing from Kenney.",
-      "ui.tool-select": "REPLACED — same reason. One real key, down and up (freesound CC0, chris112233). Nothing from Kenney.",
-      "ui.error": "REPLACED with your own file (erro.mp3), trimmed and levelled. NOT CC0 — see CREDITS.md.",
-      "ui.mail-notify": "REPLACED with your own file (windows-10-notification.mp3). Microsoft audio, NOT CC0 — see CREDITS.md.",
-      "os.boot-tier1": "REPLACED with your own file (windows-xp-startup.mp3). Microsoft audio, NOT CC0 — see CREDITS.md.",
-      "os.boot-tier2": "REPLACED with your own file (windows-vista-startup.mp3). Microsoft audio, NOT CC0 — see CREDITS.md.",
-      "os.boot-tier3": "REPLACED with your own file (w.mp3): an unlabelled Microsoft startup chime, three struck notes F#3 -> C#4 -> G#4 and a 1.6 s tail. NOT CC0 — see CREDITS.md.",
-      "os.boot-tier4": "REPLACED with your own file (mac-os-big-sur-startup.mp3). Apple audio, NOT CC0 — see CREDITS.md."
+   ]
+  },
+  {
+   "id": "audio-ui",
+   "title": "UI sounds",
+   "kind": "audio",
+   "note": "Every click, snap and chime the player hears through the in-game computer. Play them back to back — they have to sound like one set of hardware, not thirteen downloads.",
+   "items": [
+    {
+     "id": "ui.click-soft",
+     "name": "Click soft",
+     "why": "Hover and secondary presses. The same character as the confirm click but quieter and duller, so the two read as one family.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/ui/click-soft.ogg",
+      "m4a": "../assets/audio/ui/click-soft.m4a"
+     },
+     "mix": {
+      "kind": "ui",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.51,
+      "effective": 0.32130000000000003,
+      "positional": false
+     },
+     "meta": {
+      "duration": "0.06 s",
+      "licence": "CC0 1.0 Universal (Public Domain Dedication)",
+      "source": "https://kenney.nl/assets/interface-sounds",
+      "author": "Kenney (Kenney Vleugels / Kenney.nl)",
+      "origTitle": "tick_004.ogg"
+     },
+     "decided": {
+      "verdict": "approve",
+      "at": "2026-08-27T13:24:09.811Z",
+      "applied": "Approved 2026-08-27 with a 0.6 trim — applied, asset gain is now 0.51."
+     }
+    },
+    {
+     "id": "ui.click",
+     "name": "Click",
+     "why": "The default confirm. Short, dry, no tail — a hundred of these happen per minute in the editor and anything ringy becomes torture.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/ui/click.ogg",
+      "m4a": "../assets/audio/ui/click.m4a"
+     },
+     "mix": {
+      "kind": "ui",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.85,
+      "effective": 0.5355,
+      "positional": false
+     },
+     "meta": {
+      "duration": "0.06 s",
+      "licence": "CC0 1.0 Universal (Public Domain Dedication)",
+      "source": "https://freesound.org/people/Pepe827/sounds/596879/",
+      "author": "Pepe827",
+      "origTitle": "AA Foley Mouse Click Central.wav — press only, trimmed to 57 ms"
+     }
+    },
+    {
+     "id": "ui.error",
+     "name": "Error",
+     "why": "A refused action. Flat and short — an unpleasant sound is a punishment, and the analysis engine already does the criticising.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/ui/error.ogg",
+      "m4a": "../assets/audio/ui/error.m4a"
+     },
+     "mix": {
+      "kind": "ui",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.85,
+      "effective": 0.5355,
+      "positional": false
+     },
+     "meta": {
+      "duration": "0.85 s",
+      "licence": "Proprietary — third-party system audio, supplied by the project owner",
+      "source": "owner-supplied file: erro.mp3",
+      "author": "Unknown — treat as third-party rights-reserved",
+      "origTitle": "A system error / critical-stop tone. Not identifiable from the file — no metadata, no title; measures as three low buzzed pulses 0.09 / 0.22 / 0.37 s over a harmonic series on ≈ 32 Hz. Presented here as unidentified third-party audio, **not** as CC0."
+     }
+    },
+    {
+     "id": "ui.mail-notify",
+     "name": "Mail notify",
+     "why": "A brief or a client reply lands in Mail. Must cut through the room tone from across the office but never startle.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/ui/mail-notify.ogg",
+      "m4a": "../assets/audio/ui/mail-notify.m4a"
+     },
+     "mix": {
+      "kind": "ui",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.85,
+      "effective": 0.5355,
+      "positional": false
+     },
+     "meta": {
+      "duration": "1.99 s",
+      "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+      "source": "owner-supplied file: windows-10-notification.mp3",
+      "author": "Microsoft Corporation",
+      "origTitle": "Microsoft Windows 10 notification chime — a descending glockenspiel figure, C5 → G4 → C4, with a long reverb tail."
+     }
+    },
+    {
+     "id": "ui.submit",
+     "name": "Submit",
+     "why": "Sending a design to the client. The one UI sound allowed to feel like a small ceremony, because it commits you to the single revision round.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/ui/submit.ogg",
+      "m4a": "../assets/audio/ui/submit.m4a"
+     },
+     "mix": {
+      "kind": "ui",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.85,
+      "effective": 0.5355,
+      "positional": false
+     },
+     "meta": {
+      "duration": "0.44 s",
+      "licence": "CC0 1.0 Universal (Public Domain Dedication)",
+      "source": "https://freesound.org/people/Lau7/sounds/153341/",
+      "author": "Lau7",
+      "origTitle": "014_throw_paper.wav — sheet gathered and released, trimmed to 440 ms"
+     }
+    },
+    {
+     "id": "ui.tool-select",
+     "name": "Tool select",
+     "why": "Switching tool in the editor. Slightly pitched so it is distinguishable from a plain click without being a separate event in your head.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/ui/tool-select.ogg",
+      "m4a": "../assets/audio/ui/tool-select.m4a"
+     },
+     "mix": {
+      "kind": "ui",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.85,
+      "effective": 0.5355,
+      "positional": false
+     },
+     "meta": {
+      "duration": "0.12 s",
+      "licence": "CC0 1.0 Universal (Public Domain Dedication)",
+      "source": "https://freesound.org/people/chris112233/sounds/738440/",
+      "author": "chris112233",
+      "origTitle": "key-clack1 — one key, down and up, trimmed to 119 ms"
+     }
+    },
+    {
+     "id": "ui.window-close",
+     "name": "Window close",
+     "why": "The counterpart to window-open: same material, shorter, falling instead of rising.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/ui/window-close.ogg",
+      "m4a": "../assets/audio/ui/window-close.m4a"
+     },
+     "mix": {
+      "kind": "ui",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.85,
+      "effective": 0.5355,
+      "positional": false
+     },
+     "meta": {
+      "duration": "0.18 s",
+      "licence": "CC0 1.0 Universal (Public Domain Dedication)",
+      "source": "https://freesound.org/people/JohnyTud/sounds/710063/",
+      "author": "JohnyTud",
+      "origTitle": "door01_close — the latch catching, trimmed and pitched up 14 %"
+     }
+    },
+    {
+     "id": "ui.window-open",
+     "name": "Window open",
+     "why": "A window opening in the in-game OS. Retro-mechanical, matching the fictional operating system rather than anything modern.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/ui/window-open.ogg",
+      "m4a": "../assets/audio/ui/window-open.m4a"
+     },
+     "mix": {
+      "kind": "ui",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.85,
+      "effective": 0.5355,
+      "positional": false
+     },
+     "meta": {
+      "duration": "0.22 s",
+      "licence": "CC0 1.0 Universal (Public Domain Dedication)",
+      "source": "https://freesound.org/people/JohnyTud/sounds/710064/",
+      "author": "JohnyTud",
+      "origTitle": "door01_open — the handle press only, trimmed and pitched up 14 %"
+     }
+    },
+    {
+     "id": "os.boot-tier1",
+     "name": "Boot tier1",
+     "why": "Startup chime for the Pentagram 133, the starter machine. Should sound cheap and a bit sad; it is the sound you upgrade away from.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/os/boot-tier1.ogg",
+      "m4a": "../assets/audio/os/boot-tier1.m4a"
+     },
+     "mix": {
+      "kind": "os",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.9,
+      "effective": 0.5670000000000001,
+      "positional": true
+     },
+     "meta": {
+      "duration": "4.27 s",
+      "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+      "source": "owner-supplied file: windows-xp-startup.mp3",
+      "author": "Microsoft Corporation",
+      "origTitle": "Microsoft Windows XP startup sound (2001)."
+     }
+    },
+    {
+     "id": "os.boot-tier2",
+     "name": "Boot tier2",
+     "why": "Kompakt 2000. Recognisably the same idea as tier 1, but cleaner — the progression has to be audible in one A/B.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/os/boot-tier2.ogg",
+      "m4a": "../assets/audio/os/boot-tier2.m4a"
+     },
+     "mix": {
+      "kind": "os",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.9,
+      "effective": 0.5670000000000001,
+      "positional": true
+     },
+     "meta": {
+      "duration": "4.02 s",
+      "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+      "source": "owner-supplied file: windows-vista-startup.mp3",
+      "author": "Microsoft Corporation",
+      "origTitle": "Microsoft Windows Vista startup sound (2006). The source file's own ID3 tags say so: artist *Microsoft*, album *Windows*, title *Vista*, date *2006*."
+     }
+    },
+    {
+     "id": "os.boot-tier3",
+     "name": "Boot tier3",
+     "why": "Sunstation Pro. A workstation noise: confident, a little corporate.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/os/boot-tier3.ogg",
+      "m4a": "../assets/audio/os/boot-tier3.m4a"
+     },
+     "mix": {
+      "kind": "os",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.9,
+      "effective": 0.5670000000000001,
+      "positional": true
+     },
+     "meta": {
+      "duration": "2.28 s",
+      "licence": "Proprietary — Microsoft Windows system audio, supplied by the project owner",
+      "source": "owner-supplied file: w.mp3",
+      "author": "Microsoft Corporation",
+      "origTitle": "A Microsoft Windows startup chime, **release not identified**: the file arrived as an unlabelled `w.mp3` with no title metadata. Measured: three struck bell notes, F♯3 → C♯4 → G♯4 over 0.9 s, then a 1.6 s shimmering decay. It is demonstrably neither the XP nor the Vista chime (both supplied separately here and measured differently), and matches the Windows 7 / Windows 8-era startup chime in structure. Named by measurement rather than by guess."
+     }
+    },
+    {
+     "id": "os.boot-tier4",
+     "name": "Boot tier4",
+     "why": "Melon Studio M5, the endgame machine. Short, expensive, over before you can get bored of it.",
+     "whyAuto": false,
+     "loop": false,
+     "src": {
+      "ogg": "../assets/audio/os/boot-tier4.ogg",
+      "m4a": "../assets/audio/os/boot-tier4.m4a"
+     },
+     "mix": {
+      "kind": "os",
+      "bus": "ui",
+      "master": 0.9,
+      "busGain": 0.7,
+      "asset": 0.9,
+      "effective": 0.5670000000000001,
+      "positional": true
+     },
+     "meta": {
+      "duration": "2.83 s",
+      "licence": "Proprietary — Apple macOS system audio, supplied by the project owner",
+      "source": "owner-supplied file: mac-os-big-sur-startup.mp3",
+      "author": "Apple Inc.",
+      "origTitle": "Apple macOS Big Sur startup chime — the Mac startup chord, low F♯/G♭ major with a long tail."
+     }
     }
+   ]
+  },
+  {
+   "id": "models-1",
+   "title": "Headline models",
+   "kind": "model",
+   "note": "The headline pieces — every catalogue item that is modelled by hand rather than generated. Judge them at the scale figure: 1.75 m, standing next to the model, with the real bounding box in metres under it. If a dimension looks wrong to you, it is wrong. — unclaimed GLBs in assets/models: armchair-lounge.glb, balustrade-1100.glb, basin-clinical.glb, basin-cloak-400.glb, basin-vanity-800.glb, bath-1700.glb, bed-bunk-900.glb, bed-king-1800.glb, bed-single-900.glb, bedside-table.glb, bench-waiting-3.glb, bin-office.glb, bookshelf-800.glb, chair-dining.glb, chair-stacking.glb, chair-visitor.glb, chest-drawers-800.glb, cot-child.glb, counter-cafe-3000.glb, counter-till.glb, desk-1600.glb, desk-corner.glb, dishwasher-600.glb, display-fridge-glass.glb, display-table-retail.glb, door-double-1600.glb, door-entrance-1000.glb, door-fire-ei30-900.glb, door-glazed-900.glb, door-internal-1000.glb, door-internal-800.glb, door-sliding-900.glb, downlight.glb, exam-stool.glb, extractor-hood-600.glb, filing-cabinet-4.glb, fitting-room-cubicle.glb, hob-induction-600.glb, kids-basin-row.glb, kids-chair-sm1.glb, kids-chair-sm2.glb, kids-table-rect-sm2.glb, kids-table-round-sm1.glb, kids-wc.glb, kitchen-base-600.glb, kitchen-base-corner.glb, kitchen-island-1800.glb, kitchen-tall-oven.glb, kitchen-wall-600.glb, lamp-desk.glb, lamp-floor.glb, lift-passenger-630.glb, lockers-4.glb, luminaire-linear-1200.glb, medicine-cabinet.glb, monitor-24.glb, nap-mat.glb, piano-upright.glb, plant-monstera.glb, plant-pot-small.glb, planter-trough-1200.glb, play-rug.glb, printer-mfp.glb, radiator-panel-1000.glb, radiator-towel.glb, ramp-accessible.glb, rooflight-1000.glb, scales-column.glb, sconce-wall.glb, screen-meeting-65.glb, shelving-gondola.glb, shower-900.glb, shower-walkin-1200.glb, sideboard-1600.glb, sofa-2seat.glb, sofa-corner.glb, stair-straight.glb, stair-u-return.glb, stool-bar.glb, stove-wood.glb, table-bar-high.glb, table-cafe-2.glb, table-coffee.glb, table-dining-6.glb, table-dining-round-4.glb, table-meeting-8.glb, toy-storage-unit.glb, track-light-2000.glb, treatment-trolley.glb, tv-wall-55.glb, urinal.glb, wardrobe-hinged-1000.glb, wardrobe-sliding-1800.glb, washing-machine.glb, water-cooler.glb, wc-accessible.glb, wc-wall-hung.glb, whiteboard-2000.glb, window-1500x1400.glb, window-600x600.glb, window-900x1400.glb, window-escape-1000x1200.glb, window-full-height-1200.glb, window-patio-2400.glb, window-shopfront-3000.glb, window-strip-3000x900.glb, workstation-bench-2.glb.",
+   "items": [
+    {
+     "id": "chair-task",
+     "name": "Task chair",
+     "why": "Seat adjusts 0.42-0.53. Needs 1.00 m clear behind the desk edge to roll back.",
+     "whyAuto": false,
+     "glb": "../assets/models/chair-task.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      0.65,
+      1.1,
+      0.65
+     ],
+     "price": 1400,
+     "meta": {
+      "category": "seating",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 0.1 / 1 / 0.15 / 0.15 m",
+      "seatHeight": 0.46,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "sofa-3seat",
+     "name": "Sofa, 3 seats",
+     "why": "Sofa, 3 seats — 2.1 x 0.82 x 0.92 m, 3800 units. No rationale recorded in the catalogue; check the dimensions against the scale figure.",
+     "whyAuto": true,
+     "glb": "../assets/models/sofa-3seat.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      2.1,
+      0.82,
+      0.92
+     ],
+     "price": 3800,
+     "meta": {
+      "category": "seating",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 0.45 / 0.05 / 0.1 / 0.1 m",
+      "seatHeight": 0.42,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "table-dining-4",
+     "name": "Dining table, 4",
+     "why": "Top at 0.75. 0.60 m of edge per diner; 0.80 m all round to seat and pass.",
+     "whyAuto": false,
+     "glb": "../assets/models/table-dining-4.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      1.4,
+      0.75,
+      0.8
+     ],
+     "price": 1900,
+     "meta": {
+      "category": "tables",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 0.8 / 0.8 / 0.8 / 0.8 m",
+      "seatHeight": null,
+      "workHeight": 0.75,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "bed-double-1600",
+     "name": "Double bed 160 x 200",
+     "why": "Both sides need 0.70 m when two people sleep in it.",
+     "whyAuto": false,
+     "glb": "../assets/models/bed-double-1600.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      1.6,
+      0.55,
+      2
+     ],
+     "price": 2600,
+     "meta": {
+      "category": "beds",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 0.55 / 0.02 / 0.7 / 0.7 m",
+      "seatHeight": null,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "wc-floor",
+     "name": "WC, close-coupled",
+     "why": "Pan projection 0.70, cistern against the wall. 0.60 m clear in front, 0.20 m each side of the centre line.",
+     "whyAuto": false,
+     "glb": "../assets/models/wc-floor.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      0.38,
+      0.79,
+      0.7
+     ],
+     "price": 1300,
+     "meta": {
+      "category": "sanitary",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 0.6 / 0 / 0.2 / 0.2 m",
+      "seatHeight": 0.42,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "basin-560",
+     "name": "Washbasin 560",
+     "why": "Rim at 0.85. 0.70 m of activity space in front (0.60 is the absolute minimum).",
+     "whyAuto": false,
+     "glb": "../assets/models/basin-560.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      0.56,
+      0.85,
+      0.46
+     ],
+     "price": 900,
+     "meta": {
+      "category": "sanitary",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 0.7 / 0 / 0.1 / 0.1 m",
+      "seatHeight": null,
+      "workHeight": 0.85,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "kitchen-base-sink-800",
+     "name": "Kitchen sink unit 800",
+     "why": "Single bowl 0.50 x 0.40 x 0.18 deep, mixer to the rear.",
+     "whyAuto": false,
+     "glb": "../assets/models/kitchen-base-sink-800.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      0.8,
+      0.9,
+      0.6
+     ],
+     "price": 2300,
+     "meta": {
+      "category": "kitchen",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 1.2 / 0 / 0 / 0 m",
+      "seatHeight": null,
+      "workHeight": 0.9,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "fridge-freezer-tall",
+     "name": "Fridge-freezer, tall",
+     "why": "The door sweeps 0.65 m; 1.20 m keeps the run usable with the door open.",
+     "whyAuto": false,
+     "glb": "../assets/models/fridge-freezer-tall.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      0.6,
+      2,
+      0.65
+     ],
+     "price": 3200,
+     "meta": {
+      "category": "kitchen",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 1.2 / 0.05 / 0 / 0 m",
+      "seatHeight": null,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "door-internal-900",
+     "name": "Internal door 900",
+     "why": "The default. Leaf 0.90 x 2.05; 0.90 m clear width satisfies wheelchair access.",
+     "whyAuto": false,
+     "glb": "../assets/models/door-internal-900.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      0.9,
+      2.05,
+      0.06
+     ],
+     "price": 1400,
+     "meta": {
+      "category": "doors",
+      "anchor": "wall",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 0.9 / 0.3 / 0 / 0 m",
+      "seatHeight": null,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "window-1200x1400",
+     "name": "Window 1200 x 1400",
+     "why": "The workhorse. 1.68 m2 of opening; 0.86 m2 of glass per 1.00 m2 of hole.",
+     "whyAuto": false,
+     "glb": "../assets/models/window-1200x1400.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      1.2,
+      1.4,
+      0.12
+     ],
+     "price": 2600,
+     "meta": {
+      "category": "windows",
+      "anchor": "wall",
+      "mount": 0.85,
+      "clearance": null,
+      "seatHeight": null,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "pendant-lamp",
+     "name": "Pendant lamp",
+     "why": "Hung 1.20 below the ceiling — 1.50 m above a dining table top.",
+     "whyAuto": false,
+     "glb": "../assets/models/pendant-lamp.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      0.4,
+      0.24,
+      0.4
+     ],
+     "price": 460,
+     "meta": {
+      "category": "lighting",
+      "anchor": "ceiling",
+      "mount": 1.2,
+      "clearance": null,
+      "seatHeight": null,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "plant-ficus-large",
+     "name": "Large ficus",
+     "why": "Large ficus — 0.8 x 1.8 x 0.8 m, 900 units. No rationale recorded in the catalogue; check the dimensions against the scale figure.",
+     "whyAuto": true,
+     "glb": "../assets/models/plant-ficus-large.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      0.8,
+      1.8,
+      0.8
+     ],
+     "price": 900,
+     "meta": {
+      "category": "plants",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 0.05 / 0.05 / 0.05 / 0.05 m",
+      "seatHeight": null,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "desk-reception",
+     "name": "Reception desk",
+     "why": "Counter at 1.10 with a 0.75 m accessible ledge. 1.20 m of queuing space in front.",
+     "whyAuto": false,
+     "glb": "../assets/models/desk-reception.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      2.2,
+      1.1,
+      0.8
+     ],
+     "price": 6800,
+     "meta": {
+      "category": "office",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 1.2 / 1 / 0.1 / 0.1 m",
+      "seatHeight": null,
+      "workHeight": 0.74,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "espresso-machine",
+     "name": "Espresso machine",
+     "why": "Two-group commercial machine, sits on the 0.95 m bar top.",
+     "whyAuto": false,
+     "glb": "../assets/models/espresso-machine.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      0.75,
+      0.55,
+      0.55
+     ],
+     "price": 12000,
+     "meta": {
+      "category": "retail",
+      "anchor": "floor",
+      "mount": 0.95,
+      "clearance": "Clearance F/B/L/R 0.6 / 0.1 / 0.1 / 0.1 m",
+      "seatHeight": null,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    },
+    {
+     "id": "exam-couch",
+     "name": "Examination couch",
+     "why": "1900 x 620 mm at 0.70 m. Clinicians need 0.90 m on the examination side.",
+     "whyAuto": false,
+     "glb": "../assets/models/exam-couch.glb",
+     "present": true,
+     "proc": true,
+     "size": [
+      0.62,
+      0.7,
+      1.9
+     ],
+     "price": 4800,
+     "meta": {
+      "category": "clinic",
+      "anchor": "floor",
+      "mount": 0,
+      "clearance": "Clearance F/B/L/R 0.75 / 0.3 / 0.9 / 0.75 m",
+      "seatHeight": null,
+      "workHeight": null,
+      "licence": "authored in Blender for this project",
+      "source": null
+     }
+    }
+   ]
+  },
+  {
+   "id": "avatars-1",
+   "title": "Avatars",
+   "kind": "model",
+   "note": "Three builds, wardrobe pieces switchable, six tint slots. Look at the walk: the trousers should swing like fabric, and the feet should not slide. Known weak spots the builder flagged: hands are two-finger mittens, the hoodie is boxy, the bun reads as short hair from the front, and the glasses are heavy blocks up close.",
+   "items": [
+    {
+     "id": "avatar-broad",
+     "name": "Broad build",
+     "why": "The broad build, 1.795 m — the tallest, and the one a hairstyle could once push past 1.80 m.",
+     "glb": "../assets/avatars/avatar-broad.glb",
+     "meta": {
+      "clips": "idle 4.0 s · walk 1.0 s · sit 3.2 s · sit_idle 2.4 s · type 2.0 s · wave 1.6 s",
+      "wearables": "tops: t-shirt / shirt / hoodie · bottoms: tracksuit / chinos / skirt · shoes: trainers / boots · hair: 6 · cap, glasses",
+      "tints": "top, bottom, shoes, hair, skin, extra",
+      "measured": "foot slide 0.3 mm · trouser hem swing 225 mm peak-to-peak · 1884-3036 triangles worn"
+     }
+    },
+    {
+     "id": "avatar-regular",
+     "name": "Regular build",
+     "why": "The default build, 1.770 m. This is the one you get if you change nothing.",
+     "glb": "../assets/avatars/avatar-regular.glb",
+     "meta": {
+      "clips": "idle 4.0 s · walk 1.0 s · sit 3.2 s · sit_idle 2.4 s · type 2.0 s · wave 1.6 s",
+      "wearables": "tops: t-shirt / shirt / hoodie · bottoms: tracksuit / chinos / skirt · shoes: trainers / boots · hair: 6 · cap, glasses",
+      "tints": "top, bottom, shoes, hair, skin, extra",
+      "measured": "foot slide 0.3 mm · trouser hem swing 225 mm peak-to-peak · 1884-3036 triangles worn"
+     }
+    },
+    {
+     "id": "avatar-slim",
+     "name": "Slim build",
+     "why": "The slim build. 1.740 m dressed, whatever hairstyle is on it.",
+     "glb": "../assets/avatars/avatar-slim.glb",
+     "meta": {
+      "clips": "idle 4.0 s · walk 1.0 s · sit 3.2 s · sit_idle 2.4 s · type 2.0 s · wave 1.6 s",
+      "wearables": "tops: t-shirt / shirt / hoodie · bottoms: tracksuit / chinos / skirt · shoes: trainers / boots · hair: 6 · cap, glasses",
+      "tints": "top, bottom, shoes, hair, skin, extra",
+      "measured": "foot slide 0.3 mm · trouser hem swing 225 mm peak-to-peak · 1884-3036 triangles worn"
+     }
+    }
+   ]
   }
+ ],
+ "decisions": {
+  "source": "review/decisions-2026-08-27.json",
+  "appliedAt": "2026-08-27T21:15:10.867Z",
+  "appliedBy": "audio-signoff",
+  "levelChanges": [
+   {
+    "id": "music.office-ambient-1",
+    "newGain": 0.315
+   },
+   {
+    "id": "music.office-ambient-2",
+    "newGain": 0.315
+   },
+   {
+    "id": "music.walkthrough",
+    "newGain": 0.175
+   },
+   {
+    "id": "ui.click-soft",
+    "newGain": 0.51
+   }
+  ],
+  "applied": {
+   "music.menu": "Approved 2026-08-27, unchanged.",
+   "music.office-ambient-1": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315.",
+   "music.office-ambient-2": "Approved 2026-08-27 with a 0.45 trim — applied, asset gain is now 0.315.",
+   "music.walkthrough": "Approved 2026-08-27 with a 0.25 trim — applied, asset gain is now 0.175.",
+   "ui.click-soft": "Approved 2026-08-27 with a 0.6 trim — applied, asset gain is now 0.51.",
+   "ui.click": "REPLACED — you rejected the old one as too synthetic. This is a real mouse switch (freesound CC0, Pepe827), press only, 57 ms.",
+   "ui.window-open": "REPLACED — too synthetic. This is a real door latch being pressed (freesound CC0, JohnyTud), trimmed and pitched up 14 % so it reads as a drawer front.",
+   "ui.window-close": "REPLACED — too synthetic. Same door, the latch catching. Same trim and pitch, so open and close are one object.",
+   "ui.snap": "REPLACED — you have the Kenney set in too many games. This is a real toggle light switch (freesound CC0, Philip_Berger). Nothing from Kenney.",
+   "ui.submit": "REPLACED — same reason. A real sheet of paper gathered and released (freesound CC0, Lau7). Nothing from Kenney.",
+   "ui.tool-select": "REPLACED — same reason. One real key, down and up (freesound CC0, chris112233). Nothing from Kenney.",
+   "ui.error": "REPLACED with your own file (erro.mp3), trimmed and levelled. NOT CC0 — see CREDITS.md.",
+   "ui.mail-notify": "REPLACED with your own file (windows-10-notification.mp3). Microsoft audio, NOT CC0 — see CREDITS.md.",
+   "os.boot-tier1": "REPLACED with your own file (windows-xp-startup.mp3). Microsoft audio, NOT CC0 — see CREDITS.md.",
+   "os.boot-tier2": "REPLACED with your own file (windows-vista-startup.mp3). Microsoft audio, NOT CC0 — see CREDITS.md.",
+   "os.boot-tier3": "REPLACED with your own file (w.mp3): an unlabelled Microsoft startup chime, three struck notes F#3 -> C#4 -> G#4 and a 1.6 s tail. NOT CC0 — see CREDITS.md.",
+   "os.boot-tier4": "REPLACED with your own file (mac-os-big-sur-startup.mp3). Apple audio, NOT CC0 — see CREDITS.md."
+  }
+ }
 }

@@ -764,13 +764,24 @@ export class Office {
       this._place(K.paperStack, { position: { x: s.x + 0.44, y: 0.74, z: s.z + 0.16 }, rotationY: 0.18 });
       this._shadow(s.x + 0.44, 0.7425, s.z + 0.16, 0.40, 0.30, 0.18, 0.55);
 
-      // NO CHAIR AT A PLAYER'S WORKSTATION. DESIGN-DECISIONS.md, "No chairs at
-      // the workstations": "Walking to your desk currently means climbing onto
-      // the chair first and then into the computer, which is clumsy and
-      // strange." It was two interactions deep — a Sit on the chair proxy and a
-      // Sit down at on the screen — plus a 0.62 m collider parked in the one
-      // place the player has to stand to reach his own monitor. All three go.
-      // The staff cubicles below keep theirs: somebody is sitting in them.
+      // THE CHAIR IS BACK, PUSHED ASIDE. Jurek's sign-off note on the reviewed
+      // task chair: "give them to the workers, at the worker places, because
+      // theirs are weak" — and the worker places were the one part of the room
+      // with no seat at all, so a colleague stood at his desk like a waiter.
+      //
+      // What DESIGN-DECISIONS.md ("No chairs at the workstations") actually
+      // refused was never the chair: it was two interactions deep to reach your
+      // own monitor, and a 0.62 m collider parked in the one place you have to
+      // stand. So the chair returns as FURNITURE and nothing else — no Sit, no
+      // interactable — turned out and pushed clear of the approach, the way a
+      // chair in a working studio is when its owner has got up. The straight
+      // walk-in down the desk's centre line stays empty; the collider sits off
+      // to the side where it can only be walked around, never through.
+      this._place(K.taskChair,
+        { position: { x: s.x + 0.66, y: 0, z: s.z + 0.92 }, rotationY: Math.PI * 0.78 },
+        studio.chairFabric);
+      this._shadow(s.x + 0.66, 0.004, s.z + 0.92, 0.78);
+      col(s.x + 0.66, s.z + 0.92, 0.52, 0.52);
     }
     // two under-desk pedestals
     for (const x of [6.60, 8.90]) {
