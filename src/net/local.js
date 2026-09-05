@@ -299,7 +299,13 @@ export class LocalTransport {
   setCursor(cursor) {
     const p = this.hub?.players[this.playerId];
     if (!p) return;
-    p.cursor = cursor && { mode: cursor.mode ?? null, x: cursor.x ?? 0, y: cursor.y ?? 0, z: cursor.z ?? 0 };
+      // `ry` rides with the cursor so the office can place a remote player
+      // FACING the right way. It goes inside `cursor` on purpose: the database
+      // rule for a player record is `$other: false`, so a new sibling field
+      // would be rejected outright, while `cursor` is validated only as
+      // "has children". Editor cursors simply never set it.
+    p.cursor = cursor && { mode: cursor.mode ?? null, x: cursor.x ?? 0, y: cursor.y ?? 0, z: cursor.z ?? 0,
+      ...(Number.isFinite(cursor.ry) ? { ry: cursor.ry } : {}) };
     p.sel = cursor?.sel ?? p.sel;
     p.lastSeen = Date.now();
     this.hub._emit('onPlayers', this.hub.playerList());

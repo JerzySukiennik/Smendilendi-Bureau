@@ -44,9 +44,23 @@ import {
 import { Economy } from './economy.js';
 import { Upgrades, EMPLOYEE_TIERS, computerTier, studioTier } from './upgrades.js';
 import { Staff, CUBICLES } from './employees.js';
+import { loadAvatar, randomSpec, NICK_Y } from './avatar.js';
 
 const { W, D, H } = ROOM;
 const _tmpV = new Vector3();
+
+/** Two decimal places: centimetres, which is finer than anyone can see walk. */
+const r2 = (v) => Math.round(v * 100) / 100;
+
+/** A stable number from a player id, so a player looks the same to everyone. */
+function hashNick(id) {
+  let h = 2166136261;
+  for (let i = 0; i < String(id).length; i++) {
+    h ^= String(id).charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
 
 /**
  * ACCENT_USES — finish bar item 10 says "exactly one saturated accent hue per
@@ -1681,25 +1695,138 @@ export class Office {
     }, delay);
   }
 
+  /**
+   * The other people in the office.
+   *
+   * TWO THINGS WERE WRONG AND THEY LOOKED LIKE ONE. Jurek: "you cannot see the
+   * second player (he sits permanently at computer 2), and the new avatar is
+   * not there, only the old one."
+   *
+   * 1. Nobody ever sent a walking position. The presence record carries a
+   *    `cursor` for the EDITOR and nothing else, so a remote player was parked
+   *    at DESK_SLOTS[(i+1)%3] the moment he joined and stood there for the rest
+   *    of the session whatever he was really doing. He is now placed from the
+   *    position the office publishes each frame (see _publishPose) and walks.
+   * 2. The avatar was this file's own box figure. src/office/avatar.js — the
+   *    rigged, dressed, animated one that was built and signed off — was
+   *    exported and referenced nowhere. It is loaded here now; the box figure
+   *    stays as the placeholder shown for the frame or two before the GLB
+   *    arrives, and for anyone whose load fails.
+   */
   _syncAvatars(remote) {
     this.avatars = this.avatars || new Map();
     const seen = new Set();
     for (let i = 0; i < remote.length; i++) {
       const p = remote[i];
       seen.add(p.id);
-      if (this.avatars.has(p.id)) continue;
-      const slot = DESK_SLOTS[(i + 1) % DESK_SLOTS.length];
-      const g = this._makeAvatar(p);
-      g.position.set(slot.x, 0, slot.z + 1.10);
-      g.rotation.y = Math.PI;
-      this.scene.add(g);
-      this.avatars.set(p.id, g);
+      let a = this.avatars.get(p.id);
+      if (!a) {
+        const slot = DESK_SLOTS[(i + 1) % DESK_SLOTS.length];
+        const g = this._makeAvatar(p);
+        g.position.set(slot.x, 0, slot.z + 1.10);
+        g.rotation.y = Math.PI;
+        this.scene.add(g);
+        a = { group: g, rig: null, target: g.position.clone(), targetY: Math.PI, moving: 0 };
+        this.avatars.set(p.id, a);
+        this._loadRealAvatar(p, a);
+      }
+      this._steerAvatar(p, a);
     }
-    for (const [id, g] of this.avatars) {
+    for (const [id, a] of this.avatars) {
       if (seen.has(id)) continue;
-      this.scene.remove(g);
+      this.scene.remove(a.group);
+      a.rig?.dispose?.();
       this.avatars.delete(id);
     }
+  }
+
+  /** Swap the placeholder for the real rigged avatar as soon as it loads. */
+  _loadRealAvatar(p, a) {
+    const spec = randomSpec(hashNick(p.id));
+    loadAvatar(spec).then((rig) => {
+      if (!this.avatars.get(p.id) || this.avatars.get(p.id) !== a) { rig.dispose?.(); return; }
+      const old = a.group;
+      rig.group.position.copy(old.position);
+      rig.group.rotation.y = old.rotation.y;
+      const nick = makeFloatingNick(p.nick || 'Architect', p.color || '#d4763a');
+      nick.position.set(0, NICK_Y, 0);
+      rig.group.add(nick);
+      rig.group.userData.nick = nick;
+      this.scene.add(rig.group);
+      this.scene.remove(old);
+      old.traverse?.((o) => { if (o.isMesh) o.geometry?.dispose?.(); });
+      a.group = rig.group;
+      a.rig = rig;
+      rig.play('idle', { fade: 0 });
+    }).catch((err) => {
+      // The box figure stays. Say so once rather than looking like it worked.
+      if (!this._avatarWarned) {
+        this._avatarWarned = true;
+        console.warn('[office] rigged avatar failed to load, using the placeholder figure', err);
+      }
+    });
+  }
+
+  /**
+   * Walk a remote avatar towards where that player says he is.
+   *
+   * The pose arrives in the presence record's `cursor` under mode 'office', so
+   * it costs no new field and no database rule change — the rule for `cursor`
+   * validates only that it has children. Movement is smoothed rather than
+   * snapped: presence is published a few times a second, and a figure that
+   * teleports every 200 ms reads as broken even when the data is right.
+   */
+  _steerAvatar(p, a) {
+    const c = p.cursor;
+    if (c && c.mode === 'office' && Number.isFinite(c.x) && Number.isFinite(c.z)) {
+      a.target.set(c.x, 0, c.z);
+      if (Number.isFinite(c.ry)) a.targetY = c.ry;
+    }
+  }
+
+  /** Per frame: ease every remote avatar towards its target and animate it. */
+  _tickAvatars(dt) {
+    if (!this.avatars) return;
+    for (const a of this.avatars.values()) {
+      const g = a.group;
+      const d = a.target.distanceTo(g.position);
+      if (d > 0.004) {
+        const k = Math.min(1, dt * 6);
+        g.position.lerp(a.target, k);
+        a.moving = Math.min(1, a.moving + dt * 4);
+      } else {
+        a.moving = Math.max(0, a.moving - dt * 4);
+      }
+      // shortest way round, so a player turning past north does not spin
+      let dy = a.targetY - g.rotation.y;
+      while (dy > Math.PI) dy -= Math.PI * 2;
+      while (dy < -Math.PI) dy += Math.PI * 2;
+      g.rotation.y += dy * Math.min(1, dt * 8);
+      if (a.rig) {
+        a.rig.update(dt);
+        const want = (d > 0.05 && a.moving > 0.5) ? 'walk' : 'idle';
+        if (a.rig.playing !== want) a.rig.play(want, { fade: 0.2 });
+      }
+    }
+  }
+
+  /**
+   * Tell the others where I am. Throttled to 8 Hz: presence is a database
+   * write per update on the online transport, and a write per frame would be
+   * 60 of them a second per player for a figure nobody can see move that fast.
+   */
+  _publishPose(dt) {
+    const net = this.ctx?.net;
+    if (!net?.setCursor || !this.player) return;
+    this._poseT = (this._poseT ?? 0) + dt;
+    if (this._poseT < 0.125) return;
+    this._poseT = 0;
+    // While the editor is open the player is at his desk and the editor owns
+    // the cursor channel — it publishes the point under the pointer, which is
+    // what the other players need to see there.
+    if (this.screenEditor) return;
+    const pos = this.player.pos ?? this.camera.position;
+    net.setCursor({ mode: 'office', x: r2(pos.x), y: 0, z: r2(pos.z), ry: r2(this.player.yaw ?? 0) });
   }
 
   _makeAvatar(p) {
@@ -1754,9 +1881,11 @@ export class Office {
     this._decayFocus(dt);
     for (const ws of this.workstations) ws.update(dt, true);
     this.staff.update(dt, this.camera.position);
+    this._publishPose(dt);
+    this._tickAvatars(dt);
     if (this.avatars) {
-      for (const g of this.avatars.values()) {
-        const n = g.userData.nick;
+      for (const a of this.avatars.values()) {
+        const n = a.group.userData.nick;
         if (n) n.lookAt(this.camera.position.x, n.getWorldPosition(_tmpV).y, this.camera.position.z);
       }
     }

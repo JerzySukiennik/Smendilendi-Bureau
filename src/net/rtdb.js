@@ -347,7 +347,13 @@ export class RtdbTransport {
       if (!c) return;
       const { ref, update } = this.fb;
       update(ref(this.db, this.paths.me), {
-        cursor: { mode: c.mode ?? null, x: c.x ?? 0, y: c.y ?? 0, z: c.z ?? 0 },
+      // `ry` rides with the cursor so the office can place a remote player
+      // FACING the right way. It goes inside `cursor` on purpose: the database
+      // rule for a player record is `$other: false`, so a new sibling field
+      // would be rejected outright, while `cursor` is validated only as
+      // "has children". Editor cursors simply never set it.
+        cursor: { mode: c.mode ?? null, x: c.x ?? 0, y: c.y ?? 0, z: c.z ?? 0,
+          ...(Number.isFinite(c.ry) ? { ry: c.ry } : {}) },
         sel: c.sel ?? [],
         lastSeen: this.now(),
       }).catch(() => {});
