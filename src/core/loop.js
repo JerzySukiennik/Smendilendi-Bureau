@@ -129,7 +129,7 @@ export class GameLoop {
         if (!p || !p.id) continue;
         byId[p.id] = { ...p, local: p.id === net.playerId };
         const c = p.cursor;
-        sig.push(`${p.id}|${p.nick}|${p.color}|${c ? `${c.mode},${c.x},${c.z},${c.ry ?? ''},${c.hold ?? ''},${c.act ?? ''}` : ''}`);
+        sig.push(`${p.id}|${p.nick}|${p.color}|${c ? `${c.mode},${c.x},${c.z},${c.ry ?? ''},${c.hold ?? ''},${c.act ?? ''},${c.ride ?? ''}` : ''}`);
       }
       const key = sig.sort().join(';');
       if (key === this._rosterKey) return;

@@ -375,7 +375,9 @@ export class RtdbTransport {
         cursor: { mode: c.mode ?? null, x: c.x ?? 0, y: c.y ?? 0, z: c.z ?? 0,
           ...(Number.isFinite(c.ry) ? { ry: c.ry } : {}),
           ...(c.hold ? { hold: String(c.hold).slice(0, 16) } : {}),
-          ...(c.act ? { act: String(c.act).slice(0, 16) } : {}) },
+          ...(c.act ? { act: String(c.act).slice(0, 16) } : {}),
+          ...(Number.isFinite(c.ride) ? { ride: c.ride } : {}),
+          ...(Number.isFinite(c.cry) ? { cry: c.cry } : {}) },
         sel: c.sel ?? [],
         lastSeen: this.now(),
       }).catch(() => {});

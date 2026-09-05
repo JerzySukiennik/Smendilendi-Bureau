@@ -1295,22 +1295,29 @@ export class Office {
         id: `screen-${ws.slot.index}`, mesh: ws.screen, label: `Workstation ${ws.slot.index + 1}`,
         verb: 'Use', kind: 'screen', workstation: ws, range: 2.2,
         onUse: () => {
-          // YOU CANNOT SWITCH A COMPUTER ON STANDING UP. Item 9: it is a desk
-          // job, and the chair is the way in. The message names the chair
-          // rather than just refusing, because a refusal with no next move is
-          // the same as a broken button.
-          const c = this.chairs?.[ws.slot.index];
+          // "You cannot switch a computer on unless you are sitting" — but a
+          // rule that can only ever REFUSE is a broken button, and this one was
+          // refusing Jurek's monitors and therefore Design as well. The rule
+          // stands; the game just does the obvious thing for him. Clicking the
+          // monitor while standing pulls the desk's chair over and sits him on
+          // it, then opens the screen. He still cannot work standing up — he
+          // simply never has to think about it.
           if (!this.riding) {
-            this.toast(c ? 'Sit down at the desk first — the chair is right there.'
-              : 'Sit down at the desk first.');
-            this.ctx?.audio?.play('ui.error');
-            return;
-          }
-          if (c && Math.hypot(this.riding.x - c.x, this.riding.z - c.z) > 2.2
-              && Math.hypot(this.riding.x - ws.slot.x, this.riding.z - ws.slot.z) > 2.2) {
-            this.toast('Roll the chair up to that desk first.');
-            this.ctx?.audio?.play('ui.error');
-            return;
+            const c = this.chairs?.[ws.slot.index];
+            if (c) {
+              // park it at the desk before he lands on it, so he does not sit
+              // down two metres from his own keyboard
+              const px = ws.slot.x + 0.10, pz = ws.slot.z + 0.95;
+              if (Math.hypot(c.x - px, c.z - pz) > 0.05) { c.x = px; c.z = pz; c.vx = 0; c.vz = 0; }
+              c.ry = 0;
+              this.toggleRide(c);
+              const it = I.items.find((q) => q.id === `chair-${ws.slot.index}`);
+              if (it) it.verb = 'Get up';
+            } else {
+              this.toast('There is nothing to sit on at this desk.');
+              this.ctx?.audio?.play('ui.error');
+              return;
+            }
           }
           I.focusScreen(ws);
         },
@@ -1889,6 +1896,18 @@ export class Office {
     const c = p.cursor;
     this._setAvatarHold(a, (c && c.mode === 'office' && c.hold) ? c.hold : '');
     a.act = (c && c.mode === 'office' && c.act) ? c.act : '';
+    // Move the chair he says he is on, unless it is the one I am on myself —
+    // two clients must never both claim the same seat.
+    const ri = Number.isFinite(c?.ride) ? c.ride : -1;
+    if (a.ride !== ri && a.ride >= 0) { const old = this.chairs?.[a.ride]; if (old) old.remote = null; }
+    a.ride = ri;
+    if (ri >= 0 && this.chairs?.[ri] && this.riding !== this.chairs[ri]) {
+      const ch = this.chairs[ri];
+      ch.remote = p.id;
+      ch.x = c.x; ch.z = c.z;
+      if (Number.isFinite(c.cry)) ch.ry = c.cry;
+      ch.vx = 0; ch.vz = 0;
+    }
     if (c && c.mode === 'office' && Number.isFinite(c.x) && Number.isFinite(c.z)) {
       a.target.set(c.x, 0, c.z);
       // +PI, and it is not arbitrary. The office's yaw convention is "yaw 0
@@ -1961,8 +1980,16 @@ export class Office {
     // not at a computer, know that he is doing something." Three states are
     // enough to read the room: standing, riding the chair, working at a screen.
     const act = this.interact?.focus ? 'type' : (this.riding ? 'ride' : '');
+    // THE RIDER CARRIES HIS CHAIR. A chair's position is not office state while
+    // somebody is on it — it is part of where that player is, and it changes
+    // sixty times a second. So the rider's presence names the chair he is on
+    // and everyone else moves that chair to his published pose. A chair nobody
+    // is touching is written to the shared office record ONCE, when it stops,
+    // which is where a chair actually needs remembering.
+    const ride = this.riding ? this.riding.index : -1;
+    const cry = this.riding ? r2(this.riding.ry) : 0;
     net.setCursor({ mode: 'office', x: r2(pos.x), y: 0, z: r2(pos.z),
-      ry: r2(this.player.yaw ?? 0), hold, act });
+      ry: r2(this.player.yaw ?? 0), hold, act, ride, cry });
   }
 
   _makeAvatar(p) {
@@ -2007,6 +2034,17 @@ export class Office {
         const l = this.lights?.lamps?.[ws.slot.index];
         if (l && !!l.userData.wantOn !== !!o[key]) this.setLightOn(l, !!o[key]);
       }
+    }
+    for (const c of this.chairs || []) {
+      const v = o[`chair${c.index}`];
+      // Never yank a chair somebody is on, mine or theirs — the parked position
+      // is the fallback, the rider is the authority.
+      if (typeof v !== 'string' || this.riding === c || c.remote) continue;
+      const [x, z, ry] = v.split(',').map(Number);
+      if (!Number.isFinite(x) || !Number.isFinite(z)) continue;
+      if (Math.hypot(c.x - x, c.z - z) < 0.02) continue;
+      c.x = x; c.z = z; if (Number.isFinite(ry)) c.ry = ry;
+      c.vx = 0; c.vz = 0;
     }
     if (Number.isFinite(o.computerTier) && o.computerTier !== this.upgrades?.computer) {
       this.upgrades.computer = o.computerTier;
@@ -2101,12 +2139,23 @@ export class Office {
         const mv = input?.axis2 ? input.axis2() : { x: 0, y: 0 };
         const held = !!input?.down?.('sprint');
         c.boost = MathUtils.damp(c.boost, held && (mv.x || mv.y) ? 1 : 0, 8, dt);
-        const accel = 7.0 + c.boost * 26.0;
+        // STEERING, NOT THRUST. Pure acceleration with a low friction is how
+        // you get a chair that feels like it is on ice: it keeps going where it
+        // was going while you ask for something else. Jurek: "the chair drives
+        // strangely." So the input names a TARGET velocity and the chair is
+        // pulled towards it — quick to answer, quick to stop, and it still has
+        // weight because the pull is a rate, not a snap.
         // yaw 0 looks down -Z (player.js), so forward is (sin, -cos)
         const fx = Math.sin(P.yaw), fz = -Math.cos(P.yaw);
         const rx = Math.cos(P.yaw), rz = Math.sin(P.yaw);
-        c.vx += (fx * mv.y + rx * mv.x) * accel * dt;
-        c.vz += (fz * mv.y + rz * mv.x) * accel * dt;
+        const top = 2.2 + c.boost * 5.6;
+        const wantX = (fx * mv.y + rx * mv.x) * top;
+        const wantZ = (fz * mv.y + rz * mv.x) * top;
+        const driving = (mv.x !== 0 || mv.y !== 0);
+        // 7 answers a change of direction in about 140 ms; 9 stops it in 110 ms
+        const k = 1 - Math.exp(-dt * (driving ? 7 : 9));
+        c.vx += (wantX - c.vx) * k;
+        c.vz += (wantZ - c.vz) * k;
         c.jet.visible = c.boost > 0.15;
         if (c.jet.visible) {
           const f = 0.7 + Math.random() * 0.6;
@@ -2143,9 +2192,12 @@ export class Office {
         }
       }
 
-      // integrate, with the friction of a castor on carpet
-      const fr = Math.exp(-dt * (this.riding === c ? 3.4 : 2.6));
-      c.vx *= fr; c.vz *= fr;
+      // A pushed chair still rolls to a stop on its own; a ridden one is
+      // governed by the steering above and must not be damped twice.
+      if (this.riding !== c) {
+        const fr = Math.exp(-dt * 2.6);
+        c.vx *= fr; c.vz *= fr;
+      }
       if (Math.abs(c.vx) < 0.004) c.vx = 0;
       if (Math.abs(c.vz) < 0.004) c.vz = 0;
       const step = Math.hypot(c.vx, c.vz) * dt;
@@ -2153,6 +2205,13 @@ export class Office {
         const nx = this._slideChair(c, c.x + c.vx * dt, c.z + c.vz * dt);
         c.x = nx.x; c.z = nx.z;
       }
+      // ONE WRITE WHEN IT STOPS, not sixty a second while it moves. `_wasMoving`
+      // is what makes it one: the record is written on the transition to rest.
+      const moving = Math.hypot(c.vx, c.vz) > 0.01 || this.riding === c;
+      if (c._wasMoving && !moving && !c.remote) {
+        this.ctx?.net?.setOffice?.({ [`chair${c.index}`]: `${c.x.toFixed(2)},${c.z.toFixed(2)},${c.ry.toFixed(2)}` });
+      }
+      c._wasMoving = moving;
       c.group.position.set(c.x, 0, c.z);
       c.group.rotation.y = c.ry;
       // The interaction proxy travels with the chair. Without this, "Sit" stays
@@ -2208,6 +2267,11 @@ export class Office {
     } else if (input) {
       input.movement.set(0, 0);
     }
+    // Chairs first: the seat the player's camera reads has to be THIS frame's,
+    // not last frame's, or the view trails the chair by 16 ms — which at the
+    // boosted 7.7 m/s is 120 mm of lag and reads as the chair sliding out from
+    // under you.
+    this._tickChairs(dt, input);
     this.player.update(dt, input);
     this.interact.update(dt, input);
 
@@ -2221,7 +2285,6 @@ export class Office {
     this._decayFocus(dt);
     for (const ws of this.workstations) ws.update(dt, true);
     this.staff.update(dt, this.camera.position);
-    this._tickChairs(dt, input);
     this._publishPose(dt);
     this._tickAvatars(dt);
     if (this.avatars) {
