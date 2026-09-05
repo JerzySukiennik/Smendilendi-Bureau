@@ -73,6 +73,88 @@ export const PLATINUM = {
 };
 
 /** The 16-colour VGA set (ANALYSIS.md section 7) — icons draw from this only. */
+/**
+ * Luna Blue — Windows XP. Sampled off the reference Jurek supplied
+ * (windowsXP.jpeg): the taskbar is a blue ramp with a lighter lip at the top,
+ * the Start button is its own green pill, and the title bar is a three-stop
+ * blue that is lighter in the middle than at either end.
+ */
+export const LUNA = {
+  face: '#ECE9D8',          // the XP control face — warm, not #C0C0C0 grey
+  hi: '#FFFFFF',
+  light: '#F5F4EA',
+  shadow: '#ACA899',
+  dark: '#716F64',
+  window: '#FFFFFF',
+  text: '#000000',
+  gray: '#ACA899',
+  titleActive: '#0A56C8', titleActive2: '#3F92F0', titleActive3: '#0A46A8',
+  titleText: '#FFFFFF',
+  titleInactive: '#7BA2DF', titleInactive2: '#A8C4EE',
+  titleInactiveText: '#E8EEF8',
+  hilite: '#316AC5', hiliteText: '#FFFFFF',
+  desktop: '#3A6EA5',
+  info: '#FFFFE1', infoText: '#000000',
+  // shell
+  barA: '#2A5BD7', barB: '#3D7BE8', barC: '#1941A5', barLip: '#4A8CF0',
+  startA: '#3C9B37', startB: '#59B44F', startC: '#2C7A28',
+  trayA: '#159AD6', trayB: '#0C7CBB',
+};
+
+/**
+ * Windows 10. Flat, high contrast, one accent. From the reference
+ * (windows10.avif): near-black taskbar, white window chrome with a hairline
+ * border, a tiled Start panel, and the accent blue used sparingly.
+ */
+export const AERO10 = {
+  face: '#F0F0F0',
+  hi: '#FFFFFF',
+  light: '#FAFAFA',
+  shadow: '#CCCCCC',
+  dark: '#767676',
+  window: '#FFFFFF',
+  text: '#000000',
+  gray: '#767676',
+  accent: '#0078D7', accentDim: '#005A9E', accentLite: '#3A96DD',
+  titleActive: '#FFFFFF', titleText: '#000000',
+  titleInactive: '#FFFFFF', titleInactiveText: '#9A9A9A',
+  border: '#0078D7', borderInactive: '#AAAAAA',
+  hilite: '#CCE8FF', hiliteText: '#000000',
+  desktop: '#0B3B66',
+  shell: '#1F1F1F', shellHover: '#333333', shellText: '#FFFFFF',
+  startPanel: '#2B2B2B', tile: '#0078D7',
+  info: '#FFFFFF', infoText: '#000000',
+};
+
+/**
+ * macOS 26 — Liquid Glass. From the references Jurek supplied
+ * (MacOS26/HomeScreen.jpeg, Controlpanel.avif): translucent panels over a
+ * blue-to-sand gradient, very large corner radii, white text on glass, and a
+ * floating dock rather than a bar welded to the bottom edge.
+ */
+export const GLASS = {
+  face: '#F2F4F8',
+  hi: '#FFFFFF',
+  light: '#FAFBFD',
+  shadow: '#C9CED8',
+  dark: '#8A909C',
+  window: '#FFFFFF',
+  text: '#11141A',
+  gray: '#6E747F',
+  accent: '#0A84FF',
+  titleActive: '#FFFFFF', titleText: '#11141A',
+  titleInactive: '#FFFFFF', titleInactiveText: '#9AA0AC',
+  hilite: '#0A84FF', hiliteText: '#FFFFFF',
+  desktop: '#5FA8DA',
+  // the wallpaper ramp, top to bottom
+  skyA: '#EAF2F7', skyB: '#7FC0E8', skyC: '#1E6FD9', skyD: '#0B3E96',
+  sand: '#E8DCC6',
+  glassFill: 'rgba(255,255,255,0.42)',
+  glassEdge: 'rgba(255,255,255,0.72)',
+  glassDark: 'rgba(10,20,40,0.28)',
+  info: '#FFFFFF', infoText: '#11141A',
+};
+
 export const VGA = {
   black: '#000000', maroon: '#800000', green: '#008000', olive: '#808000',
   navy: '#000080', purple: '#800080', teal: '#008080', silver: '#C0C0C0',

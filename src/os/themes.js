@@ -1007,19 +1007,20 @@ export const TIERS = [
   {
     tier: 2,
     hardware: 'Kompakt 2000',
-    spec: '450 MHz - 128 MB RAM - 8 GB',
+    spec: '1.6 GHz - 512 MB RAM - 40 GB',
     osName: 'CORNICE',
-    osVersion: '98',
-    tagline: 'Cornice 98 Second Edition',
-    w: 800, h: 600,
+    osVersion: 'XP',
+    tagline: 'Cornice XP Professional',
+    w: 1024, h: 768,
     family: 'win',
+    chrome: 'xp',
     gradientTitle: true,
-    quickLaunch: true,
-    startLabel: 'Start',
-    desktopA: '#008080', desktopB: '#008080',
-    screenTint: VGA.navy,
+    quickLaunch: false,
+    startLabel: 'start',
+    desktopA: '#3A6EA5', desktopB: '#3A6EA5',
+    screenTint: '#0A46A8',
     cursorKind: 'arrow',
-    crt: true,
+    crt: true,                 // 2001 is still a CRT on a desk
     slow: false,
     sound: 'os.boot-tier2',
     grants: {
@@ -1031,17 +1032,21 @@ export const TIERS = [
   {
     tier: 3,
     hardware: 'Sunstation Pro',
-    spec: '733 MHz - 512 MB RAM - 40 GB',
+    spec: '3.4 GHz quad - 16 GB RAM - 512 GB SSD',
     osName: 'VELLUM',
-    osVersion: '8',
-    tagline: 'Vellum 8 Platinum',
-    w: 1024, h: 768,
-    family: 'platinum',
-    desktopA: '#CCCCCC', desktopB: '#999999',
-    screenTint: '#999999',       // Platinum glass — VGA silver here was the one
-                                 // Windows grey still leaking into a Mac desktop
-
-    cursorKind: 'plat',
+    osVersion: '10',
+    tagline: 'Vellum 10 Pro',
+    // 1366 x 768, the laptop resolution the reference capture is of, not a
+    // desktop 1600 x 900. It is also 27 % fewer pixels to repaint and upload to
+    // the monitor texture on every cursor move, which on this machine measured
+    // 11.5 ms a frame against 4.9 ms on the tier below it.
+    w: 1366, h: 768,
+    family: 'win',
+    chrome: 'win10',
+    startLabel: '',
+    desktopA: '#0B3B66', desktopB: '#0B3B66',
+    screenTint: '#0078D7',
+    cursorKind: 'arrow',
     waitCursor: 'watch',
     crt: false,
     slow: false,
@@ -1055,15 +1060,20 @@ export const TIERS = [
   {
     tier: 4,
     hardware: 'Melon Studio M5',
-    spec: '1.2 GHz - 1.5 GB RAM - 120 GB',
+    // "Melon Studio M5 should be 4K." The panel is 3840 x 2160; the OS draws
+    // its own surface at half that and the machine's 1.0 drawing-resolution
+    // grant is what spends the other half on the model, which is the only
+    // place on this screen where the pixels are worth the milliseconds.
+    spec: 'M5 12-core - 32 GB - 1 TB - 4K display',
     osName: 'ATELIER',
-    osVersion: '9',
-    tagline: 'Atelier 9 Studio Edition',
-    w: 1152, h: 870,
+    osVersion: '26',
+    tagline: 'Atelier 26 Liquid Glass',
+    display: [3840, 2160],
+    w: 1920, h: 1080,
     family: 'platinum',
-    desktopA: '#999999', desktopB: '#999999',
-    screenTint: VGA.white,
-    chrome: 'atelier',           // its own window chrome, not Platinum's
+    desktopA: '#1E6FD9', desktopB: '#0B3E96',
+    screenTint: '#0A84FF',
+    chrome: 'macos26',
     cursorKind: 'thin',
     waitCursor: 'quadrants',
     crt: false,
@@ -1083,13 +1093,29 @@ export function tierConfig(n) {
 
 export function grantsFor(n) { return tierConfig(n).grants; }
 
+/**
+ * The four machines, built lazily so the modern themes can live in their own
+ * module. themes-modern.js takes the base classes as arguments rather than
+ * importing them, because importing back into this file would make the retro
+ * gate's source scan follow the cycle into modern code and fail on the first
+ * rgba() it met — see the header of themes-modern.js.
+ */
+let XPTheme, Win10Theme, MacOS26Theme;
+export function installModernThemes({ makeXPTheme, makeWin10Theme, makeMacOSTheme }) {
+  XPTheme = makeXPTheme(WinTheme);
+  Win10Theme = makeWin10Theme(BaseTheme);
+  MacOS26Theme = makeMacOSTheme(BaseTheme);
+}
+
 export function makeTheme(n) {
   const cfg = tierConfig(n);
-  // Icons follow the machine: Windows silver on tiers 1-2, the Platinum ramp
-  // on tiers 3-4. One active theme at a time, so a module-level switch is the
-  // whole mechanism.
-  setIconGreys(cfg.family);
-  if (cfg.chrome === 'atelier') return new AtelierTheme(cfg);
+  // Icons follow the machine: the silver ramp on the two Windows-chrome eras,
+  // the pale ramp on Windows 10 and macOS. One active theme at a time, so a
+  // module-level switch is the whole mechanism.
+  setIconGreys(cfg.chrome === 'macos26' || cfg.chrome === 'win10' ? 'platinum' : cfg.family);
+  if (cfg.chrome === 'macos26' && MacOS26Theme) return new MacOS26Theme(cfg);
+  if (cfg.chrome === 'win10' && Win10Theme) return new Win10Theme(cfg);
+  if (cfg.chrome === 'xp' && XPTheme) return new XPTheme(cfg);
   return cfg.family === 'platinum' ? new PlatinumTheme(cfg) : new WinTheme(cfg);
 }
 
@@ -1148,72 +1174,79 @@ export const BOOT = {
       }
     },
   },
+  // XP boots to black: the logo, then the four-cell bar sliding left to right
+  // under it. No BIOS post, no panel, no bevel — the machine is 2001 now.
   2: {
     duration: 4.2,
     soundAt: 0.6,
     paint(g, th, t) {
       fill(g, 0, 0, th.w, th.h, '#000000');
-      const w = 520, h = 260, x = (th.w - w) >> 1, y = (th.h - h) >> 1;
-      fill(g, x, y, w, h, '#C0C0C0');
-      bevel(g, x, y, w, h, 'panel', WIN);
-      for (let i = 0; i < w - 8; i++) {
-        fill(g, x + 4 + i, y + 4, 1, 70, rampColor('#000080', '#1084D0', i / (w - 9)));
+      const cx = th.w >> 1, cy = (th.h >> 1) - 30;
+      // the flag: four cells, warm to cool, on a black field
+      const s = 26, gp = 3;
+      const cells = ['#F25022', '#7FBA00', '#00A4EF', '#FFB900'];
+      for (let i = 0; i < 4; i++) {
+        const dx = (i % 2) ? gp : -s - gp, dy = (i > 1) ? gp : -s - gp;
+        fill(g, cx + dx, cy + dy, s, s, cells[i]);
       }
-      SANS_BOLD.draw(g, 'CORNICE', x + 20, y + 18, '#FFFFFF');
-      SANS.draw(g, '98  Second Edition', x + 20, y + 36, '#C0C0C0');
-      SANS.draw(g, 'Kompakt 2000', x + 20, y + 54, '#C0C0C0');
-      SANS.draw(g, 'Starting up...', x + 20, y + 96, '#000000');
-      const frac = Math.min(1, t / 3.4);
-      const bar = { x: x + 20, y: y + 120, w: w - 40, h: 20 };
-      bevel(g, bar.x, bar.y, bar.w, bar.h, 'sunken', WIN);
-      const n = Math.floor(frac * ((bar.w - 4) / 10));
-      for (let i = 0; i < n; i++) fill(g, bar.x + 2 + i * 10, bar.y + 2, 8, bar.h - 4, '#000080');
-      SANS.draw(g, 'Copyright (C) 1998 Cornice Systems. All rights reserved.', x + 20, y + h - 40, '#808080');
+      SANS_BOLD.draw(g, 'CORNICE', cx + 44, cy - 24, '#FFFFFF');
+      SANS.draw(g, 'XP  Professional', cx + 44, cy - 6, '#8FA8C8');
+      // the sliding three-block bar in its sunken well
+      const bar = { x: cx - 90, y: cy + 78, w: 180, h: 14 };
+      frameRect(g, bar.x - 1, bar.y - 1, bar.w + 2, bar.h + 2, '#3A4A5E');
+      const span = bar.w + 60;
+      const head = ((t * 150) % span) - 60;
+      for (let i = 0; i < 3; i++) {
+        const bx = Math.round(head + i * 20);
+        if (bx < 0 || bx + 16 > bar.w) continue;
+        fill(g, bar.x + bx, bar.y + 2, 16, bar.h - 4, '#4E8CE8');
+      }
+      SANS.draw(g, 'Kompakt 2000', cx - 90, th.h - 60, '#5A6E88');
     },
   },
+  // Windows 10 boots to the mark and a ring of dots going round it. Flat white
+  // on black, nothing else on the screen.
   3: {
     duration: 4.4,
     soundAt: 0.4,
     paint(g, th, t) {
-      fill(g, 0, 0, th.w, th.h, '#CCCCCC');
-      const w = 460, h = 150, x = (th.w - w) >> 1, y = ((th.h - h) >> 1) - 40;
-      fill(g, x, y, w, h, '#FFFFFF');
-      frameRect(g, x, y, w, h, '#000000');
-      for (let i = 0; i < 12; i++) hline(g, x + 1, y + 4 + i, w - 2, i % 2 === 0 ? '#FFFFFF' : '#777777');
-      CHICAGO_BOLD.draw(g, 'Vellum 8', x + 24, y + 40, '#000000');
-      CHICAGO.draw(g, 'Sunstation Pro', x + 24, y + 58, '#777777');
-      CHICAGO.draw(g, 'Welcome to Vellum', x + 24, y + 92, '#000000');
-      CHICAGO.draw(g, 'Starting up the desktop', x + 24, y + 110, '#777777');
-      // extensions marching along the bottom, the way a Mac announced itself
-      const n = Math.min(9, Math.floor(t * 3));
-      for (let i = 0; i < n; i++) {
-        const ix = 40 + i * 40, iy = th.h - 90;
-        const which = ['folder', 'floppy', 'phone', 'printer', 'doc', 'clock', 'settings', 'computer', 'design'][i % 9];
-        if (I16[which]) {
-          I16[which].draw(g, ix, iy);
-          I16[which].draw(g, ix + 16, iy);
-        }
+      fill(g, 0, 0, th.w, th.h, '#000000');
+      const cx = th.w >> 1, cy = (th.h >> 1) - 20;
+      const s = 22, gp = 3;
+      for (let i = 0; i < 4; i++) {
+        const dx = (i % 2) ? gp : -s - gp, dy = (i > 1) ? gp : -s - gp;
+        fill(g, cx + dx, cy + dy, s, s, '#FFFFFF');
       }
+      // six dots on a circle, each a little behind the one in front
+      for (let i = 0; i < 6; i++) {
+        const a = t * 3.0 - i * 0.32;
+        const px = Math.round(cx + Math.cos(a) * 62);
+        const py = Math.round(cy + 92 + Math.sin(a) * 10);
+        const d = 4;
+        fill(g, px - d / 2, py - d / 2, d, d, i < 3 ? '#FFFFFF' : '#9A9A9A');
+      }
+      SANS.draw(g, 'Vellum 10', cx - 34, th.h - 56, '#6E6E6E');
     },
   },
+  // macOS boots to the mark and one thin bar filling once. That is the whole
+  // screen; anything else on it is another operating system.
   4: {
     duration: 4.0,
     soundAt: 0.4,
     paint(g, th, t) {
-      fill(g, 0, 0, th.w, th.h, '#DDDDDD');
-      const w = 520, h = 190, x = (th.w - w) >> 1, y = ((th.h - h) >> 1) - 30;
-      fill(g, x, y, w, h, '#FFFFFF');
-      frameRect(g, x, y, w, h, '#000000');
-      for (let i = 0; i < 12; i++) hline(g, x + 1, y + 4 + i, w - 2, i % 2 === 0 ? '#FFFFFF' : '#777777');
-      CHICAGO_BOLD.draw(g, 'ATELIER 9', x + 28, y + 44, '#000000');
-      CHICAGO.draw(g, 'Studio Edition  -  Melon Studio M5', x + 28, y + 62, '#777777');
-      CHICAGO.draw(g, '1152 x 870, millions of colours', x + 28, y + 96, '#000000');
-      CHICAGO.draw(g, 'Drawing tablet found', x + 28, y + 112, '#000000');
-      const frac = Math.min(1, t / 3.2);
-      const bar = { x: x + 28, y: y + 140, w: w - 56, h: 14 };
-      frameRect(g, bar.x, bar.y, bar.w, bar.h, '#000000');
-      fill(g, bar.x + 1, bar.y + 1, Math.floor((bar.w - 2) * frac), bar.h - 2, '#777777');
-      checker(g, bar.x + 1, bar.y + 1, Math.floor((bar.w - 2) * frac), bar.h - 2, '#999999', '#777777');
+      fill(g, 0, 0, th.w, th.h, '#000000');
+      const cx = th.w >> 1, cy = (th.h >> 1) - 20;
+      // the practice's lozenge, drawn as a diamond of flat rows so this file
+      // stays inside the retro gate's ban on rounded and alpha primitives
+      const R = 22;
+      for (let dy = -R; dy <= R; dy++) {
+        const half = R - Math.abs(dy);
+        if (half <= 0) continue;
+        fill(g, cx - half, cy + dy, half * 2, 1, '#FFFFFF');
+      }
+      const bar = { x: cx - 100, y: cy + 84, w: 200, h: 5 };
+      fill(g, bar.x, bar.y, bar.w, bar.h, '#3A3A3A');
+      fill(g, bar.x, bar.y, Math.floor(bar.w * Math.min(1, t / 3.2)), bar.h, '#FFFFFF');
     },
   },
 };

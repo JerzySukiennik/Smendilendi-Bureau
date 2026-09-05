@@ -15,7 +15,13 @@
 // bevels (widgets.js), hand-set icons (icons.js), no alpha, no easing, and the
 // OS draws its own cursor so the host browser's pointer never appears.
 
-import { makeTheme, tierConfig, TIERS, BOOT, grantsFor } from './themes.js';
+import { makeTheme, tierConfig, TIERS, BOOT, grantsFor, installModernThemes } from './themes.js';
+import { makeXPTheme, makeWin10Theme, makeMacOSTheme } from './themes-modern.js';
+
+// The three modern machines are built here, at the one place that owns both
+// modules, so themes.js never imports modern code and the retro source gate
+// keeps working on the starter machine at full strength.
+installModernThemes({ makeXPTheme, makeWin10Theme, makeMacOSTheme });
 import { WindowManager, Win } from './wm.js';
 import { fill, frameRect, checker, inside, VGA, text as drawText } from './widgets.js';
 import { BODY, selectFaces, splitMnemonic } from './font.js';

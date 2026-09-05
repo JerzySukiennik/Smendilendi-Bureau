@@ -65,7 +65,15 @@ const RETRO_PALETTE = new Set([
   '808080', 'ff0000', '00ff00', 'ffff00', '0000ff', 'ff00ff', '00ffff', 'ffffff',
   'dfdfdf', 'ffffe1',
 ]);
-const RETRO_TIERS = [1, 2];          // the eras this gate governs; 3-4 are modern
+// THE GATE GOVERNS THE STARTER MACHINE, AND ONLY THAT.
+// It used to cover tiers 1 and 2, because both were 1990s Windows. Jurek moved
+// Kompakt 2000 to Windows XP on 2026-09-05, and XP is not a 16-colour era: it
+// has rounded title bars, three-stop gradients and a soft drop shadow on its
+// title text, every one of which this gate exists to forbid. The goal names
+// Windows 95/98 as the bar "for the fictional OS on the starter computer", so
+// the starter computer is exactly the scope, and pinning it there keeps the
+// gate at full strength instead of it being switched off as a nuisance.
+const RETRO_TIERS = [1];
 
 async function retroGuard(tier = 1, { maxDistinct = 20 } = {}) {
   // PIN THE GATE TO THE ERAS IT GOVERNS. A critic pointed out that the guard
@@ -122,10 +130,21 @@ async function retroGuard(tier = 1, { maxDistinct = 20 } = {}) {
  * drawing surface. The palette check catches colour; this catches the shapes
  * that would produce it — alpha, blur, rounded corners, fractional coordinates.
  */
+/** Source with // and block comments removed. Strings are left alone. */
+function stripComments(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
 async function retroGate() {
   const results = [];
   for (const t of RETRO_TIERS) results.push(await retroGuard(t));
-  const src = [themesSource, osSource].filter(Boolean).join('\n');
+  // Strip comments before scanning. A gate that fails because a COMMENT
+  // explains why rgba() is banned is a gate that teaches you to stop writing
+  // the explanation down, and the explanation is the valuable half. Measured:
+  // the sentence "the first rgba() it met" in themes.js failed the whole gate.
+  const src = stripComments([themesSource, osSource].filter(Boolean).join('\n'));
   const banned = [
     [/\brgba\s*\(/, 'rgba() — the era has no alpha; 50 % is a 1 px checkerboard'],
     [/shadowBlur\s*=/, 'shadowBlur — nothing in 1995 had a soft shadow'],

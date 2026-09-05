@@ -434,3 +434,62 @@ applies to are exactly the ones `_opAllowed` can refuse (wall, rectangle, room,
 move); Orbit, Paint and the tape measure are free to hover anywhere. Those two
 sets must be kept together — a ghost that goes red and is then accepted, or
 stays orange and is then refused, is worse than no colour at all.
+
+## The four machines span thirty years — amended 2026-09-05
+
+Jurek, with reference captures:
+
+> Kompakt 2000 should be like this: windowsXP.jpeg
+> Sunstation Pro should be like this: windows10.avif
+> Melon Studio M5 should be 4K and like this: MacOS26/
+
+This supersedes the earlier line-up. The ladder is now 1996 → 2001 → 2015 → 2026,
+which is the thirty years the section title always claimed:
+
+| | machine | OS | screen | what it is |
+|---|---|---|---|---|
+| 1 | Pentagram 133 | TRESTLE 3.1 | 640 × 480 | unchanged — a grubby 16-colour box |
+| 2 | Kompakt 2000 | CORNICE XP | 1024 × 768 | Luna blue, Bliss, the green Start pill |
+| 3 | Sunstation Pro | VELLUM 10 | 1366 × 768 | flat, near-black shell, tiled Start panel |
+| 4 | Melon Studio M5 | ATELIER 26 | 1920 × 1080 on a 4K panel | Liquid Glass, floating dock |
+
+**The starter machine is the one the retro bar is about, so it does not move.**
+The goal names Windows 95/98 as the bar "for the fictional OS on the starter
+computer". Tier 2 leaving the 1990s means `RETRO_TIERS` is now `[1]` — and that
+is a narrowing of scope, not a weakening: XP has rounded title bars, three-stop
+gradients and a drop shadow on its title text, every one of which the gate
+exists to forbid. A gate aimed at a tier it does not govern gets switched off
+the first time it is inconvenient.
+
+For the same reason the modern chrome lives in its own file, `themes-modern.js`.
+The gate scans `themes.js` and `os.js` for `rgba(`, `roundRect`, `shadowBlur`
+and fractional `globalAlpha`; all four are *required* by XP, Windows 10 and
+especially Liquid Glass. Splitting the file is what lets the gate keep running
+at full strength. (It now strips comments before scanning: the sentence
+explaining why alpha is banned was itself failing the gate.)
+
+**Three things measured rather than assumed.**
+
+* macOS 26's menu bar has no band, so white text was invisible over the sand at
+  the top left — measured, that strip is a flat (238, 231, 214) without one dark
+  pixel in it, and the menus were simply not there. The bar now samples the
+  wallpaper behind it into 48 luminance buckets, once per screen size, and each
+  entry takes dark or light ink from the bucket it sits over.
+* The wallpapers are painted once and blitted after that. The macOS sweep costs
+  **916 ms** to draw at 1920 × 1080, and the OS marks itself dirty on every
+  cursor move — uncached, moving the mouse would have frozen the game solid.
+  Cached, a full repaint is 4.7 ms. Bliss and the Windows 10 hero are cached the
+  same way.
+* Windows 10 was 1600 × 900 and cost 11.5 ms a repaint against 4.9 ms for the
+  tier below it. It is now 1366 × 768 — the laptop resolution the reference
+  capture is actually of — and costs 5.0 ms. All four machines now repaint in
+  about 5 ms.
+
+Boot screens moved with the machines: XP boots to the four-colour flag and the
+sliding three-block bar, Vellum 10 to the white mark and a ring of dots, Atelier
+26 to the lozenge and one thin bar. No BIOS post on a machine from 2001.
+
+**Still open, and worth saying plainly:** the type. Every face in `font.js` is a
+1990s bitmap — MS Sans Serif and Chicago/Geneva — so Windows 10 and macOS 26
+render in the right shapes and the wrong letterforms. Fixing it means a new
+font, not a new theme.
