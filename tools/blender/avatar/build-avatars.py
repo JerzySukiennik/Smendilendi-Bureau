@@ -93,10 +93,19 @@ def material(slot):
 # ---------------------------------------------------------------------------
 # body builds -- the parametric space. Every length is metres; `H` is stature.
 
+# The chest must OUT-MEASURE the belly and the hip, and by a margin you can see.
+# Until 2026-09-05 it did not: slim was chest 0.31 against hip 0.30, regular 0.36
+# against 0.34. A torso whose widest point is the hip is the one silhouette cue
+# people read as female before they read anything else, and Jurek read it that way
+# on all three builds. The chest/hip ratio is now 1.23 / 1.23 / 1.29 (broad carries
+# the extra as belly, not as hip), and the hip joints move inboard with it:
+# hip_x is 0.045-0.053 H, which is the real hip-joint half-separation, where the old
+# 0.049-0.059 H was wide even for a woman. Widths stay fractions of stature:
+# chest 0.195-0.254 H, hip 0.158-0.196 H against a real male hip breadth of ~0.19 H.
 BUILDS = {
-    'slim':    dict(H=1.72, shoulder=0.195, chest=(0.31, 0.19), belly=(0.27, 0.17), hip=(0.30, 0.20), limb=0.88, hip_x=0.085, head=0.97),
-    'regular': dict(H=1.75, shoulder=0.215, chest=(0.36, 0.22), belly=(0.32, 0.20), hip=(0.34, 0.21), limb=1.00, hip_x=0.095, head=1.00),
-    'broad':   dict(H=1.775, shoulder=0.240, chest=(0.42, 0.26), belly=(0.40, 0.25), hip=(0.38, 0.23), limb=1.15, hip_x=0.105, head=1.03),
+    'slim':    dict(H=1.72, shoulder=0.200, chest=(0.335, 0.190), belly=(0.265, 0.163), hip=(0.272, 0.185), limb=0.88, hip_x=0.078, head=0.97),
+    'regular': dict(H=1.75, shoulder=0.222, chest=(0.380, 0.220), belly=(0.300, 0.186), hip=(0.310, 0.200), limb=1.00, hip_x=0.086, head=1.00),
+    'broad':   dict(H=1.775, shoulder=0.248, chest=(0.450, 0.265), belly=(0.372, 0.240), hip=(0.348, 0.222), limb=1.15, hip_x=0.094, head=1.03),
 }
 
 
@@ -467,8 +476,11 @@ def build_bottoms(P):
     tr.add(tbox(hw + 0.03, hw + 0.03, waist - P.pelvis_bot + 0.005, hd + 0.03, hd + 0.03, (0, P.pelvis_bot, 0), 0.02), 'tint_bottom', 'hips')
     for s, sg in (('L', -1), ('R', 1)):
         x = sg * P.hip_x
-        r_top = 0.112 * lim
-        r_knee = 0.100 * lim
+        # still baggy -- 26 mm of slack around a 78 mm thigh -- but the tube no
+        # longer sets the hip width of the whole silhouette, which it did while
+        # hip_x + r_top reached wider than the chest.
+        r_top = 0.104 * lim
+        r_knee = 0.095 * lim
         r_cuff = 0.075 * lim
         tr.add(cyl(r_knee, r_top, P.L1 + 0.04, (x, P.knee_y - 0.01, 0), bevel=0.012, cuts=2),
                'tint_bottom', bulge(f'thigh_{s}', f'pant_up_{s}', P.hip_y, P.knee_y, peak=0.6))
@@ -716,7 +728,14 @@ def ease(t):
     return t * t * (3 - 2 * t)
 
 
-ARM_ABDUCT = math.radians(7)
+# A-pose splay at the shoulder. At the old 7 degrees the upper arm hung flush
+# against the ribcage and the silhouette lost it completely: measured on the
+# shipped GLBs, the daylight between arm and body was 7 px on slim, 3 px on
+# regular and 0 px on broad at 300 px/m -- i.e. nothing, at any camera distance.
+# 12 degrees over an upper arm of 0.16 H carries the elbow ~58 mm outboard, which
+# is a gap you can see from across the office, and it is still a rest pose: a
+# relaxed standing arm sits at 8-12 degrees of abduction.
+ARM_ABDUCT = math.radians(12)
 
 
 def standing_arms(pose, t, sway=0.0, side_bias=0.0):
