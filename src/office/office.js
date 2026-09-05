@@ -161,6 +161,15 @@ export class Office {
     this.scene = scene;
 
     this.camera = new PerspectiveCamera(55, 1, 0.06, 260);
+    // THE CAMERA HAS TO BE IN THE SCENE GRAPH, and this one line is most of
+    // item 6. Anything held in the hand is parented to the camera so it moves
+    // with the head — the mug, the sheet of paper — and three.js only traverses
+    // what hangs off the scene. With the camera outside it, every carried
+    // object was updated, animated and lit, and never drawn once. That is why
+    // "you get a mug and it is empty": there was no mug on screen at all, full
+    // or otherwise. Adding it costs nothing; the camera renders no geometry of
+    // its own.
+    this.scene.add(this.camera);
     this.camera.rotation.order = 'YXZ';
 
     // ---- shell ----------------------------------------------------------
@@ -1823,8 +1832,28 @@ export class Office {
    * snapped: presence is published a few times a second, and a figure that
    * teleports every 200 ms reads as broken even when the data is right.
    */
+  /** Put (or take away) the thing a remote player is carrying. */
+  _setAvatarHold(a, hold) {
+    if (a.hold === hold) return;
+    a.hold = hold;
+    if (a.holdMesh) { a.holdMesh.parent?.remove(a.holdMesh); a.holdMesh = null; }
+    if (!hold) return;
+    const b = new MeshBuilder(); b._ao = false;
+    if (hold === 'mug' || hold === 'mug-full') PROPS.mug(b, { color: 0xe9e6df, full: hold === 'mug-full' });
+    else if (hold === 'paper') PROPS.sheet(b, {});
+    else return;
+    const g = new Group();
+    for (const { mat, geometry } of b.build()) g.add(new Mesh(geometry, builderMaterial(mat)));
+    // right hand, chest height, a little in front — close enough to read as
+    // "he is carrying that" at office distance, which is the whole job.
+    g.position.set(0.24, 1.02, 0.16);
+    a.group.add(g);
+    a.holdMesh = g;
+  }
+
   _steerAvatar(p, a) {
     const c = p.cursor;
+    this._setAvatarHold(a, (c && c.mode === 'office' && c.hold) ? c.hold : '');
     if (c && c.mode === 'office' && Number.isFinite(c.x) && Number.isFinite(c.z)) {
       a.target.set(c.x, 0, c.z);
       // +PI, and it is not arbitrary. The office's yaw convention is "yaw 0
@@ -1879,7 +1908,13 @@ export class Office {
     // what the other players need to see there.
     if (this.screenEditor) return;
     const pos = this.player.pos ?? this.camera.position;
-    net.setCursor({ mode: 'office', x: r2(pos.x), y: 0, z: r2(pos.z), ry: r2(this.player.yaw ?? 0) });
+    // WHAT IS IN MY HAND TRAVELS WITH WHERE I AM STANDING. Item 6's last part:
+    // "the other player cannot see that he is holding it." One more key inside
+    // `cursor`, which the database rule validates only as "has children", so
+    // still no rules change and no new node.
+    const c = this.interact?.carry;
+    const hold = c ? (c.kind === 'mug' ? (c.full ? 'mug-full' : 'mug') : c.kind) : '';
+    net.setCursor({ mode: 'office', x: r2(pos.x), y: 0, z: r2(pos.z), ry: r2(this.player.yaw ?? 0), hold });
   }
 
   _makeAvatar(p) {

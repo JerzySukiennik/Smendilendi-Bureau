@@ -760,15 +760,48 @@ export function propDeskLamp(b, o = {}) {
 /** Ceramic mug, 82 mm across, 95 tall, with a handle. */
 export function propMug(b, o = {}) {
   const c = o.color ?? 0xffffff;       // tinted per instance
-  b.ccylUp(0.038, 0.041, 0.095, 16, { color: c, mat: 'tile', ao: false, c: 0.004 });
-  b.cylUp(0.030, 0.030, 0.004, 12, { y: 0.006, color: c, mat: 'tile', ao: false, shade: 0.82 });   // inside base
-  if (o.full) b.cylUp(0.034, 0.034, 0.006, 14, { y: 0.078, color: 0x4a3527, ao: false });
-  // handle: a proper C, seven links, tangent to the wall at both ends
-  for (let i = 0; i < 7; i++) {
-    const a = -1.15 + (i / 6) * 2.30;
-    b.cylUp(0.0055, 0.0055, 0.017, 6, {
-      x: 0.0385 + Math.cos(a) * 0.019, y: 0.048 + Math.sin(a) * 0.030,
-      rz: Math.PI / 2 - a * 0.55, color: c, mat: 'tile', ao: false,
+  // A MUG IS HOLLOW, AND THAT IS WHY YOU COULD NOT SEE THE COFFEE.
+  //
+  // "you cannot see the mug with the fill in it." The body was one SOLID
+  // cylinder with a closed top, so the inside base and the coffee disc were
+  // buried inside the geometry — the mug was a lump with a lid and there was
+  // nothing to see into. It is now a wall you can look down: an open outer
+  // tube, an open inner tube one wall-thickness in, a floor, and a rim ring
+  // closing the gap between the two at the top.
+  const RO = 0.041, RI = 0.0355, HT = 0.095;
+  b.cyl(RO, 0.038, HT, 18, { y: HT / 2, color: c, mat: 'tile', ao: false, open: true });
+  // ONE wall, not two. The open tube already renders both faces, so the far
+  // side of it IS the inside of the mug; adding a second tube 5 mm inside it
+  // only gave two rims at slightly different heights, which scalloped the top
+  // edge into a row of teeth. The floor closes the bottom and that is all a
+  // mug needs.
+  b.cylUp(RI + 0.002, RI + 0.002, 0.010, 18, { y: 0.005, color: c, mat: 'tile', ao: false, shade: 0.88 });
+  // The coffee sits 12 mm below the rim: near enough the top to read as a full
+  // mug, far enough down to cast the inside into shadow the way a real one does.
+  if (o.full) b.cylUp(RI - 0.002, RI - 0.002, 0.005, 16, { y: HT - 0.017, color: 0x3a2416, ao: false });
+  // THE HANDLE IS A HALF-RING, and it has to be built like one.
+  //
+  // "the handle is made of cylinders and not a half-ring." It was already seven
+  // links of an arc, but each link was rotated by `PI/2 - a*0.55`, which is not
+  // the tangent of anything — so the links sat across the curve instead of
+  // along it and the whole thing read as a lump stuck to the side. A cylinder
+  // built along +Y is tangent to a circle at angle `a` when it is rotated about
+  // Z by exactly `a`; that is the whole correction. Thirteen links on a true
+  // circle, overlapping slightly so the arc is continuous, with a ball at each
+  // end where it meets the wall.
+  const HR = 0.024, HX = 0.0395, HY = 0.0475;   // arc radius and centre
+  const A0 = -1.28, A1 = 1.28, N = 13;
+  const seg = (HR * (A1 - A0)) / (N - 1) * 1.35;
+  for (let i = 0; i < N; i++) {
+    const a = A0 + (i / (N - 1)) * (A1 - A0);
+    b.cylUp(0.0058, 0.0058, seg, 6, {
+      x: HX + Math.cos(a) * HR, y: HY + Math.sin(a) * HR,
+      rz: a, color: c, mat: 'tile', ao: false,
+    });
+  }
+  for (const a of [A0, A1]) {
+    b.add(new SphereGeometry(0.0062, 8, 6), {
+      x: HX + Math.cos(a) * HR, y: HY + Math.sin(a) * HR, color: c, mat: 'tile', ao: false,
     });
   }
 }

@@ -311,7 +311,8 @@ export class LocalTransport {
       // would be rejected outright, while `cursor` is validated only as
       // "has children". Editor cursors simply never set it.
     p.cursor = cursor && { mode: cursor.mode ?? null, x: cursor.x ?? 0, y: cursor.y ?? 0, z: cursor.z ?? 0,
-      ...(Number.isFinite(cursor.ry) ? { ry: cursor.ry } : {}) };
+      ...(Number.isFinite(cursor.ry) ? { ry: cursor.ry } : {}),
+      ...(cursor.hold ? { hold: String(cursor.hold).slice(0, 16) } : {}) };
     p.sel = cursor?.sel ?? p.sel;
     p.lastSeen = Date.now();
     this.hub._emit('onPlayers', this.hub.playerList());
