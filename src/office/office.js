@@ -2145,9 +2145,18 @@ export class Office {
         // strangely." So the input names a TARGET velocity and the chair is
         // pulled towards it — quick to answer, quick to stop, and it still has
         // weight because the pull is a rate, not a snap.
-        // yaw 0 looks down -Z (player.js), so forward is (sin, -cos)
-        const fx = Math.sin(P.yaw), fz = -Math.cos(P.yaw);
-        const rx = Math.cos(P.yaw), rz = Math.sin(P.yaw);
+        // THE SAME BASIS AS WALKING, COPIED, NOT RE-DERIVED.
+        //
+        // "the controls on the chair are swapped." They were, in both axes: I
+        // wrote fx = +sin and rz = +sin where player.js uses fx = -sin and
+        // rz = -sin, which mirrors forward AND strafe. Re-deriving a convention
+        // that already exists eleven lines away in the file that owns it is how
+        // that happens, so this now reads exactly like Player.update and any
+        // future change to the convention breaks both together instead of
+        // silently disagreeing.
+        const cs = Math.cos(P.yaw), sn = Math.sin(P.yaw);
+        const fx = -sn, fz = -cs;
+        const rx = cs, rz = -sn;
         const top = 2.2 + c.boost * 5.6;
         const wantX = (fx * mv.y + rx * mv.x) * top;
         const wantZ = (fz * mv.y + rz * mv.x) * top;
