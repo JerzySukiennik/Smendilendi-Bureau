@@ -157,7 +157,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "LocalHub delivers an op TWICE to a client that is mid-connect, permanently diverging the models — the exact guarantee the piece is built to provide. Sequence: (",
+   "headline": "LocalHub delivers an op TWICE to a client that is mid-connect, permanently diverging the models \u2014 the exact guarantee the piece is built to provide. Sequence: (",
    "at": "2026-08-27T10:29:31.997Z"
   },
   {
@@ -229,7 +229,7 @@
    "role": "builder",
    "round": 1,
    "status": "pass",
-   "headline": "Sign-off applied: 4 gains, 6 owner-supplied proprietary files (flagged + credited honestly), 6 CC0 replacements from real recorded objects, mix.json wired into the engine — engine and review page now agree on all 17 ids",
+   "headline": "Sign-off applied: 4 gains, 6 owner-supplied proprietary files (flagged + credited honestly), 6 CC0 replacements from real recorded objects, mix.json wired into the engine \u2014 engine and review page now agree on all 17 ids",
    "files": [
     "assets/audio/manifest.json",
     "assets/audio/mix.json",
@@ -294,7 +294,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "The review page's central promise — \"what Jurek hears is what ships\" — is false. The whole sign-off apparatus (mix.json, review.js, batches.json, the builder's own verify-signoff.m",
+   "headline": "The review page's central promise \u2014 \"what Jurek hears is what ships\" \u2014 is false. The whole sign-off apparatus (mix.json, review.js, batches.json, the builder's own verify-signoff.m",
    "at": "2026-08-27T16:47:32.721Z"
   },
   {
@@ -316,7 +316,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "17/20 on the authenticity checklist — geometry and bevels are pixel-exact (18 px caption, 16x14 buttons, 54x22 Start, 22 px Platinum bar with 6 pinstripe pairs, 13-colour palette), but the UI font is a 5x7 house font not MS Sans Serif (View 18x8 px vs the reference 23x11), so the blind A/B is trivially easy; scrollbar arrows 16x17 not square; Start menu mixes 32x32 and 16x16 icons; the client e-mail prints \"1 ? Accessible WC\" (no glyph for U+00D7); an open menu survives closeAll/setTier and floats orphaned; tiers 3 and 4 are the same OS at two resolutions.",
+   "headline": "17/20 on the authenticity checklist \u2014 geometry and bevels are pixel-exact (18 px caption, 16x14 buttons, 54x22 Start, 22 px Platinum bar with 6 pinstripe pairs, 13-colour palette), but the UI font is a 5x7 house font not MS Sans Serif (View 18x8 px vs the reference 23x11), so the blind A/B is trivially easy; scrollbar arrows 16x17 not square; Start menu mixes 32x32 and 16x16 icons; the client e-mail prints \"1 ? Accessible WC\" (no glyph for U+00D7); an open menu survives closeAll/setTier and floats orphaned; tiers 3 and 4 are the same OS at two resolutions.",
    "shot": "shots/crit-os-tiers.png",
    "at": "2026-08-27T21:20:51.821Z"
   },
@@ -325,7 +325,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "17/20 — The UI typeface. Everything measurable about the geometry is right — 18 px caption, 16x14 caption buttons, 16 px scrollbars, 20 px menu items, 28 px taskbar, 54x22 Start button, the 22 px Plat",
+   "headline": "17/20 \u2014 The UI typeface. Everything measurable about the geometry is right \u2014 18 px caption, 16x14 caption buttons, 16 px scrollbars, 20 px menu items, 28 px taskbar, 54x22 Start button, the 22 px Plat",
    "at": "2026-08-27T21:22:48.928Z"
   },
   {
@@ -342,7 +342,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "Navmesh truth: PASS. Simulation, statistics and roster coverage: FAIL. 3 blockers, 4 majors, 3 minors. — The pathfinding is honest but the people are not walking. In the project's own demo house, 9 of",
+   "headline": "Navmesh truth: PASS. Simulation, statistics and roster coverage: FAIL. 3 blockers, 4 majors, 3 minors. \u2014 The pathfinding is honest but the people are not walking. In the project's own demo house, 9 of",
    "at": "2026-08-27T21:30:24.345Z"
   },
   {
@@ -359,7 +359,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "10/15 — Two surveyor's tags state numbers the geometry does not have, and the target player is exactly the person who will check them. Tag 2 says the escape stair has \"175 mm risers\"; buildEscapeStair",
+   "headline": "10/15 \u2014 Two surveyor's tags state numbers the geometry does not have, and the target player is exactly the person who will check them. Tag 2 says the escape stair has \"175 mm risers\"; buildEscapeStair",
    "at": "2026-08-27T21:40:17.599Z"
   },
   {
@@ -410,7 +410,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "6/6 click benchmarks met — but the round fails on correctness: arrow-key axis lock is broken in the default 3D view (60.1 m wall instead of 4 m), and three of the seven required inferences never fire ",
+   "headline": "6/6 click benchmarks met \u2014 but the round fails on correctness: arrow-key axis lock is broken in the default 3D view (60.1 m wall instead of 4 m), and three of the seven required inferences never fire ",
    "at": "2026-08-27T21:47:34.355Z"
   },
   {
@@ -418,7 +418,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "3/10 — The \"generator-level fix\" only exists for 15 of the 122 catalogue entries. The other 107 items the architect opens next are built by a separate, unbevelled, never-audited path (src/model/proc-s",
+   "headline": "3/10 \u2014 The \"generator-level fix\" only exists for 15 of the 122 catalogue entries. The other 107 items the architect opens next are built by a separate, unbevelled, never-audited path (src/model/proc-s",
    "at": "2026-08-27T21:49:11.659Z"
   },
   {
@@ -435,7 +435,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "13/15 — The retro-OS screen — the single object the whole game is built around — is parented to the workstation group at local y = MONITOR_SCREEN.y = 0.4025 m while that group sits on the floor, so th",
+   "headline": "13/15 \u2014 The retro-OS screen \u2014 the single object the whole game is built around \u2014 is parented to the workstation group at local y = MONITOR_SCREEN.y = 0.4025 m while that group sits on the floor, so th",
    "at": "2026-08-27T22:06:57.292Z"
   },
   {
@@ -461,7 +461,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "7/10 — every level in the tree is correct today; the verifier that is supposed to keep it that way has two proven bypasses and one false green. — verify-signoff.mjs bans the WORD `volume:`, not the CL",
+   "headline": "7/10 \u2014 every level in the tree is correct today; the verifier that is supposed to keep it that way has two proven bypasses and one false green. \u2014 verify-signoff.mjs bans the WORD `volume:`, not the CL",
    "at": "2026-08-27T22:10:02.410Z"
   },
   {
@@ -469,7 +469,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "3/10 — The \"generator-level fix\" only exists for 15 of the 122 catalogue entries. The other 107 items the architect opens next are built by a separate, unbevelled, never-audited path (src/model/proc-s",
+   "headline": "3/10 \u2014 The \"generator-level fix\" only exists for 15 of the 122 catalogue entries. The other 107 items the architect opens next are built by a separate, unbevelled, never-audited path (src/model/proc-s",
    "at": "2026-08-28T07:33:25.556Z"
   },
   {
@@ -477,7 +477,7 @@
    "role": "critic",
    "round": 2,
    "status": "fail",
-   "headline": "All 4 approved gains land exactly (55 call sites, 0 divergences, measured on the live WebAudio graph) — but the verifier is defeatable twice over (handle.setVolume in a wrapper, and a bus: override) and ui.mail-notify + the 4 keyboard sounds never play at all",
+   "headline": "All 4 approved gains land exactly (55 call sites, 0 divergences, measured on the live WebAudio graph) \u2014 but the verifier is defeatable twice over (handle.setVolume in a wrapper, and a bus: override) and ui.mail-notify + the 4 keyboard sounds never play at all",
    "shot": "shots/crit-audio-levels-measured.png",
    "at": "2026-08-28T07:48:23.741Z"
   },
@@ -486,7 +486,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "6.5/10 — the four signed-off levels are genuinely correct end-to-end (verified independently, measured on the live gain nodes, 0 divergences over 55 call sites), but the verifier that is supposed to k",
+   "headline": "6.5/10 \u2014 the four signed-off levels are genuinely correct end-to-end (verified independently, measured on the live gain nodes, 0 divergences over 55 call sites), but the verifier that is supposed to k",
    "at": "2026-08-28T07:54:42.288Z"
   },
   {
@@ -494,7 +494,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "Pixel work is a clean 20/20 on the authenticity checklist (title 18px, caption 16x14, scrollbar 16px, menu 20px, taskbar 28px, Start 54x22, Platinum 22px with 6 pinstripe pairs, 12 colours in the T1 frame, alpha 255 everywhere) — but src/os never exports createOsSurface, so the game shows desks.js PlaceholderOs and no player ever sees it.",
+   "headline": "Pixel work is a clean 20/20 on the authenticity checklist (title 18px, caption 16x14, scrollbar 16px, menu 20px, taskbar 28px, Start 54x22, Platinum 22px with 6 pinstripe pairs, 12 colours in the T1 frame, alpha 255 everywhere) \u2014 but src/os never exports createOsSurface, so the game shows desks.js PlaceholderOs and no player ever sees it.",
    "shot": "shots/osc-t1-pose.png",
    "at": "2026-08-28T07:57:20.209Z"
   },
@@ -503,7 +503,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "20/20 — The pixels are the best retro-OS reproduction I have measured — a clean 20/20 — but no player will ever see them. src/office/desks.js declares the contract `createOsSurface({width,height,tier,",
+   "headline": "20/20 \u2014 The pixels are the best retro-OS reproduction I have measured \u2014 a clean 20/20 \u2014 but no player will ever see them. src/office/desks.js declares the contract `createOsSurface({width,height,tier,",
    "at": "2026-08-28T07:59:52.848Z"
   },
   {
@@ -520,7 +520,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "Navmesh truth: 9/10 · Statistics truth: 8/10 · Physical correctness: 2/10 · Presentation: 6/10 — overall FAIL on the stated automatic-fail condition (NPCs walk through a wall) — Everything the piece w",
+   "headline": "Navmesh truth: 9/10 \u00b7 Statistics truth: 8/10 \u00b7 Physical correctness: 2/10 \u00b7 Presentation: 6/10 \u2014 overall FAIL on the stated automatic-fail condition (NPCs walk through a wall) \u2014 Everything the piece w",
    "at": "2026-08-28T08:11:14.547Z"
   },
   {
@@ -562,7 +562,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "12/15 — The joke is being told by hover text, not by the building. Only 5 of the 12 crimes (7 downpipe, 8 window heads, 11 scupper stain, 12 unshaded south glass, and partly 1) are readable in the com",
+   "headline": "12/15 \u2014 The joke is being told by hover text, not by the building. Only 5 of the 12 crimes (7 downpipe, 8 window heads, 11 scupper stain, 12 unshaded south glass, and partly 1) are readable in the com",
    "at": "2026-08-28T08:24:10.754Z"
   },
   {
@@ -570,7 +570,7 @@
    "role": "builder",
    "round": 2,
    "status": "pass",
-   "headline": "createOsSurface adapter shipped — the real OS now runs on the desk monitor (804x480 pillarboxed, CRT pass, office pointer(u,v,buttons) bridge); Find/Documents get their own 8-colour icons; OK/Cancel lose their mnemonics; ATELIER 9 gets a twill desktop, its own frame ramp and a Control Strip; Explorer dates switch to dd/mm/yy past 6 months",
+   "headline": "createOsSurface adapter shipped \u2014 the real OS now runs on the desk monitor (804x480 pillarboxed, CRT pass, office pointer(u,v,buttons) bridge); Find/Documents get their own 8-colour icons; OK/Cancel lose their mnemonics; ATELIER 9 gets a twill desktop, its own frame ramp and a Control Strip; Explorer dates switch to dd/mm/yy past 6 months",
    "shot": "shots/os-r2.png",
    "at": "2026-08-28T08:26:30.780Z"
   },
@@ -588,7 +588,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "6/6 click benchmarks met — With an axis locked, a typed length ignores the sign the cursor established: the live preview and the Measurements box show the wall running one way, Enter builds it the opp",
+   "headline": "6/6 click benchmarks met \u2014 With an axis locked, a typed length ignores the sign the cursor established: the live preview and the Measurements box show the wall running one way, Enter builds it the opp",
    "at": "2026-08-28T08:28:50.678Z"
   },
   {
@@ -605,7 +605,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "6.5/10 — the four signed-off levels are genuinely correct end-to-end (verified independently, measured on the live gain nodes, 0 divergences over 55 call sites), but the verifier that is supposed to k",
+   "headline": "6.5/10 \u2014 the four signed-off levels are genuinely correct end-to-end (verified independently, measured on the live gain nodes, 0 divergences over 55 call sites), but the verifier that is supposed to k",
    "at": "2026-08-28T23:23:14.550Z"
   },
   {
@@ -622,7 +622,7 @@
    "role": "critic",
    "round": 1,
    "status": "pass",
-   "headline": "19/20 — Behaviour, not pixels. The Start-menu cascade is broken: os.js:569 sets `this.startOpen = false` before opening a submenu, so clicking \"Programs\" makes the parent Start menu vanish and leaves ",
+   "headline": "19/20 \u2014 Behaviour, not pixels. The Start-menu cascade is broken: os.js:569 sets `this.startOpen = false` before opening a submenu, so clicking \"Programs\" makes the parent Start menu vanish and leaves ",
    "at": "2026-08-29T19:04:22.121Z"
   },
   {
@@ -639,7 +639,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "6/6 click benchmarks met — The keyboard is always live, but it is not always *right*. Three typed entries put geometry into the model that is not what the architect typed, silently and with no error: ",
+   "headline": "6/6 click benchmarks met \u2014 The keyboard is always live, but it is not always *right*. Three typed entries put geometry into the model that is not what the architect typed, silently and with no error: ",
    "at": "2026-08-29T19:18:29.095Z"
   },
   {
@@ -656,7 +656,7 @@
    "role": "critic",
    "round": 2,
    "status": "fail",
-   "headline": "13/15 on the look; the 20 fps is a measurement artefact — a menu frame costs 4.2 ms and is resolution-independent, while engine._adapt has driven dpr 1.75->1.00 for nothing",
+   "headline": "13/15 on the look; the 20 fps is a measurement artefact \u2014 a menu frame costs 4.2 ms and is resolution-independent, while engine._adapt has driven dpr 1.75->1.00 for nothing",
    "shot": "shots/crit-menu-r2-base.png",
    "gap": "6 of the 12 crimes are not legible at the default menu framing, and untagged apparent defects make deliberate wrongness indistinguishable from sloppiness",
    "detail": "renderer.render offscreen with gl.finish: 4.1-4.2 ms at 0.09/0.36/1.44/4.41 Mpx (49x pixel range, flat). 20 identical frames: 77 draws, 0 texImage2D, 0 bufferData, 0 compileShader, 0 bindFramebuffer. shadowMap.autoUpdate=false. mode.update 0.2-0.5 ms. engine.js:324+344 frameMs = performance.now() - rafTimestamp = scheduling latency; quality.stepCount=3, _rejected=260, pixelRatio 1.75->1.00 floor. luma p5 36.2 p95 212.2. Contact shadows: 14/26 instances pass, all 5 bollards fail (delta 0.5-5.4) due to 1024 map = 58.6 mm/texel; 4096 measured free (steady 5.2->5.2 ms, one-off bake 5.6 ms). lobby.js:137 says orange tags, in-world discs sample #3E7899.",
@@ -683,7 +683,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "12/15 — The retro-OS screen quad is parented to the workstation Group at floor level but positioned with MONITOR_SCREEN.y = 0.4025, which is a MONITOR-LOCAL offset. Measured at runtime: screen world p",
+   "headline": "12/15 \u2014 The retro-OS screen quad is parented to the workstation Group at floor level but positioned with MONITOR_SCREEN.y = 0.4025, which is a MONITOR-LOCAL offset. Measured at runtime: screen world p",
    "at": "2026-08-29T19:28:44.010Z"
   },
   {
@@ -691,7 +691,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "Pathfinding is honest — 0 wall crossings and 0 furniture overlaps across 59,849 agent-frame samples in three plans the code had never seen, and the annoyed NPC stops 0.3 m from the door I deleted. But navmesh.js passageWidth() takes a MAXIMUM over the cell quarters, so a 1.40 m corridor pinched to a hand-measured 0.700 m still reports 1.400 m, and an 0.80 m corridor reports 7.800 m opposite a doorway; and the report bills the architect for a study the generated house brief never asked for.",
+   "headline": "Pathfinding is honest \u2014 0 wall crossings and 0 furniture overlaps across 59,849 agent-frame samples in three plans the code had never seen, and the annoyed NPC stops 0.3 m from the door I deleted. But navmesh.js passageWidth() takes a MAXIMUM over the cell quarters, so a 1.40 m corridor pinched to a hand-measured 0.700 m still reports 1.400 m, and an 0.80 m corridor reports 7.800 m opposite a doorway; and the report bills the architect for a study the generated house brief never asked for.",
    "shot": "shots/crit-walk-B-missing-door.png",
    "at": "2026-08-29T19:29:50.507Z"
   },
@@ -700,7 +700,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "13/15 — The joke does not survive the framing it ships in. Working blind from the render I could name only 3 of the 12 crimes cleanly (5 short column, 8 window heads, 10 chimney) and 3 partially (2 fi",
+   "headline": "13/15 \u2014 The joke does not survive the framing it ships in. Working blind from the render I could name only 3 of the 12 crimes cleanly (5 short column, 8 window heads, 10 chimney) and 3 partially (2 fi",
    "at": "2026-08-29T19:30:04.890Z"
   },
   {
@@ -708,7 +708,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "Navmesh truth 9/10 · NPC roles & schedule 9/10 · Statistics honesty 5/10 · Heatmap 9/10 · Ageing 9/10 · Transition 10/10 · Performance 9/10 · Console 10/10 — overall 7/10 — `passageWidth()` (src/walk/",
+   "headline": "Navmesh truth 9/10 \u00b7 NPC roles & schedule 9/10 \u00b7 Statistics honesty 5/10 \u00b7 Heatmap 9/10 \u00b7 Ageing 9/10 \u00b7 Transition 10/10 \u00b7 Performance 9/10 \u00b7 Console 10/10 \u2014 overall 7/10 \u2014 `passageWidth()` (src/walk/",
    "at": "2026-08-29T19:31:45.942Z"
   },
   {
@@ -716,7 +716,7 @@
    "role": "builder",
    "round": 3,
    "status": "pass",
-   "headline": "Three more ways to move a signed-off level found and closed (setVolume with optional chaining, audio.volumes write, audio.mix write) — mix deep-frozen, volumes is a read-only copy, scanner regex fixed; 22/22 checks, 12/12 known attacks now exit 1, 69 paths measured on live gain nodes with 0 divergences",
+   "headline": "Three more ways to move a signed-off level found and closed (setVolume with optional chaining, audio.volumes write, audio.mix write) \u2014 mix deep-frozen, volumes is a read-only copy, scanner regex fixed; 22/22 checks, 12/12 known attacks now exit 1, 69 paths measured on live gain nodes with 0 divergences",
    "shot": "shots/audio-levels-r2.png",
    "at": "2026-08-29T19:34:32.209Z"
   },
@@ -734,7 +734,7 @@
    "role": "critic",
    "round": 3,
    "status": "fail",
-   "headline": "Four signed-off gains exact and honoured at all 77 call sites (0 divergences, review chip bit-exact to 1e-12, office-ambient-2 now plays as playlist track 2). BLOCKER: verify-signoff.mjs is blind to AudioBus construction — new AudioBus({mix}) / {manifestPath} restate every level permanently and all checks still pass; measured 0.0567 vs the promised 0.127575.",
+   "headline": "Four signed-off gains exact and honoured at all 77 call sites (0 divergences, review chip bit-exact to 1e-12, office-ambient-2 now plays as playlist track 2). BLOCKER: verify-signoff.mjs is blind to AudioBus construction \u2014 new AudioBus({mix}) / {manifestPath} restate every level permanently and all checks still pass; measured 0.0567 vs the promised 0.127575.",
    "shot": "shots/crit-audio-r3-levels.png",
    "at": "2026-08-29T20:05:09.028Z"
   },
@@ -743,7 +743,7 @@
    "role": "critic",
    "round": 2,
    "status": "fail",
-   "headline": "7/10 — the four signed-off levels are exact and are honoured at every one of the 77 playback paths I found independently; the sign-off GUARANTEE is still defeatable, in the same shape as rounds 2/4/5.",
+   "headline": "7/10 \u2014 the four signed-off levels are exact and are honoured at every one of the 77 playback paths I found independently; the sign-off GUARANTEE is still defeatable, in the same shape as rounds 2/4/5.",
    "at": "2026-08-29T20:06:50.624Z"
   },
   {
@@ -751,7 +751,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "19/20 on the authenticity checklist — chrome is pixel-exact against the reference (18px caption, 16x14 caption buttons, 16px scrollbar with a 7x4 triangle, 54x22 Start, 20px menu items, 12 distinct colours vs win95-09s 17, exact 12-row Platinum pinstripe). Two real defects: setTier(sameTier,{boot:false}) early-returns so the offices skipBoot() is a silent no-op (empty desks play the full 5s boot), and the 32x32 icons are flat 3-colour glyphs with no dithered highlight — they are what lost the blind A/B.",
+   "headline": "19/20 on the authenticity checklist \u2014 chrome is pixel-exact against the reference (18px caption, 16x14 caption buttons, 16px scrollbar with a 7x4 triangle, 54x22 Start, 20px menu items, 12 distinct colours vs win95-09s 17, exact 12-row Platinum pinstripe). Two real defects: setTier(sameTier,{boot:false}) early-returns so the offices skipBoot() is a silent no-op (empty desks play the full 5s boot), and the 32x32 icons are flat 3-colour glyphs with no dithered highlight \u2014 they are what lost the blind A/B.",
    "shot": "shots/crit2-os-ab.png",
    "at": "2026-08-29T20:38:44.769Z"
   },
@@ -760,7 +760,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "19/20 — The 32x32 icon art. Every geometric and chromatic measurement in the chrome matches the reference to the pixel, but the icons are flat 3-4 colour front-on glyphs where Win95's are 4-bit, 3/4-p",
+   "headline": "19/20 \u2014 The 32x32 icon art. Every geometric and chromatic measurement in the chrome matches the reference to the pixel, but the icons are flat 3-4 colour front-on glyphs where Win95's are 4-bit, 3/4-p",
    "at": "2026-08-29T20:40:36.344Z"
   },
   {
@@ -777,7 +777,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "19/20 on the ANALYSIS checklist — Win95/98 tiers are pixel-exact (title 18px, caption 16x14, scrollbar 16px with a 7x4 triangle, Start 54x22, taskbar 28px, glyphs byte-identical to win95-09), but tiers 3-4 render the Platinum menu bar in MS Sans Serif with Windows mnemonic underlines instead of Chicago, which loses the blind A/B in a second.",
+   "headline": "19/20 on the ANALYSIS checklist \u2014 Win95/98 tiers are pixel-exact (title 18px, caption 16x14, scrollbar 16px with a 7x4 triangle, Start 54x22, taskbar 28px, glyphs byte-identical to win95-09), but tiers 3-4 render the Platinum menu bar in MS Sans Serif with Windows mnemonic underlines instead of Chicago, which loses the blind A/B in a second.",
    "shot": "shots/zz-ab-macmenubar.png",
    "at": "2026-08-30T11:27:05.921Z"
   },
@@ -786,7 +786,7 @@
    "role": "critic",
    "round": 2,
    "status": "fail",
-   "headline": "19/20 — Half the product wears the wrong typeface. Tiers 3 and 4 are Platinum-family OSes (22 px pinstriped title bar, Mac menu bar, close box left) but every glyph in them — menu bar, window titles, ",
+   "headline": "19/20 \u2014 Half the product wears the wrong typeface. Tiers 3 and 4 are Platinum-family OSes (22 px pinstriped title bar, Mac menu bar, close box left) but every glyph in them \u2014 menu bar, window titles, ",
    "at": "2026-08-30T11:29:53.000Z"
   },
   {
@@ -832,7 +832,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "6/6 click benchmarks met and the always-live keyboard is real (4m wall in 3 decisions, post-hoc re-length works, all 11 inferences name themselves) — but the HUD layer swallows every pointer event, so the viewport is dead to the mouse in the shipped game; editor also boots at dist 0.61 m showing nothing, and the paint cost toast is 15.8 % wrong.",
+   "headline": "6/6 click benchmarks met and the always-live keyboard is real (4m wall in 3 decisions, post-hoc re-length works, all 11 inferences name themselves) \u2014 but the HUD layer swallows every pointer event, so the viewport is dead to the mouse in the shipped game; editor also boots at dist 0.61 m showing nothing, and the paint cost toast is 15.8 % wrong.",
    "shot": "shots/editor-plan-clean.png",
    "at": "2026-08-30T13:14:51.579Z"
   },
@@ -841,7 +841,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "6/6 click benchmarks met — The editor's 3D viewport is completely dead to the mouse in the shipped game. `.ed-root` (the HUD layer, `position:absolute; inset:0`) computes to `pointer-events: auto` bec",
+   "headline": "6/6 click benchmarks met \u2014 The editor's 3D viewport is completely dead to the mouse in the shipped game. `.ed-root` (the HUD layer, `position:absolute; inset:0`) computes to `pointer-events: auto` bec",
    "at": "2026-08-30T13:18:05.573Z"
   },
   {
@@ -850,8 +850,8 @@
    "round": 3,
    "status": "fail",
    "headline": "Props are fixed; the player's own monitor is a black rectangle and the ceiling/wall junction z-fights",
-   "detail": "39/39 props render as the object they are named after — no prop still reads as a bare box. 10/10 catalogue GLBs load with 0 fallbacks and 0 drift; 9 of 39 props (23%) route through assets/models. Chamfer verified at 6mm with a visible edge highlight on the plan chest, but 126 chamfered vs 52 plain boxes in props.js and ZERO chamfers in room.js (29 boxes), office.js (23) or desks.js (8). Finish bar: 12/15 pass on the hero frame. Fails item 10 (two saturated hues: accent orange s0.74 and Prussian blue s0.66-0.83 on the cyanotypes), item 5 at the wall/ceiling junction (8.1 luma per 20px against a bar of 12; the wall/floor junction passes at 16.1), and item 1 on the shipped teapoint pose (~9 prop types against a floor of 16).",
-   "gap": "Workstation 0 — the desk the game seats the player at — paints a screenLuma of 0.0 while the two empty desks paint 107.8. The office's own _auditScreens warns about it on every boot, in the harness and in index.html, and it is still shipped. assign() only calls skipBoot() when there is no player.",
+   "detail": "39/39 props render as the object they are named after \u2014 no prop still reads as a bare box. 10/10 catalogue GLBs load with 0 fallbacks and 0 drift; 9 of 39 props (23%) route through assets/models. Chamfer verified at 6mm with a visible edge highlight on the plan chest, but 126 chamfered vs 52 plain boxes in props.js and ZERO chamfers in room.js (29 boxes), office.js (23) or desks.js (8). Finish bar: 12/15 pass on the hero frame. Fails item 10 (two saturated hues: accent orange s0.74 and Prussian blue s0.66-0.83 on the cyanotypes), item 5 at the wall/ceiling junction (8.1 luma per 20px against a bar of 12; the wall/floor junction passes at 16.1), and item 1 on the shipped teapoint pose (~9 prop types against a floor of 16).",
+   "gap": "Workstation 0 \u2014 the desk the game seats the player at \u2014 paints a screenLuma of 0.0 while the two empty desks paint 107.8. The office's own _auditScreens warns about it on every boot, in the harness and in index.html, and it is still shipped. assign() only calls skipBoot() when there is no player.",
    "files": [
     "src/office/props.js",
     "src/office/models.js",
@@ -882,7 +882,7 @@
    "role": "critic",
    "round": 1,
    "status": "fail",
-   "headline": "12 / 15 on the finish bar for the hero frame (items 5-ceiling, 10 and — on the shipped teapoint pose — 1 fail). The prop brief itself is essentially discharged: 0 of 39 props still read as a bare box.",
+   "headline": "12 / 15 on the finish bar for the hero frame (items 5-ceiling, 10 and \u2014 on the shipped teapoint pose \u2014 1 fail). The prop brief itself is essentially discharged: 0 of 39 props still read as a bare box.",
    "at": "2026-08-30T13:26:48.008Z"
   },
   {
@@ -1014,7 +1014,7 @@
    "role": "builder",
    "round": 6,
    "status": "pass",
-   "headline": "Editor palette is a labelled list: 21 tools named with key badges and groups, armed tool filled — icon-only buttons were the main reason the editor was unreadable.",
+   "headline": "Editor palette is a labelled list: 21 tools named with key badges and groups, armed tool filled \u2014 icon-only buttons were the main reason the editor was unreadable.",
    "at": "2026-09-04T22:20:10.869Z"
   },
   {
@@ -1046,7 +1046,7 @@
    "role": "builder",
    "round": 8,
    "status": "pass",
-   "headline": "Outline thickness computed in screen pixels (was 1 px on a 1600 px canvas); validation panel re-runs itself 0.5 s after the last edit — cutting a door clears ACCESS_NO_ENTRANCE with no button press.",
+   "headline": "Outline thickness computed in screen pixels (was 1 px on a 1600 px canvas); validation panel re-runs itself 0.5 s after the last edit \u2014 cutting a door clears ACCESS_NO_ENTRANCE with no button press.",
    "at": "2026-09-04T23:51:28.763Z"
   },
   {
@@ -1054,9 +1054,49 @@
    "role": "builder",
    "round": 7,
    "status": "pass",
-   "headline": "World beyond the glass: three depth bands lifted toward the sky, windowed blocks, real conifers. Exterior 1872 -> 12788 triangles in 2 merged meshes. Luma unverified this session — the readback control was also dark.",
+   "headline": "World beyond the glass: three depth bands lifted toward the sky, windowed blocks, real conifers. Exterior 1872 -> 12788 triangles in 2 merged meshes. Luma unverified this session \u2014 the readback control was also dark.",
    "at": "2026-09-04T23:53:27.967Z"
+  },
+  {
+   "piece": "office",
+   "role": "builder",
+   "round": 8,
+   "status": "pass",
+   "headline": "One cursor (the OS paints its own per-tier pointer; the duplicate DOM overlay removed) and paper is crumpled into your hand, aimed, then thrown with left click.",
+   "at": "2026-09-04T23:59:10.666Z"
+  },
+  {
+   "piece": "office",
+   "role": "builder",
+   "round": 9,
+   "status": "pass",
+   "headline": "Coffee is three moves: take an empty mug from the shelf, stand it under the machine, watch it pour (falling drops, 3.2 s), get it back full. An empty mug cannot be sipped.",
+   "at": "2026-09-05T00:01:12.815Z"
+  },
+  {
+   "piece": "os",
+   "role": "builder",
+   "round": 5,
+   "status": "pass",
+   "headline": "Mail layout: the client list drops from 42% to 26% of the window (capped at 34% on the 640x480 machine), so the letter gets 66-74% instead of 58%.",
+   "at": "2026-09-05T00:03:02.142Z"
+  },
+  {
+   "piece": "editor",
+   "role": "builder",
+   "round": 5,
+   "status": "pass",
+   "headline": "The editor's render target now scales with the machine: 831x495 NEAREST on the Pentagram, 2266x1350 on the Melon (was 806x480 for all four, upscaled 1.87x under a crisp HUD).",
+   "at": "2026-09-05T07:32:08.101251Z"
+  },
+  {
+   "piece": "editor",
+   "role": "builder",
+   "round": 5,
+   "status": "pass",
+   "headline": "Dragging off the plot turns the ghost red and the ScreenTip reads 'Off the plot' while the drag is live, instead of a bottom-of-screen line on release.",
+   "at": "2026-09-05T07:32:08.101251Z"
   }
  ],
- "updated": "2026-09-04T23:53:27.967Z"
+ "updated": "2026-09-05T07:32:08.101251Z"
 }
