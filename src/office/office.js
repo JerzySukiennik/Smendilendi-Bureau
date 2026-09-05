@@ -800,11 +800,11 @@ export class Office {
       // chair in a working studio is when its owner has got up. The straight
       // walk-in down the desk's centre line stays empty; the collider sits off
       // to the side where it can only be walked around, never through.
-      this._place(K.taskChair,
-        { position: { x: s.x + 0.66, y: 0, z: s.z + 0.92 }, rotationY: Math.PI * 0.78 },
-        studio.chairFabric);
-      this._shadow(s.x + 0.66, 0.004, s.z + 0.92, 0.78);
-      col(s.x + 0.66, s.z + 0.92, 0.52, 0.52);
+      // THE WORKSTATION CHAIRS ARE NOT INSTANCED PROPS ANY MORE — they move.
+      // Three extra draw calls buys a chair you can push across the room, sit
+      // on and drive. The cubicle chairs below stay in the instance pool: they
+      // have somebody in them and they are scenery.
+      this._addChair(s.index, s.x + 0.66, s.z + 0.92, Math.PI * 0.78, studio.chairFabric);
     }
     // two under-desk pedestals
     for (const x of [6.60, 8.90]) {
@@ -1294,8 +1294,42 @@ export class Office {
       I.register({
         id: `screen-${ws.slot.index}`, mesh: ws.screen, label: `Workstation ${ws.slot.index + 1}`,
         verb: 'Use', kind: 'screen', workstation: ws, range: 2.2,
-        onUse: () => I.focusScreen(ws),
+        onUse: () => {
+          // YOU CANNOT SWITCH A COMPUTER ON STANDING UP. Item 9: it is a desk
+          // job, and the chair is the way in. The message names the chair
+          // rather than just refusing, because a refusal with no next move is
+          // the same as a broken button.
+          const c = this.chairs?.[ws.slot.index];
+          if (!this.riding) {
+            this.toast(c ? 'Sit down at the desk first — the chair is right there.'
+              : 'Sit down at the desk first.');
+            this.ctx?.audio?.play('ui.error');
+            return;
+          }
+          if (c && Math.hypot(this.riding.x - c.x, this.riding.z - c.z) > 2.2
+              && Math.hypot(this.riding.x - ws.slot.x, this.riding.z - ws.slot.z) > 2.2) {
+            this.toast('Roll the chair up to that desk first.');
+            this.ctx?.audio?.play('ui.error');
+            return;
+          }
+          I.focusScreen(ws);
+        },
       });
+      // The chair itself: sit down, or get up again.
+      const chair = this.chairs?.[ws.slot.index];
+      if (chair) {
+        const proxy = this._proxy(chair.x, 0.50, chair.z, 0.62, 1.00, 0.62);
+        chair.proxy = proxy;
+        I.register({
+          id: `chair-${ws.slot.index}`, mesh: proxy, label: 'Task chair',
+          verb: 'Sit', kind: 'chair', range: 1.9,
+          onUse: (it) => {
+            const on = this.toggleRide(chair);
+            it.verb = on ? 'Get up' : 'Sit';
+            this.hud?.setPrompt(`${it.verb} — ${it.label}`);
+          },
+        });
+      }
       const lamp = this._proxy(ws.slot.x - 0.66, 0.98, ws.slot.z - 0.24, 0.30, 0.48, 0.30);
       I.register({
         id: `lamp-${ws.slot.index}`, mesh: lamp, label: 'Desk lamp',
@@ -1854,6 +1888,7 @@ export class Office {
   _steerAvatar(p, a) {
     const c = p.cursor;
     this._setAvatarHold(a, (c && c.mode === 'office' && c.hold) ? c.hold : '');
+    a.act = (c && c.mode === 'office' && c.act) ? c.act : '';
     if (c && c.mode === 'office' && Number.isFinite(c.x) && Number.isFinite(c.z)) {
       a.target.set(c.x, 0, c.z);
       // +PI, and it is not arbitrary. The office's yaw convention is "yaw 0
@@ -1886,9 +1921,17 @@ export class Office {
       g.rotation.y += dy * Math.min(1, dt * 8);
       if (a.rig) {
         a.rig.update(dt);
-        const want = (d > 0.05 && a.moving > 0.5) ? 'walk' : 'idle';
+        // The published act wins over movement: a player rolling his chair
+        // across the room is SITTING and moving, and showing him striding along
+        // at seat height would look like a ghost.
+        const want = a.act === 'type' ? 'type'
+          : a.act === 'ride' ? 'sit'
+          : (d > 0.05 && a.moving > 0.5) ? 'walk' : 'idle';
         if (a.rig.playing !== want) a.rig.play(want, { fade: 0.2 });
       }
+      // riding sits the avatar at seat height; standing puts him back on the floor
+      const wantY = a.act === 'ride' || a.act === 'type' ? 0.42 : 0;
+      g.position.y += (wantY - g.position.y) * Math.min(1, dt * 6);
     }
   }
 
@@ -1907,14 +1950,19 @@ export class Office {
     // the cursor channel — it publishes the point under the pointer, which is
     // what the other players need to see there.
     if (this.screenEditor) return;
-    const pos = this.player.pos ?? this.camera.position;
+    const pos = this.riding ? { x: this.riding.x, z: this.riding.z } : (this.player.pos ?? this.camera.position);
     // WHAT IS IN MY HAND TRAVELS WITH WHERE I AM STANDING. Item 6's last part:
     // "the other player cannot see that he is holding it." One more key inside
     // `cursor`, which the database rule validates only as "has children", so
     // still no rules change and no new node.
     const c = this.interact?.carry;
     const hold = c ? (c.kind === 'mug' ? (c.full ? 'mug-full' : 'mug') : c.kind) : '';
-    net.setCursor({ mode: 'office', x: r2(pos.x), y: 0, z: r2(pos.z), ry: r2(this.player.yaw ?? 0), hold });
+    // WHAT HE IS DOING, not just where he is. "So the other players, who are
+    // not at a computer, know that he is doing something." Three states are
+    // enough to read the room: standing, riding the chair, working at a screen.
+    const act = this.interact?.focus ? 'type' : (this.riding ? 'ride' : '');
+    net.setCursor({ mode: 'office', x: r2(pos.x), y: 0, z: r2(pos.z),
+      ry: r2(this.player.yaw ?? 0), hold, act });
   }
 
   _makeAvatar(p) {
@@ -1971,6 +2019,183 @@ export class Office {
     }
   }
 
+  // -- the chairs ------------------------------------------------------------
+  //
+  // Jurek, item 9, and it is a feature rather than a fix: "make those seats
+  // with castors something you can actually sit on, but so they MOVE. If a
+  // player walks into one it just rolls along with him; even when he is not
+  // sitting he can push it. When he sits, W/A/S/D drives it. Shift puts a
+  // booster out of the back with fire and it goes really fast. The avatar sits
+  // on it and the others can see him riding. You cannot switch a computer on
+  // unless you are sitting."
+  //
+  // A chair is deliberately NOT a physics body. It is a circle with a velocity,
+  // a friction, and the same wall segments the player already collides against
+  // — which is all a castor chair on a flat floor needs, is stable at any frame
+  // rate, and cannot end up on its side in a corner.
+
+  _addChair(index, x, z, ry, fabric) {
+    const g = new Group();
+    g.name = `chair-${index}`;
+    for (const { mat, geometry } of bakeProp(PROPS.taskChair, { color: fabric })) {
+      const m = new Mesh(geometry, builderMaterial(mat));
+      m.castShadow = true; m.receiveShadow = true;
+      g.add(m);
+    }
+    g.position.set(x, 0, z);
+    g.rotation.y = ry;
+    this.scene.add(g);
+
+    // the jet, off until Shift is held
+    const jet = new Mesh(
+      new BoxGeometry(0.10, 0.10, 0.34),
+      new MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.85, toneMapped: false, depthWrite: false }),
+    );
+    jet.position.set(0, 0.26, 0.30);
+    jet.visible = false;
+    g.add(jet);
+
+    const chair = {
+      index, group: g, jet, x, z, ry, vx: 0, vz: 0, rider: null,
+      radius: 0.30, boost: 0, spin: 0,
+    };
+    this.chairs = this.chairs || [];
+    this.chairs.push(chair);
+    this._shadow(x, 0.004, z, 0.78);
+    return chair;
+  }
+
+  /** The seat the player's head sits at when riding this chair. */
+  _seatOf(c) { return { x: c.x, z: c.z, yaw: null, eye: 1.21 }; }
+
+  /** Sit down on, or get up from, a chair. */
+  toggleRide(c) {
+    if (this.riding === c) {
+      this.riding = null;
+      c.rider = null;
+      this.player.stand();
+      this.player.pos.set(c.x + Math.sin(c.ry) * 0.55, 0, c.z + Math.cos(c.ry) * 0.55);
+      this.ctx?.audio?.play('ui.click-soft');
+      return false;
+    }
+    if (this.riding) this.toggleRide(this.riding);
+    this.riding = c;
+    c.rider = 'me';
+    this.player.sit(this._seatOf(c));
+    this.ctx?.audio?.play('sfx.chair-roll', { position: { x: c.x, y: 0.5, z: c.z } })
+      || this.ctx?.audio?.play('ui.click');
+    return true;
+  }
+
+  /**
+   * Chairs, every frame: driven if ridden, pushed if walked into, rolling to a
+   * stop otherwise.
+   */
+  _tickChairs(dt, input) {
+    if (!this.chairs) return;
+    const P = this.player;
+    for (const c of this.chairs) {
+      if (this.riding === c) {
+        // DRIVEN. Steering is relative to where the player is looking, exactly
+        // like walking, so the control never has to be learned twice.
+        const mv = input?.axis2 ? input.axis2() : { x: 0, y: 0 };
+        const held = !!input?.down?.('sprint');
+        c.boost = MathUtils.damp(c.boost, held && (mv.x || mv.y) ? 1 : 0, 8, dt);
+        const accel = 7.0 + c.boost * 26.0;
+        // yaw 0 looks down -Z (player.js), so forward is (sin, -cos)
+        const fx = Math.sin(P.yaw), fz = -Math.cos(P.yaw);
+        const rx = Math.cos(P.yaw), rz = Math.sin(P.yaw);
+        c.vx += (fx * mv.y + rx * mv.x) * accel * dt;
+        c.vz += (fz * mv.y + rz * mv.x) * accel * dt;
+        c.jet.visible = c.boost > 0.15;
+        if (c.jet.visible) {
+          const f = 0.7 + Math.random() * 0.6;
+          c.jet.scale.set(f, f, 1 + c.boost * (1.6 + Math.random()));
+          c.jet.material.opacity = 0.55 + 0.35 * Math.random();
+        }
+        // the seat turns to face the way it is going, which is what makes it
+        // read as a chair being ridden rather than a box sliding
+        const sp = Math.hypot(c.vx, c.vz);
+        if (sp > 0.25) {
+          let want = Math.atan2(c.vx, -c.vz);
+          let d = want - c.ry;
+          while (d > Math.PI) d -= Math.PI * 2;
+          while (d < -Math.PI) d += Math.PI * 2;
+          c.ry += d * Math.min(1, dt * 5);
+        }
+        c.spin += sp * dt * 6;
+      } else {
+        c.jet.visible = false;
+        c.boost = 0;
+        // PUSHED. Walk into a chair and it goes; no sitting required.
+        const dx = c.x - P.pos.x, dz = c.z - P.pos.z;
+        const d = Math.hypot(dx, dz);
+        const minD = c.radius + PLAYER.radius;
+        if (d < minD && d > 1e-4 && !this.riding) {
+          const nx = dx / d, nz = dz / d;
+          const push = (minD - d);
+          c.x += nx * push; c.z += nz * push;
+          const speed = Math.hypot(P.vel.x, P.vel.z);
+          c.vx += nx * speed * 0.9;
+          c.vz += nz * speed * 0.9;
+          P.pos.x -= nx * push * 0.35;
+          P.pos.z -= nz * push * 0.35;
+        }
+      }
+
+      // integrate, with the friction of a castor on carpet
+      const fr = Math.exp(-dt * (this.riding === c ? 3.4 : 2.6));
+      c.vx *= fr; c.vz *= fr;
+      if (Math.abs(c.vx) < 0.004) c.vx = 0;
+      if (Math.abs(c.vz) < 0.004) c.vz = 0;
+      const step = Math.hypot(c.vx, c.vz) * dt;
+      if (step > 1e-5) {
+        const nx = this._slideChair(c, c.x + c.vx * dt, c.z + c.vz * dt);
+        c.x = nx.x; c.z = nx.z;
+      }
+      c.group.position.set(c.x, 0, c.z);
+      c.group.rotation.y = c.ry;
+      // The interaction proxy travels with the chair. Without this, "Sit" stays
+      // where the chair started and you would be pressing E at empty carpet.
+      if (c.proxy) c.proxy.position.set(c.x, 0.50, c.z);
+      if (this.riding === c) {
+        const seat = this._seatOf(c);
+        P.seat.x = seat.x; P.seat.z = seat.z;
+      }
+    }
+  }
+
+  /**
+   * Keep a chair inside the room and out of the furniture.
+   *
+   * The same segment list the player slides along, so a chair cannot be driven
+   * through a wall or parked inside the plan chest. Cheap: chairs are few and
+   * the segments already carry their fattened AABBs.
+   */
+  _slideChair(c, x, z) {
+    const R = c.radius;
+    for (const s of this.furnitureColliders) {
+      if (x < s._minx - R || x > s._maxx + R || z < s._minz - R || z > s._maxz + R) continue;
+      const ax = s.x1, az = s.z1, bx = s.x2, bz = s.z2;
+      const ex = bx - ax, ez = bz - az;
+      const L = ex * ex + ez * ez;
+      let t = L ? ((x - ax) * ex + (z - az) * ez) / L : 0;
+      t = Math.max(0, Math.min(1, t));
+      const px = ax + t * ex, pz = az + t * ez;
+      const dx = x - px, dz = z - pz;
+      const d = Math.hypot(dx, dz);
+      if (d < R && d > 1e-5) {
+        x = px + (dx / d) * R;
+        z = pz + (dz / d) * R;
+        c.vx *= 0.4; c.vz *= 0.4;
+      }
+    }
+    // the room itself
+    x = MathUtils.clamp(x, 0.5, W - 0.5);
+    z = MathUtils.clamp(z, 0.5, D - 0.5);
+    return { x, z };
+  }
+
   /** Re-render the static shadow map on the next frame. */
   invalidateShadows() { if (this.rig) this.rig.key.shadow.needsUpdate = true; }
 
@@ -1996,6 +2221,7 @@ export class Office {
     this._decayFocus(dt);
     for (const ws of this.workstations) ws.update(dt, true);
     this.staff.update(dt, this.camera.position);
+    this._tickChairs(dt, input);
     this._publishPose(dt);
     this._tickAvatars(dt);
     if (this.avatars) {

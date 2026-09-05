@@ -374,7 +374,8 @@ export class RtdbTransport {
       // "has children". Editor cursors simply never set it.
         cursor: { mode: c.mode ?? null, x: c.x ?? 0, y: c.y ?? 0, z: c.z ?? 0,
           ...(Number.isFinite(c.ry) ? { ry: c.ry } : {}),
-          ...(c.hold ? { hold: String(c.hold).slice(0, 16) } : {}) },
+          ...(c.hold ? { hold: String(c.hold).slice(0, 16) } : {}),
+          ...(c.act ? { act: String(c.act).slice(0, 16) } : {}) },
         sel: c.sel ?? [],
         lastSeen: this.now(),
       }).catch(() => {});
