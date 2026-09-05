@@ -132,10 +132,21 @@ export function measureText(text, cap = 0.5) {
 }
 
 /** A flat box that covers a line of lettering — the invisible hover target. */
-export function hitBox(geometry, pad = 0.22, depth = 0.35) {
+/**
+ * `padY` is separate from `padX`, and that is the whole fix for a real bug.
+ *
+ * One pad for both axes made every menu line's box 1.28 units tall on a 1.05
+ * unit pitch, so ADJACENT LINES OVERLAPPED BY 0.23 — a band a fifth of a line
+ * high that belongs to two items at once. Measured with the pointer held
+ * perfectly still on that band: the hover flipped 34 times in 150 frames,
+ * because the menu camera drifts and the hovered line is pushed 25 mm toward
+ * it, so the nearest-hit answer kept changing under a hand that never moved.
+ * A hit box may be generous sideways; it may not reach into its neighbour.
+ */
+export function hitBox(geometry, pad = 0.22, depth = 0.35, padY = pad) {
   const bb = geometry.boundingBox || new Box3().setFromBufferAttribute(geometry.getAttribute('position'));
   const w = bb.max.x - bb.min.x + pad * 2;
-  const h = bb.max.y - bb.min.y + pad * 2;
+  const h = bb.max.y - bb.min.y + padY * 2;
   const g = new BoxGeometry(w, h, depth);
   g.translate((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, depth / 2 - 0.05);
   return g;

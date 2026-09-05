@@ -843,18 +843,26 @@ export class MenuMode extends Mode {
       const material = new MeshStandardMaterial({ color: new Color(COLORS.ink), roughness: 0.42, metalness: 0.06 });
       material.name = `menu:${it.id}`;
       const mesh = new Mesh(geo, material);
-      mesh.position.set(a.sign.u0, it.y, a.sign.z);
+      // +8 mm off the sign face. The letters are extruded 0.09 forwards from
+      // their own origin, so placing that origin AT a.sign.z put their back
+      // faces exactly in the wall plane — which is why the jitter diff lit up
+      // MULTIPLAYER and not SINGLE PLAYER: the hovered line is pulled 25 mm
+      // clear by _tweenLines and the others were not. Applied lettering stands
+      // off its backing board anyway; it is screwed to it, not painted on.
+      mesh.position.set(a.sign.u0, it.y, a.sign.z + 0.008);
       mesh.castShadow = true;
       mesh.receiveShadow = false;
       mesh.name = `letters:${it.id}`;
       this.letters.add(mesh);
 
-      const hit = new Mesh(hitBox(geo, 0.24, 0.45), new MeshBasicMaterial({ visible: false }));
+      // 0.09 vertically, not 0.24: the lines are 1.05 apart and the caps are
+      // ~0.80 tall, so anything over 0.125 makes neighbouring boxes overlap.
+      const hit = new Mesh(hitBox(geo, 0.24, 0.45, 0.09), new MeshBasicMaterial({ visible: false }));
       hit.position.copy(mesh.position);
       hit.userData.item = it.id;
       this.letters.add(hit);
 
-      this.lines.push({ id: it.id, label: it.label, mesh, hit, material, baseZ: a.sign.z, hover: 0 });
+      this.lines.push({ id: it.id, label: it.label, mesh, hit, material, baseZ: a.sign.z + 0.008, hover: 0 });
     }
 
     // the rooftop sign
@@ -1266,6 +1274,22 @@ export class MenuMode extends Mode {
     if (tag < 0 && this.lines.length) {
       const hit = this.ray.intersectObjects(this.lines.map((l) => l.hit), false)[0];
       if (hit) item = this.lines.findIndex((l) => l.hit === hit.object);
+    }
+    // A CHANGE OF LINE HAS TO WIN THREE FRAMES RUNNING.
+    //
+    // Non-overlapping boxes remove the ambiguity that caused this, but the
+    // camera never stops drifting, so a pointer parked exactly on a boundary
+    // can still tie. Requiring a new item to hold for three frames costs 50 ms
+    // of latency nobody can feel and makes a strobe impossible. Note this
+    // guards the CHANGE, not the hover: re-confirming the line you are already
+    // on is free.
+    if (item >= 0 && item !== this.hoverItem) {
+      this._cand = (this._cand === item) ? this._candN + 1 : 1;
+      this._candN = this._cand;
+      this._cand = item;
+      if (this._candN < 3) item = this.hoverItem >= 0 ? this.hoverItem : -1;
+    } else if (item >= 0) {
+      this._cand = item; this._candN = 3;
     }
     if (item >= 0) {
       this._hoverMiss = 0;

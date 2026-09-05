@@ -550,7 +550,7 @@ export function buildBadBuilding() {
   b.box('concrete', x0 + wall, roof - band, z0 + wall, x1 - wall, roof, z1 - wall);
 
   // ================= SOUTH ELEVATION (z = z1) ==============================
-  for (const p of punch(sw.u0, sw.u1, 0, parapet, [
+  for (const p of punch(sw.u0, sw.u1, 0, roof, [
     { u0: d.u0, u1: d.u1, v0: ffl, v1: d.head },
   ])) {
     b.box('plaster-warm', p.u0, p.v0, z1 - wall, p.u1, p.v1, z1);
@@ -561,7 +561,11 @@ export function buildBadBuilding() {
   b.box('concrete', d.u0 - 0.02, ffl, z1 - d.reveal - wall, d.u0 + 0.14, d.head, z1 - wall);
   b.box('concrete', d.u1 - 0.14, ffl, z1 - d.reveal - wall, d.u1 + 0.02, d.head, z1 - wall);
   b.box('concrete', d.u0, d.head - 0.14, z1 - d.reveal - wall, d.u1, d.head, z1 - wall);
-  b.box('paving', d.u0, ffl - 0.02, z1 - d.reveal - wall, d.u1, ffl, z1);
+  // A FLOOR FINISH SITS ON THE SLAB. Both the threshold and the lobby floor had
+  // their top face at exactly `ffl`, which is the interior slab's top face too,
+  // so the two fought across the whole entrance — the last contiguous red in
+  // the coplanar diff. 6 mm of screed, and they stop being the same surface.
+  b.box('paving', d.u0, ffl - 0.02, z1 - d.reveal - wall, d.u1, ffl + 0.006, z1);
   b.box('concrete-dark', d.u0 + 0.02, ffl, z1 - d.reveal - 0.07, d.u1 - 0.02, ffl + 2.05, z1 - d.reveal);
   b.box('glass', d.u0 + 0.08, ffl + 0.07, z1 - d.reveal - 0.055, d.u1 - 0.08, ffl + 1.99, z1 - d.reveal - 0.025);
   b.box('concrete-dark', d.u0 + 0.86, ffl, z1 - d.reveal - 0.07, d.u0 + 0.94, ffl + 2.05, z1 - d.reveal); // meeting stile
@@ -572,7 +576,9 @@ export function buildBadBuilding() {
   // 100 ms frame to light one square metre; it is now an emissive surface, which
   // costs nothing and looks the same from 27 m away.
   b.box('lobby-glow', d.u0 - 0.4, ffl, z1 - d.reveal - 1.60, d.u1 + 0.4, ffl + 2.90, z1 - d.reveal - 1.54);
-  b.box('paving', d.u0 - 0.4, ffl - 0.03, z1 - d.reveal - 1.60, d.u1 + 0.4, ffl, z1 - d.reveal);
+  // the lobby floor stops 10 mm short of the glowing wall behind it, rather
+  // than sharing its back plane
+  b.box('paving', d.u0 - 0.4, ffl - 0.03, z1 - d.reveal - 1.53, d.u1 + 0.4, ffl + 0.006, z1 - d.reveal);
 
   // crime 12 — 5.40 x 9.30 m = 50.22 m² of unshaded south glazing, and not one
   // shading device. The tag quotes 50.2; round 2's quoted 48.6, which is
@@ -635,20 +641,29 @@ export function buildBadBuilding() {
     f5:  W(5.10, HEADS.b5, 3.9, 4.8),     // crime 8, head 6.30
   };
   const eastHoles = Object.values(HOLE);
-  for (const p of punch(z0, z1, 0, parapet, eastHoles)) {
+  for (const p of punch(z0, z1, 0, roof, eastHoles)) {
     b.box('brick', x1 - wall, p.v0, p.u0, x1, p.v1, p.u1);
   }
   for (const y of [L1, L2, roof]) b.box('concrete', x1 + 0.005, y - band, z0, x1 + 0.075, y, z1);
 
+  // EVERY LAYER IN A WINDOW GETS ITS OWN MILLIMETRES.
+  //
+  // The frame ran x1-wall+0.05..+0.09 and the glass started at exactly +0.09,
+  // so the two shared a plane across the whole opening; the glazing bar ran
+  // +0.05..+0.10 and shared the frame's face at +0.05 as well. That is the red
+  // inside every window on the east elevation in the coplanar diff. A window is
+  // a frame with glass SET BACK IN IT and a bar STANDING PROUD OF IT, which is
+  // both truer and unambiguous to the depth buffer.
   for (const h of eastHoles) {
     const isDoor = h === HOLE.d04;
-    b.box(isDoor ? 'wood-mid' : 'glass', x1 - wall + 0.09, h.v0 + 0.05, h.u0 + 0.05, x1 - wall + 0.15, h.v1 - 0.05, h.u1 - 0.05);
-    b.box('ink', x1 - wall + 0.05, h.v0, h.u0, x1 - wall + 0.09, h.v1, h.u1);
+    b.box(isDoor ? 'wood-mid' : 'glass', x1 - wall + 0.100, h.v0 + 0.05, h.u0 + 0.05, x1 - wall + 0.150, h.v1 - 0.05, h.u1 - 0.05);
+    b.box('ink', x1 - wall + 0.050, h.v0, h.u0, x1 - wall + 0.092, h.v1, h.u1);
     if (!isDoor) {
-      b.box('concrete', x1 - 0.04, h.v0 - 0.08, h.u0 - 0.06, x1 + 0.10, h.v0, h.u1 + 0.06);
-      // one glazing bar, so a window reads as a window at 25 m
+      b.box('concrete', x1 + 0.005, h.v0 - 0.08, h.u0 - 0.06, x1 + 0.10, h.v0, h.u1 + 0.06);
+      // one glazing bar, so a window reads as a window at 25 m — proud of the
+      // frame, not flush with it
       const mid = (h.u0 + h.u1) / 2;
-      b.box('ink', x1 - wall + 0.05, h.v0, mid - 0.03, x1 - wall + 0.10, h.v1, mid + 0.03);
+      b.box('ink', x1 - wall + 0.042, h.v0, mid - 0.03, x1 - wall + 0.098, h.v1, mid + 0.03);
     }
   }
 
@@ -708,15 +723,33 @@ export function buildBadBuilding() {
   b.box('plaster-warm', x0, 0, z0, x0 + wall, parapet, z1);
 
   // ================= ROOF ==================================================
-  b.box('concrete-dark', x0, roof, z0, x1, roof + 0.06, z1);
+  //
+  // THE PARAPET STANDS ON THE DECK AND CONTINUES THE WALL; IT DOES NOT SHARE A
+  // PLANE WITH EITHER. That sounds like pedantry and is the whole of item 4's
+  // "band above the single-player line, and that band right round the
+  // building". Three surfaces used to occupy the same millimetres:
+  //
+  //   - the roof deck ran the full plan x0..x1, z0..z1 from `roof`, so its
+  //     underside was coplanar with the parapet's underside all the way round;
+  //   - the elevations were punched to `parapet`, not to `roof`, so wall and
+  //     parapet shared the outer face over the parapet's whole height — a band
+  //     two metres long and 400 mm high on every elevation, which is exactly
+  //     the shape Jurek described;
+  //   - and the ring was 250 mm against a 300 mm wall, so it stepped as well.
+  //
+  // Now: the walls stop at the deck, the deck is inset inside the ring, and the
+  // ring is the wall's own thickness and sits on top of the deck. Measured with
+  // a depth-function flip (LessEqual vs Less, same camera, same frame): 6 454
+  // coplanar pixels before.
+  b.box('concrete-dark', x0 + wall, roof, z0 + wall, x1 - wall, roof + 0.06, z1 - wall);
   for (const [a0, c0, a1, c1] of [
-    [x0, z0, x1, z0 + 0.25],
-    [x0, z0, x0 + 0.25, z1], [x1 - 0.25, z0, x1, z1],
+    [x0, z0, x1, z0 + wall],
+    [x0, z0, x0 + wall, z1], [x1 - wall, z0, x1, z1],
   ]) b.box('concrete', a0, roof, c0, a1, parapet, c1);
   // the south parapet, in two pieces, because RO-1 is notched clean through it
   const sc = { u0: 0.15, u1: 0.45 };
-  b.box('concrete', x0, roof, z1 - 0.25, sc.u0, parapet, z1);
-  b.box('concrete', sc.u1, roof, z1 - 0.25, x1, parapet, z1);
+  b.box('concrete', x0, roof, z1 - wall, sc.u0, parapet, z1);
+  b.box('concrete', sc.u1, roof, z1 - wall, x1, parapet, z1);
 
   // crime 10 — a chimney with no flue on a flat-roofed office. It is built in
   // 'brick-stack', the warm red the whole elevation used to be before round 2
