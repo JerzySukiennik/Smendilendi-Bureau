@@ -161,6 +161,7 @@ export class Interaction {
     }
 
     // carried mug cools and can be sipped or set down
+    if (this.brewing) this._updateBrew(dt);
     if (this.carry) this._updateCarry(dt, input);
     this._updateProjectiles(dt);
   }
@@ -316,11 +317,92 @@ export class Interaction {
   // -- the mug ---------------------------------------------------------------
 
   /** Hand the player a fresh mug. Temperature in Celsius, because of course. */
-  giveMug(colorHex) {
+  /**
+   * Take an EMPTY mug from the shelf. The first half of making a coffee.
+   *
+   * The machine used to hand you a full mug the instant you pressed E, and
+   * nothing poured — "there's a mug in your hand and no coffee even comes out
+   * of the machine". Making a coffee is three moves: fetch a mug, put it under
+   * the spout, wait while it fills. This is the first.
+   */
+  takeEmptyMug(colorHex = 0xe9e6df) { return this.giveMug(colorHex, { full: false }); }
+
+  /**
+   * Put the held mug under the spout and brew.
+   *
+   * Returns false with a reason when the player has not got what he needs, so
+   * the office can say something useful rather than nothing happening.
+   */
+  brew(machinePos) {
+    if (!this.carry || this.carry.kind !== 'mug') return { ok: false, why: 'empty-handed' };
+    if (this.carry.full) return { ok: false, why: 'already-full' };
+    if (this.brewing) return { ok: false, why: 'busy' };
+    const c = this.carry;
+    this.camera.remove(c.mesh);
+    this.carry = null;
+    // the mug stands on the drip tray while it fills
+    const at = machinePos || { x: 14.55, y: 0.98, z: 7.30 };
+    c.mesh.position.set(at.x, at.y, at.z);
+    c.mesh.rotation.set(0, 0, 0);
+    c.mesh.scale.setScalar(1);
+    this.scene.add(c.mesh);
+    this.brewing = { mug: c, at, t: 0, dur: 3.2, drops: [], spawned: 0 };
+    this.audio?.play('sfx.coffee-machine', { position: at });
+    return { ok: true };
+  }
+
+  /** The pour: a thin stream of falling drops, and the mug fills as it goes. */
+  _updateBrew(dt) {
+    const B = this.brewing;
+    if (!B) return;
+    B.t += dt;
+    // spawn a drop roughly every 40 ms while the stream is running
+    const want = Math.min(Math.floor(B.t / 0.04), Math.floor(B.dur / 0.04));
+    while (B.spawned < want) {
+      B.spawned++;
+      const g = new Mesh(
+        new BoxGeometry(0.012, 0.030, 0.012),
+        new MeshBasicMaterial({ color: 0x4a2c18, toneMapped: false }),
+      );
+      g.position.set(B.at.x + (Math.random() - 0.5) * 0.006, B.at.y + 0.20,
+                     B.at.z + (Math.random() - 0.5) * 0.006);
+      this.scene.add(g);
+      B.drops.push({ mesh: g, v: 0 });
+    }
+    for (let i = B.drops.length - 1; i >= 0; i--) {
+      const d = B.drops[i];
+      d.v += 9.81 * dt;
+      d.mesh.position.y -= d.v * dt;
+      if (d.mesh.position.y <= B.at.y + 0.045) {
+        this.scene.remove(d.mesh);
+        d.mesh.geometry.dispose(); d.mesh.material.dispose();
+        B.drops.splice(i, 1);
+      }
+    }
+    if (B.t >= B.dur && B.drops.length === 0) {
+      this.scene.remove(B.mug.mesh);
+      this.brewing = null;
+      B.mug.full = true; B.mug.temp = 78; B.mug.sips = 3;
+      // rebuild the mesh so the mug reads as full
+      const b = new MeshBuilder(); b._ao = false;
+      propMug(b, { color: B.mug.color, full: true });
+      const g = new Group();
+      for (const { mat, geometry } of b.build()) g.add(new Mesh(geometry, builderMaterial(mat)));
+      g.position.set(0.26, -0.24, -0.46);
+      g.rotation.set(0.12, -0.5, 0.06);
+      this.camera.add(g);
+      B.mug.mesh = g;
+      this.carry = B.mug;
+      this.audio?.play('sfx.coffee-pour');
+      this.onBrewed?.();
+    }
+  }
+
+  giveMug(colorHex, { full = true } = {}) {
     if (this.carry) return false;
     const b = new MeshBuilder();
     b._ao = false;
-    propMug(b, { color: colorHex, full: true });
+    propMug(b, { color: colorHex, full });
     const g = new Group();
     for (const { mat, geometry } of b.build()) {
       const m = new Mesh(geometry, builderMaterial(mat));
@@ -332,8 +414,8 @@ export class Interaction {
     g.scale.setScalar(1.0);
     this.camera.add(g);
     if (!this.camera.parent) this.scene.add(this.camera);
-    this.carry = { mesh: g, kind: 'mug', temp: 78, sips: 3, color: colorHex, bob: 0 };
-    this.audio?.play('sfx.coffee-pour');
+    this.carry = { mesh: g, kind: 'mug', full, temp: full ? 78 : 21, sips: full ? 3 : 0, color: colorHex, bob: 0 };
+    if (full) this.audio?.play('sfx.coffee-pour');
     return true;
   }
 
@@ -389,7 +471,7 @@ export class Interaction {
   /** A sip. Hot coffee focuses; a cold one is just a sad cold coffee. */
   sip() {
     const c = this.carry;
-    if (!c || c.sips <= 0) return null;
+    if (!c || c.kind !== 'mug' || !c.full || c.sips <= 0) return null;
     c.sips--;
     const boost = MathUtils.clamp((c.temp - 21) / 57, 0, 1);
     this.audio?.play('ui.click-soft');

@@ -1241,13 +1241,26 @@ export class Office {
     const cm = this._proxy(14.55, 1.12, 7.30, 0.50, 0.50, 0.36, 0,
       { key: 'coffeeMachine', fn: PROPS.coffeeMachine, at: { x: 14.62, y: 0.90, z: 7.30, ry: -Math.PI / 2 } });
     I.register({
-      id: 'coffee', mesh: cm, label: 'Coffee machine', verb: 'Pour a cup',
+      id: 'coffee', mesh: cm, label: 'Coffee machine', verb: 'Put the mug under',
       onUse: () => {
-        this.ctx?.audio?.play('sfx.coffee-machine', { position: { x: 14.6, y: 1.1, z: 7.3 } });
-        if (!I.giveMug(0xe9e6df)) this.toast('Both hands full.');
-        else this.toast('Hot coffee. Enter to sip, G to put it down.');
+        const r = I.brew({ x: 14.55, y: 0.98, z: 7.30 });
+        if (r.ok) { this.toast('Pouring…'); return; }
+        if (r.why === 'empty-handed') this.toast('Take a mug from the shelf on the right first.');
+        else if (r.why === 'already-full') this.toast('That one is already full.');
+        else this.toast('It is still pouring.');
       },
     });
+
+    // the mug shelf, to the right of the machine — where a coffee starts
+    const ms = this._proxy(14.55, 1.16, 8.05, 0.34, 0.26, 0.30);
+    I.register({
+      id: 'mugshelf', mesh: ms, label: 'Mugs', verb: 'Take a mug',
+      onUse: () => {
+        if (I.takeEmptyMug(0xe9e6df)) this.toast('Now hold it under the machine.');
+        else this.toast('Both hands full.');
+      },
+    });
+    I.onBrewed = () => this.toast('Hot coffee. Enter to sip, G to put it down.');
 
     // radio
     const rd = this._proxy(12.20, 1.00, 0.60, 0.34, 0.24, 0.22, 0.35,
