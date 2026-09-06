@@ -1536,6 +1536,7 @@ export class Office {
     mode.enterOnScreen(params, rt, this.screenRect(ws));
     this.interact.editorOnScreen = true;
     this.interact.focusScreen(ws, { fill: true });
+    this._refreshHostCursor();
     return mode;
   }
 
@@ -1543,6 +1544,7 @@ export class Office {
     const se = this.screenEditor; if (!se) return;
     this.screenEditor = null;
     this.interact.editorOnScreen = false;
+    this._refreshHostCursor();
     se.mode.exitOnScreen();
     const mat = se.ws.screen.material;
     mat.map = se.prevMap; mat.color.setHex(se.prevColor); mat.needsUpdate = true;
@@ -1583,13 +1585,26 @@ export class Office {
     this.hudEl?.classList.toggle('focused', on);
     this.vignette?.classList.toggle('on', on);
     if (!on) this.cursorEl?.classList.remove('on');
-    // While the machine has focus the OS draws its own 1-bit pointer, so the
-    // host cursor has to go — otherwise the player sees two cursors at once,
-    // the browser's arrow and ours, drifting apart as the screen is at an angle.
-    // os.css already sets `cursor: none`, but that only covers the OS element;
-    // when the screen is a texture on the monitor the pointer is really over the
-    // main WebGL canvas, which that rule never touches.
-    this._setHostCursorHidden(on);
+    // THE HOST CURSOR GOES ONLY IF SOMETHING ELSE IS DRAWING ONE.
+    //
+    // While the machine has focus the OS paints its own 1-bit pointer, so the
+    // browser's arrow has to go or the player sees two cursors drifting apart
+    // on an angled screen. But the EDITOR on that same screen paints no cursor
+    // at all — it uses the ordinary mouse, re-based onto the screen rectangle —
+    // so hiding the host one there leaves the player with NO POINTER, which is
+    // exactly what Jurek reported twice: "I cannot see the mouse and I cannot
+    // move." The editor was open, on the monitor, rendering correctly, and
+    // unusable, because the thing you point with was invisible.
+    this._setHostCursorHidden(on && !this.screenEditor);
+  }
+
+  /**
+   * The editor arriving on or leaving a focused screen changes who owns the
+   * pointer, and that has to be re-decided at that moment: focus itself is not
+   * changing, so _onFocusChange never fires.
+   */
+  _refreshHostCursor() {
+    this._setHostCursorHidden(!!this.interact?.focus && !this.screenEditor);
   }
 
   /**

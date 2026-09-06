@@ -246,6 +246,16 @@ export class RectTool extends TwoPointTool {
       };
     });
     const made = this.ed.applyMany(ops);
+    // A REFUSED RECTANGLE IS NOT A RECTANGLE. applyMany returns [] when the
+    // buildable guard turns the batch down, and this used to sail past it:
+    // it returned a `made` with no ids, RoomTool then laid the floor and the
+    // ceiling on top of that nothing, and the size message overwrote the
+    // refusal on the way out. So the player dragged a room across the boundary
+    // and was told "Room 17.00 x 15.00 m" while receiving a bare floor and no
+    // walls at all — which is what "design does not work" actually looked like.
+    // Measured: four wall.add ops refused, two slab.add ops accepted, one
+    // cheerful message. Nothing is built now unless the walls were.
+    if (ops.length && !made.length) return null;
     this.flash(`${(Math.abs(x1 - x0)).toFixed(2)} × ${(Math.abs(z1 - z0)).toFixed(2)} m`);
     return { ids: made.map(o => o.id), corner: [x0, z0, x1, z1] };
   }

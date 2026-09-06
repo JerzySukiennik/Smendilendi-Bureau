@@ -206,6 +206,11 @@ export class Editor {
         ? 'One corner is off the buildable area — the client does not own that ground.'
         : `${r.out} corners are off the buildable area — the client does not own that ground.`);
     } else {
+      // Do not wipe a refusal that has only just been shown. A refused batch
+      // builds nothing, so the very next _checkBuildable finds zero corners
+      // outside and would clear the message explaining why nothing appeared —
+      // in the same frame the player was reading it.
+      if (performance.now() - (this._refusedAt || 0) < 5000) return;
       this.hud?.warn?.(null);
     }
   }
@@ -267,6 +272,12 @@ export class Editor {
     } else return true;
     for (const [x, z] of pts) {
       if (!pointInPoly(poly, x, z)) {
+        // warn(), not flash(): a flash is overwritten by whatever the tool says
+        // next, and the tool's next word used to be the size of the room it
+        // thought it had just built. A refusal has to outlive the gesture that
+        // caused it.
+        this.hud?.warn?.('That corner is off the buildable area — nothing was built. Keep inside the grey outline.');
+        this._refusedAt = performance.now();
         this.hud?.flash('Not on the client\u2019s land — keep inside the grey area.');
         return false;
       }
@@ -474,6 +485,22 @@ export class Editor {
       b.expandByPoint(new Vector3(sheet.maxX, 0, sheet.maxZ));
     }
     if (!b.isEmpty()) return b;
+    // NOTHING DRAWN YET: FRAME THE GROUND HE IS ALLOWED TO BUILD ON, not the
+    // whole site. Falling back to siteBounds opened the editor about 100 m out,
+    // with the buildable area a small patch in the middle of a big green field
+    // — so the natural first drag went straight across the boundary, every wall
+    // was refused, and the only thing that appeared was a floor. Framing the
+    // buildable polygon makes the legal ground most of the screen, which is
+    // what a site plan does and what stops the mistake being available.
+    const poly = this._buildablePoly();
+    if (Array.isArray(poly) && poly.length >= 3) {
+      const bb = new Box3();
+      bb.makeEmpty();
+      for (const [x, z] of poly) bb.expandByPoint(new Vector3(x, 0, z));
+      bb.expandByPoint(new Vector3(bb.min.x, this.storeyHeight, bb.min.z));
+      bb.expandByScalar(2.5);           // a little air, so the outline is not flush to the frame
+      if (!bb.isEmpty()) return bb;
+    }
     if (this.siteBounds && !this.siteBounds.isEmpty()) return this.siteBounds.clone();
     b.setFromCenterAndSize(new Vector3(0, 1.35, 0), new Vector3(16, 3, 12));
     return b;
